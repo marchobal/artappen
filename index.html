@@ -120,6 +120,19 @@
 
   /* Kurva och resa */
   #chart { width: 100%; height: 110px; display: block; }
+  /* Resesammanfattning och topplista */
+  .tripsum { margin-bottom: 10px; }
+  .tripsum .big { font-size: 1.5rem; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .tripsum .big span { font-size: .95rem; font-weight: 600; color: var(--text); }
+  .tripsum .parts { font-size: .82rem; color: var(--muted); line-height: 1.35; }
+  .topseg { display: flex; width: 100%; margin-bottom: 8px; }
+  .topseg button { flex: 1; padding: 5px 4px; font-size: .82rem; }
+  .toplist li { display: flex; align-items: center; gap: 8px; padding: 3px 2px; font-size: .88rem; border-bottom: 1px solid var(--line); }
+  .toplist li:last-child { border-bottom: 0; }
+  .toplist .rank { width: 1.4em; text-align: right; color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
+  .toplist img { width: 24px; height: 18px; object-fit: contain; flex: none; }
+  .toplist .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .toplist .cnt { color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
   .small { font-size: .8rem; color: var(--muted); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tripbtns { display: flex; gap: 8px; }
   .tripbtns button { flex: 1; }
@@ -129,9 +142,9 @@
   /* Mobil: siffran och statusen stannar överst när man skrollar */
   @media (max-width: 899px) {
     .statbar { position: sticky; top: 0; z-index: 5; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
-    .layout, .left, .bottomrow { display: contents; }
+    .layout, .left, .bottomrow, .right { display: contents; }
     .layout { display: flex; flex-direction: column; }
-    .statbar { order: 1; } .listcard { order: 2; } .mapcard { order: 3; } .chartcard { order: 4; } .tripcard { order: 5; }
+    .statbar { order: 1; } .listcard { order: 2; } .mapcard { order: 3; } .chartcard { order: 4; } .tripcard { order: 5; } .topcard { order: 6; }
     .controls { width: 100%; }
     .yearpick { left: 0; right: 0; }
     .seg button { padding: 8px 10px; }
@@ -147,8 +160,13 @@
     .card { margin: 0; }
     .mapcard { flex: 1; display: flex; min-height: 0; }
     #map { flex: 1; height: auto; min-height: 200px; }
-    .bottomrow { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(220px, 1fr); gap: 12px; }
-    .chartcard, .tripcard { height: 168px; }
+    .bottomrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+    .chartcard, .tripcard { height: 206px; }
+    .tripcard { overflow-y: auto; }
+    #chart { height: 130px; }
+    .right { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+    .right .listcard { flex: 1; }
+    .topcard { flex: none; max-height: 300px; overflow-y: auto; }
     #chart { height: 92px; }
     .listcard { min-height: 0; overflow-y: auto; }
     .listcard ol.two { column-count: 2; column-gap: 8px; }
@@ -206,6 +224,7 @@
         </section>
         <section class="card tripcard">
           <h2>Resa</h2>
+          <div id="tripSummary" class="tripsum"></div>
           <div class="tripbtns">
             <button class="primary" id="startBtn">Starta resa</button>
             <button id="clearBtn">Rensa resan</button>
@@ -215,9 +234,20 @@
       </div>
     </div>
 
+    <div class="right">
     <section class="card listcard">
       <div id="list"><p class="empty">Inga data ännu.</p></div>
     </section>
+      <section class="card topcard">
+          <h2>Topplista för resan</h2>
+          <div class="seg topseg" id="topSeg" role="group" aria-label="Topplista">
+            <button data-top="red">Hotade</button>
+            <button data-top="rare">Ovanligast</button>
+            <button data-top="common">Vanligast</button>
+          </div>
+          <ol class="toplist" id="topList"></ol>
+        </section>
+    </div>
   </div>
 </main>
 
@@ -330,7 +360,8 @@ async function update() {
                  n: Object.fromEntries(Object.entries(r.byGroup).map(([k, v]) => [k, v.counts.length])),
                  obs: Object.fromEntries(Object.entries(r.byGroup).map(([k, v]) => [k, v.total])) });
     save(TRACK_KEY, track);
-    drawChart(); drawTrack();
+    collectTrip(r);
+    drawChart(); drawTrack(); renderTrip();
     showProgress();
     if (mode === 'gps') renderCurrent();
   } catch (e) {
@@ -663,6 +694,72 @@ function renderList(items) {
   list.parentElement.scrollTop = scroll;
 }
 
+// ---- Resesammanfattning ----
+// Alla arter som funnits inom 5 km från någon punkt på resan, per år-val och grupp:
+// tripSpecies[yr][grupp][artnyckel] = flest observationer vid någon punkt. Inga extra anrop –
+// det byggs av samma data som hämtas var 300:e meter.
+const TRIP_KEY = 'artappen.tripSpecies', TOP_KEY = 'artappen.topMode';
+let tripSpecies = load(TRIP_KEY, {});
+let topMode = load(TOP_KEY, 'red');
+function collectTrip(r) {
+  const bucket = tripSpecies[r.yr] ??= {};
+  for (const [gid, { counts }] of Object.entries(r.byGroup)) {
+    const g = bucket[gid] ??= {};
+    counts.forEach(c => { g[c.key] = Math.max(g[c.key] || 0, c.n); });
+  }
+  save(TRIP_KEY, tripSpecies);
+}
+
+const SHORT = { mammals: 'däggdjur', birds: 'fåglar', herps: 'grod- & kräldjur' };
+let allRedlists = null;
+function loadAllRedlists() {
+  return allRedlists ??= Promise.all(Object.values(GROUPS).flatMap(g => g.red.map(([n, k]) => loadRedlist(n, k).catch(() => {}))));
+}
+
+let tripRenderSeq = 0;
+async function renderTrip() {
+  const my = ++tripRenderSeq;
+  const bucket = tripSpecies[yearId()] || {};
+  const all = Object.entries(bucket).flatMap(([gid, sp]) => Object.entries(sp).map(([key, n]) => ({ gid, key, n })));
+  const tr = track.filter(p => p.yr === yearId());
+  if (!all.length) {
+    $('tripSummary').innerHTML = `<div class="parts">Ingen resa ${tr.length || track.length ? 'med valda år' : 'än'}. Starta en resa för att samla arter längs vägen.</div>`;
+    $('topList').innerHTML = '<li class="muted">Topplistan fylls på under resan.</li>';
+    document.querySelectorAll('#topSeg button').forEach(b => b.classList.toggle('on', b.dataset.top === topMode));
+    return;
+  }
+  await loadAllRedlists();
+  if (my !== tripRenderSeq) return;
+  // Sammanfattning
+  const per = Object.keys(GROUPS).map(gid => [gid, Object.keys(bucket[gid] || {}).length]).filter(([, n]) => n);
+  const red = all.filter(x => redlist[x.key]);
+  let km = 0; for (let i = 1; i < tr.length; i++) km += distKm(tr[i - 1], tr[i]);
+  const mins = tr.length > 1 ? Math.round((tr.at(-1).t - tr[0].t) / 60_000) : 0;
+  const dur = mins >= 60 ? `${Math.floor(mins / 60)} h ${mins % 60} min` : `${mins} min`;
+  $('tripSummary').innerHTML =
+    `<div class="big">${fmtN(all.length)} <span>arter längs resan</span></div>` +
+    `<div class="parts">${per.map(([gid, n]) => `${fmtN(n)} ${SHORT[gid]}`).join(' · ')}${red.length ? ` · <b>${red.length} hotade</b>` : ''}<br>` +
+    `${km.toFixed(1).replace('.', ',')} km · ${dur} · ${tr.length} mätningar · ${yearText()}</div>`;
+  // Topplista: alla grupper i samma lista
+  const sorted = topMode === 'red'
+    ? red.sort((a, b) => THREAT[redlist[b.key]].rank - THREAT[redlist[a.key]].rank || a.n - b.n)
+    : topMode === 'rare' ? [...all].sort((a, b) => a.n - b.n) : [...all].sort((a, b) => b.n - a.n);
+  const top = sorted.slice(0, 10);
+  const draw = () => {
+    if (my !== tripRenderSeq) return;
+    document.querySelectorAll('#topSeg button').forEach(b => b.classList.toggle('on', b.dataset.top === topMode));
+    $('topList').innerHTML = top.length ? top.map((x, i) => {
+      const nm = names[x.key], th = THREAT[redlist[x.key]];
+      return `<li title="${esc(nm?.sci || '')}"><span class="rank">${i + 1}</span><img src="img/${x.gid}.png" alt="${esc(GROUPS[x.gid].label)}">` +
+        `<span class="nm">${th ? `<b class="badge ${th.code.toLowerCase()}" title="${th.sv}">${th.code}</b>` : ''}${esc(nm?.swe || nm?.sci || '…')}</span>` +
+        `<span class="cnt">${fmtN(x.n)} obs.</span></li>`;
+    }).join('') : '<li class="muted">Inga hotade arter längs resan än.</li>';
+  };
+  draw();
+  const missing = top.filter(x => !names[x.key]);
+  if (missing.length) { await Promise.all(missing.map(x => speciesName(x.key))); draw(); }
+}
+
 // ---- Kurva över resan ----
 function drawChart() {
   const svg = $('chart');
@@ -987,7 +1084,7 @@ function applyFilter() {
   save(FILTER_KEY, filter);
   syncControls();
   obsLayer.setUrl(obsUrl());
-  drawChart();
+  drawChart(); renderTrip();
   // Byte av djurgrupp: allt finns redan hämtat. Byte av år: hämta om för resa och utforskad punkt.
   if (tripRes && tripRes.yr !== yearId() && pos) update();
   if (exploreRes && exploreRes.yr !== yearId() && exploreAt) exploreFetch();
@@ -1016,8 +1113,14 @@ $('yearFrom').onchange = e => { filter.from = e.target.value ? +e.target.value :
 $('yearTo').onchange = e => { filter.to = e.target.value ? +e.target.value : null; applyFilter(); };
 $('startBtn').onclick = () => (watchId != null || timer != null) ? stop() : start();
 $('clearBtn').onclick = () => {
-  if (track.length && !confirm('Rensa hela resan och kurvan?')) return;
-  track = []; save(TRACK_KEY, track); drawChart(); drawTrack();
+  if (track.length && !confirm('Rensa hela resan, kurvan och topplistan?')) return;
+  track = []; save(TRACK_KEY, track);
+  tripSpecies = {}; save(TRIP_KEY, tripSpecies);
+  drawChart(); drawTrack(); renderTrip();
+};
+$('topSeg').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  topMode = b.dataset.top; save(TOP_KEY, topMode); renderTrip();
 };
 
 fillYears();
@@ -1025,6 +1128,7 @@ syncControls();
 renderCurrent();
 drawChart();
 drawTrack();
+renderTrip();
 if (track.length) map.fitBounds(trackLine.getBounds().pad(0.3), { maxZoom: 12 }); // en kort resa ska inte ge maxzoom
 new ResizeObserver(() => map.invalidateSize()).observe($('map'));
 new ResizeObserver(() => drawChart()).observe($('chart'));
