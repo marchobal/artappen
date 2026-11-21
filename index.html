@@ -67,10 +67,10 @@
   .statbar { display: flex; align-items: center; gap: 14px; height: 68px; padding: 10px 14px; }
   .stattext { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
   .count { font-size: 2.4rem; font-weight: 700; line-height: 1; color: var(--accent);
-           font-variant-numeric: tabular-nums; min-width: 2.2ch; text-align: right; }
+           font-variant-numeric: tabular-nums; width: 3ch; flex: none; text-align: right; } /* fast bredd upp till 999 – texten och djuret står still */
   .statline { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #countLabel { font-weight: 600; font-size: .95rem; }
-  .groupicon { height: 36px; width: auto; flex: none; margin-left: -4px; align-self: center; }
+  .groupicon { width: 48px; height: 36px; object-fit: contain; object-position: left center; flex: none; margin-left: -4px; } /* samma ruta för alla djur */
   #status { font-size: .85rem; color: var(--muted); }
   #status:empty { display: none; } /* bara meddelanden som "Hämtar…" eller fel visas här */
 
