@@ -47,8 +47,16 @@
   .brand { font-weight: 700; font-size: 1.05rem; display: flex; align-items: center; gap: 8px; }
   .brand img { width: 26px; height: 26px; border-radius: 6px; }
   .brand small { font-weight: 400; color: var(--muted); font-size: .8rem; }
-  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-  .yearrow { display: flex; gap: 12px; flex-basis: 100%; justify-content: flex-end; }
+  /* Djurgrupp och år: två lika breda rader, knapparna delar bredden */
+  .controls { display: flex; flex-direction: column; gap: 8px; width: 440px; max-width: 100%; }
+  .yearwrap { position: relative; }
+  .controls .seg { display: flex; width: 100%; }
+  .controls .seg button { flex: 1 1 0; padding-left: 4px; padding-right: 4px; white-space: nowrap; }
+  .yearpick { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; display: flex; align-items: center; gap: 10px;
+              flex-wrap: wrap; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px;
+              box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+  .yearpick[hidden] { display: none; }
+  .yearpick button { padding: 5px 14px; }
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--card); }
   .seg button { border: 0; border-radius: 0; padding: 6px 12px; background: transparent; font-size: .9rem; }
   .seg button + button { border-left: 1px solid var(--line); }
@@ -56,13 +64,14 @@
   .yr { font-size: .9rem; color: var(--muted); }
 
   /* Statusrad med antal arter – fast höjd, ändrar inte storlek när texten ändras */
-  .statbar { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 2px 14px;
-             height: 74px; padding: 10px 14px; }
-  .count { grid-row: span 2; font-size: 2.4rem; font-weight: 700; line-height: 1; color: var(--accent);
+  .statbar { display: flex; align-items: center; gap: 14px; height: 68px; padding: 10px 14px; }
+  .stattext { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+  .count { font-size: 2.4rem; font-weight: 700; line-height: 1; color: var(--accent);
            font-variant-numeric: tabular-nums; min-width: 2.2ch; text-align: right; }
   .statline { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #countLabel { font-weight: 600; font-size: .95rem; }
   #status { font-size: .85rem; color: var(--muted); }
+  #status:empty { display: none; } /* bara meddelanden som "Hämtar…" eller fel visas här */
 
   /* Karta */
   .mapcard { padding: 0; overflow: hidden; }
@@ -121,8 +130,8 @@
     .layout, .left, .bottomrow { display: contents; }
     .layout { display: flex; flex-direction: column; }
     .statbar { order: 1; } .listcard { order: 2; } .mapcard { order: 3; } .chartcard { order: 4; } .tripcard { order: 5; }
-    .yearrow { justify-content: flex-start; }
     .controls { width: 100%; }
+    .yearpick { left: 0; right: 0; }
     .seg button { padding: 8px 10px; }
   }
 
@@ -155,15 +164,19 @@
         <button data-group="birds">Fåglar</button>
         <button data-group="herps">Grod- & kräldjur</button>
       </div>
-      <div class="seg" id="yearChips" role="group" aria-label="Snabbval år">
-        <button data-span="1">I år</button>
-        <button data-span="5">5 år</button>
-        <button data-span="10">10 år</button>
-        <button data-span="0">Alla år</button>
-      </div>
-      <div class="yearrow">
-        <label class="yr">Från <select id="yearFrom"></select></label>
-        <label class="yr">till <select id="yearTo"></select></label>
+      <div class="yearwrap">
+        <div class="seg" id="yearChips" role="group" aria-label="Vilka år">
+          <button data-span="1">I år</button>
+          <button data-span="5">5 år</button>
+          <button data-span="10">10 år</button>
+          <button data-span="0">Alla år</button>
+          <button id="yearPickBtn" aria-expanded="false">Välj</button>
+        </div>
+        <div class="yearpick" id="yearPick" hidden>
+          <label class="yr">Från <select id="yearFrom"></select></label>
+          <label class="yr">till <select id="yearTo"></select></label>
+          <button class="primary" id="yearPickDone">Klar</button>
+        </div>
       </div>
     </div>
   </header>
@@ -172,8 +185,10 @@
     <div class="left">
       <section class="card statbar">
         <div class="count" id="count">–</div>
-        <div class="statline" id="countLabel">arter inom 5 km.</div>
-        <div class="statline" id="status">Starta resan längst ner, eller utforska kartan.</div>
+        <div class="stattext">
+          <div class="statline" id="countLabel">arter inom 5 km.</div>
+          <div class="statline" id="status">Starta resan längst ner, eller utforska kartan.</div>
+        </div>
       </section>
 
       <section class="card mapcard"><div id="map"></div></section>
@@ -466,10 +481,9 @@ async function renderCurrent() {
     return;
   }
   const gid = filter.group, g = grp();
-  const { counts, total } = r.byGroup[gid];
+  const { counts } = r.byGroup[gid];
   $('count').textContent = counts.length;
-  const where = mode === 'explore' ? 'Vald punkt' : 'Din position';
-  const done = () => setStatus(`${where} · ${clock(r.t)} · ${fmtN(total)} obs.${datesPaused ? ' · datum pausade i fart' : ''}`);
+  const done = () => setStatus(datesPaused ? 'Datum pausade i fart' : '');
   await Promise.all(g.red.map(([n, k]) => loadRedlist(n, k).catch(e => console.warn('Rödlistan:', e))));
   if (my !== renderSeq) return;
 
@@ -784,6 +798,15 @@ function selectSpecies(it) {
   selected = { key: it.key, name: it.swe || it.sci || 'Arten' };
   markRows();
   showSelection(true);
+  scrollToMap();
+}
+
+// I mobilen ligger kartan under listan: skrolla ner så att kartan syns under den fasta rutan överst.
+function scrollToMap() {
+  if (!matchMedia('(max-width: 899px)').matches) return;
+  const top = document.querySelector('.mapcard').getBoundingClientRect().top + scrollY
+            - document.querySelector('.statbar').offsetHeight - 8;
+  scrollTo({ top, behavior: 'smooth' });
 }
 
 async function showSelection(fit) {
@@ -936,10 +959,16 @@ function syncControls() {
   document.querySelectorAll('#groupSeg button').forEach(b => b.classList.toggle('on', b.dataset.group === filter.group));
   $('yearFrom').value = filter.from ?? '';
   $('yearTo').value = filter.to ?? '';
-  document.querySelectorAll('#yearChips button').forEach(b => {
+  let chipOn = false;
+  document.querySelectorAll('#yearChips button[data-span]').forEach(b => {
     const span = +b.dataset.span;
-    b.classList.toggle('on', span === 0 ? (!filter.from && !filter.to) : (filter.from === THIS_YEAR - span + 1 && !filter.to));
+    const on = span === 0 ? (!filter.from && !filter.to) : (filter.from === THIS_YEAR - span + 1 && !filter.to);
+    b.classList.toggle('on', on); chipOn ||= on;
   });
+  // "Välj" visar det egna intervallet när inget snabbval passar, t.ex. "2015–2020"
+  const pick = $('yearPickBtn');
+  pick.classList.toggle('on', !chipOn);
+  pick.textContent = chipOn ? 'Välj' : (filter.from && filter.to && filter.from === filter.to ? `${filter.from}` : `${filter.from ?? ''}–${filter.to ?? ''}`);
   document.querySelectorAll('.mapseg button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
   syncLabels();
 }
@@ -959,8 +988,16 @@ $('groupSeg').onclick = e => {
   const b = e.target.closest('button');
   if (b && b.dataset.group !== filter.group) { if (selected) clearSelection(false); filter.group = b.dataset.group; applyFilter(); }
 };
+function showYearPick(open) {
+  $('yearPick').hidden = !open;
+  $('yearPickBtn').setAttribute('aria-expanded', open);
+}
+$('yearPickDone').onclick = () => showYearPick(false);
+document.addEventListener('click', e => { if (!e.target.closest('.yearwrap')) showYearPick(false); });
 $('yearChips').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
+  if (b.id === 'yearPickBtn') { showYearPick($('yearPick').hidden); return; }
+  showYearPick(false);
   const span = +b.dataset.span;
   filter.from = span ? THIS_YEAR - span + 1 : null; filter.to = null;
   applyFilter();
