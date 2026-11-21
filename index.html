@@ -6,6 +6,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Artappen">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#2f6b3a">
 <title>Däggdjur nära dig</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
@@ -750,6 +753,8 @@ syncControls();
 
 $('startBtn').onclick = start;
 // Har webbläsaren redan gett lov att använda platsen startar vi direkt.
+// Service worker: gör appen installerbar (Chrome: "Installera app").
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(e => console.warn('Service worker:', e));
 navigator.permissions?.query({ name: 'geolocation' }).then(st => { if (st.state === 'granted' && watchId == null) start(); }).catch(() => {});
 $('clearBtn').onclick = () => { track = []; save(TRACK_KEY, track); drawChart(); drawTrack(); };
 drawChart();
