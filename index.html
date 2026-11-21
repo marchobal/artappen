@@ -113,6 +113,9 @@
   .badge { display: inline-block; font-size: .68rem; font-weight: 700; padding: 1px 5px; border-radius: 4px;
            margin-right: 6px; color: #fff; vertical-align: 1px; }
   .badge.cr { background: #b3001b; } .badge.en { background: #d9480f; } .badge.vu { background: #e8a200; color: #1d1f1c; }
+  li .dt.today { color: var(--card); background: var(--accent); border-radius: 4px; padding: 0 5px; font-weight: 600; }
+  li .dt.week { color: var(--accent); font-weight: 600; }
+  .badge.new { background: transparent; color: var(--accent); box-shadow: inset 0 0 0 1.5px var(--accent); }
   .badge.ssp { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--muted); cursor: help; }
   .empty { color: var(--muted); font-size: .9rem; margin: 4px 0; }
   .more { display: block; width: 100%; margin-top: 8px; padding: 7px; font-size: .88rem; color: var(--accent);
@@ -124,7 +127,14 @@
   .tripsum { margin-bottom: 10px; }
   .tripsum .big { font-size: 1.5rem; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
   .tripsum .big span { font-size: .95rem; font-weight: 600; color: var(--text); }
-  .tripsum .parts { font-size: .82rem; color: var(--muted); line-height: 1.35; }
+  /* Delarna radbryts bara mellan delarna, aldrig mitt i "34 däggdjur" */
+  .tripsum .groups, .tripsum .parts { display: flex; flex-wrap: wrap; column-gap: 12px; row-gap: 1px; }
+  .tripsum .groups { font-size: .88rem; margin: 2px 0 3px; }
+  .tripsum .groups > * { white-space: nowrap; }
+  .tripsum .parts { font-size: .8rem; color: var(--muted); }
+  .tripsum .parts span { white-space: nowrap; }
+  .tripsum .parts span + span::before { content: '·'; margin: 0 6px 0 -6px; }
+  .tripsum .newline { font-size: .8rem; color: var(--accent); font-weight: 600; margin-top: 3px; }
   .topseg { display: flex; width: 100%; margin-bottom: 8px; }
   .topseg button { flex: 1; padding: 5px 4px; font-size: .82rem; }
   .toplist li { display: flex; align-items: center; gap: 8px; padding: 3px 2px; font-size: .88rem; border-bottom: 1px solid var(--line); }
@@ -420,7 +430,7 @@ function dateLeaves() {
   const L = [], today = new Date(); today.setHours(0, 0, 0, 0);
   for (let i = 0; i < 7; i++) {
     const d = addDays(today, -i);
-    L.push({ a: d, b: d, label: i === 0 ? 'idag' : i === 1 ? 'igår' : `${d.getDate()} ${MON[d.getMonth()]}` });
+    L.push({ a: d, b: d, fresh: i === 0 ? 'today' : 'week', label: i === 0 ? 'idag' : i === 1 ? 'igår' : `${d.getDate()} ${MON[d.getMonth()]}` });
   }
   const restEnd = addDays(today, -7);
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -459,7 +469,7 @@ function latestFor(r, gid, keys, compute = true) {
     e = latestCache.find(c => c.gid === gid && c.yr === r.yr && Date.now() - c.t < 30 * 60_000 && distKm(c, r) < 1);
     if (!e) {
       if (!compute) return null;
-      e = { lat: r.lat, lon: r.lon, yr: r.yr, t: Date.now(), gid, map: {}, asked: new Set(), done: Promise.resolve() };
+      e = { lat: r.lat, lon: r.lon, yr: r.yr, t: Date.now(), gid, map: {}, fresh: {}, asked: new Set(), done: Promise.resolve() };
       latestCache.unshift(e); latestCache = latestCache.slice(0, 12);
     }
     r.latest[gid] = e;
@@ -480,7 +490,7 @@ async function findLatest(e, r, gid, keys) {
   // leaves[lo..hi] är sammanhängande: från leaves[hi].a (äldst) till leaves[lo].b (nyast)
   async function resolve(lo, hi, ks) {
     if (!ks.length) return;
-    if (lo === hi) { ks.forEach(k => { e.map[k] = leaves[lo].label; }); e.onProgress?.(); return; }
+    if (lo === hi) { ks.forEach(k => { e.map[k] = leaves[lo].label; if (leaves[lo].fresh) e.fresh[k] = leaves[lo].fresh; }); e.onProgress?.(); return; }
     const mid = (lo + hi) >> 1;
     const res = await throttled(() => facet(g, r.lat, r.lon, `&eventDate=${ymd(leaves[mid].a)},${ymd(leaves[lo].b)}`));
     const inNewer = new Set(res.counts.map(c => c.key));
@@ -533,7 +543,7 @@ async function renderCurrent() {
   const allowDates = mode === 'explore' || !isFast();
   const latest = latestFor(r, gid, shownKeys(counts), allowDates);
   datesPaused = !allowDates;
-  const items = () => counts.map(c => ({ ...c, ...(names[c.key] || {}), last: latest?.map[c.key] }));
+  const items = () => counts.map(c => ({ ...c, ...(names[c.key] || {}), last: latest?.map[c.key], fresh: latest?.fresh?.[c.key] }));
   renderList(items());
   if (latest) latest.onProgress = () => { if (my === renderSeq) renderList(items()); };
 
@@ -622,10 +632,17 @@ function speciesRow(it, max) {
     b.title = sub ? `${t.sv} gäller bara underarten ${sub.ssp}` : t.sv;
     name.appendChild(b);
   }
+  if (isNewOnTrip(it.key)) {
+    const nb = document.createElement('b');
+    nb.className = 'badge new'; nb.textContent = 'NY'; nb.title = 'Ny på resan – fanns inte vid tidigare punkter';
+    name.appendChild(nb);
+  }
   name.append(it.swe || it.sci || '…');
   const dt = document.createElement('span');
-  dt.className = 'dt';
-  dt.textContent = it.last ? `senast ${it.last}` : '';
+  // Färskt: idag fylld markering, senaste veckan grön text
+  dt.className = 'dt' + (it.fresh ? ' ' + it.fresh : '');
+  dt.textContent = it.last ? (it.fresh === 'today' ? 'sedd idag' : `senast ${it.last}`) : '';
+  if (it.fresh) dt.title = it.fresh === 'today' ? 'Observerad idag' : 'Observerad den senaste veckan';
   name.appendChild(dt);
   const cnt = document.createElement('span');
   cnt.className = 'cnt'; cnt.textContent = fmtN(it.n);
@@ -701,14 +718,22 @@ function renderList(items) {
 const TRIP_KEY = 'artappen.tripSpecies', TOP_KEY = 'artappen.topMode';
 let tripSpecies = load(TRIP_KEY, {});
 let topMode = load(TOP_KEY, 'red');
+// "Ny på resan": arter vid senaste punkten som inte fanns vid någon tidigare punkt.
+let lastNew = null; // { yr, t, byGroup: { grupp: Set(artnycklar) } }
 function collectTrip(r) {
+  const firstPoint = !tripSpecies[r.yr];
   const bucket = tripSpecies[r.yr] ??= {};
+  const byGroup = {};
   for (const [gid, { counts }] of Object.entries(r.byGroup)) {
     const g = bucket[gid] ??= {};
+    byGroup[gid] = new Set(firstPoint ? [] : counts.filter(c => !(c.key in g)).map(c => c.key));
     counts.forEach(c => { g[c.key] = Math.max(g[c.key] || 0, c.n); });
   }
+  lastNew = { yr: r.yr, t: r.t, byGroup };
   save(TRIP_KEY, tripSpecies);
 }
+const isNewOnTrip = key => mode === 'gps' && tripRes && lastNew?.t === tripRes.t && lastNew.yr === yearId()
+  && lastNew.byGroup[filter.group]?.has(String(key));
 
 const SHORT = { mammals: 'däggdjur', birds: 'fåglar', herps: 'grod- & kräldjur' };
 let allRedlists = null;
@@ -733,13 +758,16 @@ async function renderTrip() {
   // Sammanfattning
   const per = Object.keys(GROUPS).map(gid => [gid, Object.keys(bucket[gid] || {}).length]).filter(([, n]) => n);
   const red = all.filter(x => redlist[x.key]);
+  const newCount = lastNew && lastNew.yr === yearId() ? Object.values(lastNew.byGroup).reduce((s, x) => s + x.size, 0) : 0;
   let km = 0; for (let i = 1; i < tr.length; i++) km += distKm(tr[i - 1], tr[i]);
   const mins = tr.length > 1 ? Math.round((tr.at(-1).t - tr[0].t) / 60_000) : 0;
   const dur = mins >= 60 ? `${Math.floor(mins / 60)} h ${mins % 60} min` : `${mins} min`;
   $('tripSummary').innerHTML =
     `<div class="big">${fmtN(all.length)} <span>arter längs resan</span></div>` +
-    `<div class="parts">${per.map(([gid, n]) => `${fmtN(n)} ${SHORT[gid]}`).join(' · ')}${red.length ? ` · <b>${red.length} hotade</b>` : ''}<br>` +
-    `${km.toFixed(1).replace('.', ',')} km · ${dur} · ${tr.length} mätningar · ${yearText()}</div>`;
+    `<div class="groups">${per.map(([gid, n]) => `<span><b>${fmtN(n)}</b> ${SHORT[gid]}</span>`).join('')}` +
+    `${red.length ? `<span><b>${fmtN(red.length)}</b> hotade</span>` : ''}</div>` +
+    `<div class="parts">${[`${km.toFixed(1).replace('.', ',')} km`, dur, `${tr.length} mätningar`, yearText()].map(x => `<span>${x}</span>`).join('')}</div>` +
+    (newCount ? `<div class="newline">${newCount} nya arter vid senaste punkten</div>` : '');
   // Topplista: alla grupper i samma lista
   const sorted = topMode === 'red'
     ? red.sort((a, b) => THREAT[redlist[b.key]].rank - THREAT[redlist[a.key]].rank || a.n - b.n)
@@ -1115,7 +1143,7 @@ $('startBtn').onclick = () => (watchId != null || timer != null) ? stop() : star
 $('clearBtn').onclick = () => {
   if (track.length && !confirm('Rensa hela resan, kurvan och topplistan?')) return;
   track = []; save(TRACK_KEY, track);
-  tripSpecies = {}; save(TRIP_KEY, tripSpecies);
+  tripSpecies = {}; save(TRIP_KEY, tripSpecies); lastNew = null;
   drawChart(); drawTrack(); renderTrip();
 };
 $('topSeg').onclick = e => {
