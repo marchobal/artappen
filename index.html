@@ -10,106 +10,132 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#2f6b3a">
-<title>Däggdjur nära dig</title>
+<title>Artappen</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
-  #map { height: 320px; border-radius: 10px; z-index: 0; }
-  .legend { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); font-size: .8rem; margin-top: 8px; }
-  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: -1px; margin-right: 4px; }
   :root {
     --bg: #f6f5f1; --card: #ffffff; --text: #1d1f1c; --muted: #6b6f68;
     --accent: #2f6b3a; --line: #e3e1da; --bar: #cfe3d2;
     --redbg: #fdf0ee; --redline: #f0c4bd; --redtext: #a8321f;
+    --me: #1e6fd9; --explore: #6741d9; --sel: #d6336c; --trip: #e8590c;
   }
   @media (prefers-color-scheme: dark) {
     :root { --bg: #141613; --card: #1d201c; --text: #ecebe6; --muted: #9a9e96;
             --accent: #7fc28b; --line: #2e322d; --bar: #2c4a31;
-            --redbg: #2a1b18; --redline: #5a2e26; --redtext: #f0a08f; }
+            --redbg: #2a1b18; --redline: #5a2e26; --redtext: #f0a08f;
+            --me: #4d94ff; --explore: #9775fa; --sel: #f06595; --trip: #ff922b; }
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text);
          font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-  main { max-width: 640px; margin: 0 auto; padding: 16px; }
-  h1 { font-size: 1.1rem; font-weight: 600; margin: 8px 0 16px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px;
-          padding: 16px; margin-bottom: 16px; }
-  .big { font-size: 6rem; font-weight: 700; line-height: 1; color: var(--accent);
-         font-variant-numeric: tabular-nums; }
-  .label { color: var(--muted); font-size: .95rem; }
-  .status { color: var(--muted); font-size: .85rem; margin-top: 8px; }
-  .status.err { color: #c0392b; }
-  ol { list-style: none; padding: 0; margin: 0; }
-  li { position: relative; display: flex; justify-content: space-between; gap: 8px;
-       padding: 8px 10px; border-radius: 8px; margin-bottom: 4px; overflow: hidden; }
-  li .barfill { position: absolute; inset: 0 auto 0 0; background: var(--bar); z-index: 0; border-radius: 8px; }
-  li span { position: relative; z-index: 1; }
-  li .sci { color: var(--muted); font-style: italic; font-size: .85rem; margin-left: 6px; }
-  li .cnt { font-variant-numeric: tabular-nums; color: var(--muted); }
-  h2 { font-size: 1rem; margin: 0 0 10px; }
-  #chart { width: 100%; height: 160px; display: block; }
-  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  main { max-width: 640px; margin: 0 auto; padding: 12px max(12px, env(safe-area-inset-left)) calc(24px + env(safe-area-inset-bottom)); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+  h2 { font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 8px; }
   button { font: inherit; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line);
            background: var(--card); color: var(--text); cursor: pointer; }
   button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-  .empty { color: var(--muted); font-size: .9rem; }
-  @media (max-width: 899px) {
-    main { padding: 12px max(12px, env(safe-area-inset-left)) calc(24px + env(safe-area-inset-bottom)); }
-    h1 { font-size: 1rem; }
-    .layout { display: flex; flex-direction: column; }
-    .left { display: contents; }
-    .toprow { display: contents; }
-    .countcard { order: 1; } .mapcard { order: 2; } .listcard { order: 3; } .chartcard { order: 4; }
-    .big { font-size: 4.5rem; }
-    #map { height: 42vh; min-height: 240px; }
-    .controls { width: 100%; }
-    .seg button { padding: 8px 10px; }
-    .countcard .row button { flex: 1 1 auto; }
-  }
-  .topbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin: 8px 0 16px; }
-  .topbar h1 { margin: 0; }
+  button:disabled { opacity: .6; cursor: default; }
+  select { font: inherit; font-size: .9rem; padding: 5px 6px; border-radius: 8px; border: 1px solid var(--line);
+           background: var(--card); color: var(--text); }
+  .muted { color: var(--muted); }
+  .err { color: #c0392b !important; }
+
+  /* Toppraden */
+  .topbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin: 4px 0 12px; }
+  .brand { font-weight: 700; font-size: 1.05rem; display: flex; align-items: center; gap: 8px; }
+  .brand img { width: 26px; height: 26px; border-radius: 6px; }
+  .brand small { font-weight: 400; color: var(--muted); font-size: .8rem; }
   .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--card); }
   .seg button { border: 0; border-radius: 0; padding: 6px 12px; background: transparent; font-size: .9rem; }
   .seg button + button { border-left: 1px solid var(--line); }
-  #map.picking { cursor: crosshair; }
-  button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
   .seg button.on { background: var(--accent); color: #fff; }
   .yr { font-size: .9rem; color: var(--muted); }
-  select { font: inherit; font-size: .9rem; padding: 5px 6px; border-radius: 8px; border: 1px solid var(--line);
-           background: var(--card); color: var(--text); }
-  .listcard ol li { padding: 3px 9px; margin-bottom: 2px; font-size: .9rem; }
-  .redgroup { border: 1px solid var(--redline); background: var(--redbg); border-radius: 10px;
-              padding: 8px 8px 4px; margin-bottom: 10px; }
-  .listcard h3 { font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .03em;
-                 margin: 0 0 6px 2px; color: var(--muted); }
+
+  /* Statusrad med antal arter – fast höjd, ändrar inte storlek när texten ändras */
+  .statbar { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 2px 14px;
+             height: 74px; padding: 10px 14px; }
+  .count { grid-row: span 2; font-size: 2.4rem; font-weight: 700; line-height: 1; color: var(--accent);
+           font-variant-numeric: tabular-nums; min-width: 2.2ch; text-align: right; }
+  .statline { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #countLabel { font-weight: 600; font-size: .95rem; }
+  #status { font-size: .85rem; color: var(--muted); }
+
+  /* Karta */
+  .mapcard { padding: 0; overflow: hidden; }
+  #map { height: 46vh; min-height: 260px; z-index: 0; background: var(--line); }
+  #map.exploring { cursor: crosshair; }
+  .mapseg { display: flex; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 5px rgba(0,0,0,.25); background: var(--card); }
+  .mapseg button { border: 0; border-radius: 0; padding: 7px 12px; font-size: .85rem; background: var(--card); color: var(--text); }
+  .mapseg button + button { border-left: 1px solid var(--line); }
+  .mapseg button.on { background: var(--accent); color: #fff; }
+  .mapseg button[data-mode=explore].on { background: var(--explore); }
+  .maphint { background: var(--card); color: var(--text); border-radius: 8px; padding: 5px 10px; font-size: 12.5px;
+             box-shadow: 0 1px 5px rgba(0,0,0,.25); max-width: 260px; }
+  .maphint b { color: var(--sel); }
+  .maphint button { margin-left: 6px; padding: 0 6px; font-size: 12px; }
+  .leaflet-bar a { background: var(--card); color: var(--text); border-color: var(--line); }
+  .leaflet-container { font: inherit; }
+  .basemap { filter: grayscale(1) brightness(1.06) contrast(.82); }
+  @media (prefers-color-scheme: dark) { .basemap { filter: grayscale(1) invert(1) brightness(.78) contrast(.85); } }
+  .leaflet-popup-content { font-size: 13px; }
+  .leaflet-control-attribution { font-size: 10px; opacity: .7; }
+
+  /* Artlistan */
+  ol { list-style: none; padding: 0; margin: 0; }
+  .listcard li { position: relative; display: flex; align-items: baseline; gap: 8px; padding: 4px 9px; margin-bottom: 2px;
+                 border-radius: 8px; overflow: hidden; font-size: .9rem; cursor: pointer; }
+  .listcard li:hover { box-shadow: inset 0 0 0 1px var(--muted); }
+  .listcard li.sel { box-shadow: inset 0 0 0 2px var(--sel); }
+  li .barfill { position: absolute; inset: 0 auto 0 0; background: var(--bar); z-index: 0; border-radius: 8px; }
+  li > span { position: relative; z-index: 1; }
+  li .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  li .dt { color: var(--muted); font-size: .8rem; margin-left: 6px; }
+  li .cnt { font-variant-numeric: tabular-nums; color: var(--muted); font-size: .85rem; }
+  .listcard h3 { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin: 0 0 6px 2px; color: var(--muted); }
+  .redgroup { border: 1px solid var(--redline); background: var(--redbg); border-radius: 10px; padding: 8px 8px 4px; margin-top: 12px; }
   .redgroup h3 { color: var(--redtext); }
-  .badge { display: inline-block; font-size: .7rem; font-weight: 700; padding: 1px 5px; border-radius: 4px;
+  .redgroup .more { color: var(--redtext); border-color: var(--redline); margin-bottom: 4px; }
+  .badge { display: inline-block; font-size: .68rem; font-weight: 700; padding: 1px 5px; border-radius: 4px;
            margin-right: 6px; color: #fff; vertical-align: 1px; }
   .badge.cr { background: #b3001b; } .badge.en { background: #d9480f; } .badge.vu { background: #e8a200; color: #1d1f1c; }
   .badge.ssp { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--muted); cursor: help; }
-  .listcard li { cursor: pointer; }
-  .listcard li:hover { box-shadow: inset 0 0 0 1px var(--muted); }
-  .listcard li.sel { box-shadow: inset 0 0 0 2px #d6336c; }
-  .selinfo { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
-             padding: 6px 10px; font: 13px/1.35 -apple-system, BlinkMacSystemFont, sans-serif; max-width: 280px;
-             box-shadow: 0 1px 4px rgba(0,0,0,.25); }
-  .selinfo b { color: #d6336c; }
-  .selinfo button { margin-left: 8px; padding: 0 6px; font-size: 13px; }
-  .leaflet-popup-content { font-size: 13px; }
-  .listcard li .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .empty { color: var(--muted); font-size: .9rem; margin: 4px 0; }
+  .more { display: block; width: 100%; margin-top: 8px; padding: 7px; font-size: .88rem; color: var(--accent);
+          background: transparent; border: 1px dashed var(--line); }
+
+  /* Kurva och resa */
+  #chart { width: 100%; height: 110px; display: block; }
+  .small { font-size: .8rem; color: var(--muted); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tripbtns { display: flex; gap: 8px; }
+  .tripbtns button { flex: 1; }
+  #gpsStatus { font-size: .85rem; color: var(--muted); margin-top: 10px; min-height: 2.6em; line-height: 1.3;
+               display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  /* Mobil: siffran och statusen stannar överst när man skrollar */
+  @media (max-width: 899px) {
+    .statbar { position: sticky; top: 0; z-index: 5; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    .layout, .left, .bottomrow { display: contents; }
+    .layout { display: flex; flex-direction: column; }
+    .statbar { order: 1; } .mapcard { order: 2; } .listcard { order: 3; } .chartcard { order: 4; } .tripcard { order: 5; }
+    .controls { width: 100%; }
+    .seg button { padding: 8px 10px; }
+  }
+
+  /* Dator: allt på en skärm */
   @media (min-width: 900px) and (min-height: 560px) {
     body { height: 100vh; overflow: hidden; }
     main { max-width: none; height: 100vh; display: flex; flex-direction: column; padding: 12px 16px; }
     .topbar { margin: 0 0 10px; }
-    .layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr); gap: 12px; }
+    .layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(340px, 1fr); gap: 12px; }
     .left { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
-    .toprow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
-    .card { margin: 0; padding: 14px; }
-    .big { font-size: 5rem; }
-    #chart { height: 130px; }
-    .mapcard { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-    #map { flex: 1; height: auto; min-height: 160px; }
+    .card { margin: 0; }
+    .mapcard { flex: 1; display: flex; min-height: 0; }
+    #map { flex: 1; height: auto; min-height: 200px; }
+    .bottomrow { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(220px, 1fr); gap: 12px; }
+    .chartcard, .tripcard { height: 168px; }
+    #chart { height: 92px; }
     .listcard { min-height: 0; overflow-y: auto; }
     .listcard ol.two { column-count: 2; column-gap: 8px; }
     .listcard ol.two li { break-inside: avoid; }
@@ -119,7 +145,7 @@
 <body>
 <main>
   <header class="topbar">
-    <h1 id="title">Däggdjur inom 5 km · Artportalen via GBIF</h1>
+    <div class="brand"><img src="icon-192.png" alt="">Artappen <small>Artportalen via GBIF</small></div>
     <div class="controls">
       <div class="seg" id="groupSeg" role="group" aria-label="Djurgrupp">
         <button data-group="mammals">Däggdjur</button>
@@ -136,40 +162,36 @@
       <label class="yr">till <select id="yearTo"></select></label>
     </div>
   </header>
+
   <div class="layout">
     <div class="left">
-      <div class="toprow">
-        <section class="card countcard">
-          <div class="big" id="count">–</div>
-          <div class="label" id="countLabel">arter observerade inom 5 km</div>
-          <div class="status" id="status">Tryck Starta för att hämta din position.</div>
-          <div class="row" style="margin-top:12px">
-            <button class="primary" id="startBtn">Starta</button>
-            <button id="pickBtn" title="Om datorn inte hittar din position">Välj plats på kartan</button>
+      <section class="card statbar">
+        <div class="count" id="count">–</div>
+        <div class="statline" id="countLabel">arter inom 5 km</div>
+        <div class="statline" id="status">Starta resan längst ner, eller utforska kartan.</div>
+      </section>
+
+      <section class="card mapcard"><div id="map"></div></section>
+
+      <div class="bottomrow">
+        <section class="card chartcard">
+          <h2>Arter längs resan</h2>
+          <svg id="chart"></svg>
+          <div class="small" id="chartInfo"></div>
+        </section>
+        <section class="card tripcard">
+          <h2>Resa</h2>
+          <div class="tripbtns">
+            <button class="primary" id="startBtn">Starta resa</button>
             <button id="clearBtn">Rensa resan</button>
           </div>
-        </section>
-
-        <section class="card chartcard">
-          <h2>Antal arter längs resan</h2>
-          <svg id="chart"></svg>
-          <div class="status" id="chartInfo"></div>
+          <div id="gpsStatus">Resan följer din position och hämtar nya arter var 300:e meter.</div>
         </section>
       </div>
-
-      <section class="card mapcard">
-        <div id="map"></div>
-        <div class="legend">
-          <span><i style="background:#1e6fd9"></i>Du</span>
-          <span><i style="border:2px solid #2f6b3a"></i>5 km</span>
-          <span><i style="background:#e8590c;border-radius:2px;height:3px;vertical-align:3px"></i>Resan</span>
-          <span><i style="border-radius:2px;width:36px;background:linear-gradient(90deg,#ffee55,#f7a530,#d7261e);opacity:.75"></i><span id="obsLegend">Däggdjursobservationer</span> (få → många)</span>
-        </div>
-      </section>
     </div>
 
     <section class="card listcard">
-      <h2 id="listTitle">Arter här, vanligast först</h2>
+      <h2 id="listTitle">Arter</h2>
       <div id="list"><p class="empty">Inga data ännu.</p></div>
     </section>
   </div>
@@ -178,46 +200,48 @@
 <script>
 const DATASET = '38b4c89f-584c-41bb-bd8f-cd1def33e92f'; // Artportalen
 const GROUPS = {
-  mammals: { keys: [359], red: [['Mammalia', 'CLASS']], label: 'Däggdjur', noun: 'däggdjursarter',
-             obs: 'Däggdjursobservationer', none: 'däggdjursobservationer' },
-  birds:   { keys: [212], red: [['Aves', 'CLASS']], label: 'Fåglar', noun: 'fågelarter',
-             obs: 'Fågelobservationer', none: 'fågelobservationer' },
+  mammals: { keys: [359], red: [['Mammalia', 'CLASS']], label: 'Däggdjur', noun: 'däggdjursarter', none: 'däggdjursobservationer' },
+  birds:   { keys: [212], red: [['Aves', 'CLASS']], label: 'Fåglar', noun: 'fågelarter', none: 'fågelobservationer' },
   herps:   { keys: [131, 358], red: [['Amphibia', 'CLASS'], ['Squamata', 'ORDER']], label: 'Grod- och kräldjur',
-             short: 'Grod- & kräldjur', noun: 'arter av grod- och kräldjur',
-             obs: 'Grod- och kräldjursobservationer', none: 'observationer av grod- och kräldjur' },
+             noun: 'arter av grod- och kräldjur', none: 'observationer av grod- och kräldjur' },
 };
 const taxonParam = g => g.keys.map(k => `&taxonKey=${k}`).join('');
+const OCC = 'https://api.gbif.org/v1/occurrence/search';
 const THIS_YEAR = new Date().getFullYear();
 const FIRST_YEAR = 1970;
-const FILTER_KEY = 'artappen.filter';
 const RADIUS_KM = 5;
-const MOVE_M = 300;        // hämta igen när du flyttat dig minst så här långt …
+const MOVE_M = 300;         // resan hämtar igen när du flyttat dig minst så här långt …
 const MIN_GAP_MS = 10_000;  // … men inte oftare än så här
 const IDLE_MS = 5 * 60_000; // och annars var femte minut även om du står still
-let lastFetch = null;       // { lat, lon, t } för senaste hämtningen
-const TRACK_KEY = 'artappen.track';
-const NAME_KEY = 'artappen.names';
+const FILTER_KEY = 'artappen.filter', TRACK_KEY = 'artappen.track', NAME_KEY = 'artappen.names';
+const MON = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
 
 const $ = id => document.getElementById(id);
-let pos = null, timer = null, watchId = null;
-
-function load(key, fallback) {
-  try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
-}
+const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+function load(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } }
 function save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
+const fmtN = n => n.toLocaleString('sv-SE');
+const clock = t => new Date(t).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+
+// ---- Tillstånd ----
+// Två platser kan visas: resans (GPS) och en punkt man utforskar på kartan.
+// Resan fortsätter att samla data i bakgrunden även när man utforskar.
+let pos = null;            // senaste godkända GPS-position
+let mode = 'gps';          // 'gps' = visa din position, 'explore' = visa vald punkt
+let exploreAt = null;      // { lat, lon }
+let tripRes = null, exploreRes = null; // { lat, lon, yr, t, acc?, byGroup: { id: { counts, total } }, latest: {} }
+let lastFetch = null, timer = null, watchId = null;
+let tripSeq = 0, exploreSeq = 0, renderSeq = 0;
 
 // Varje punkt på resan: { t, lat, lon, acc, yr, n: { mammals, birds, herps }, obs: {…} }
-// Äldre punkter (en djurgrupp per punkt, fältet f) görs om till det formatet.
 let track = load(TRACK_KEY, []).map(p => {
   if (p.yr !== undefined) return p;
-  const [g, yr] = (p.f || 'mammals|-').split('|');
+  const [g, yr] = (p.f || 'mammals|-').split('|');  // äldre format: en grupp per punkt
   return { t: p.t, lat: p.lat, lon: p.lon, yr, n: { [g]: p.n }, obs: { [g]: p.obs } };
 });
-let lastResults = null; // { yr, byGroup: { mammals: { counts, total }, … } } från senaste hämtningen
 const names = load(NAME_KEY, {});
 let filter = Object.assign({ group: 'mammals', from: null, to: null }, load(FILTER_KEY, {}));
 if (!GROUPS[filter.group]) filter.group = 'mammals';
-let seq = 0; // skyddar mot att ett gammalt svar skriver över ett nyare
 
 const grp = () => GROUPS[filter.group];
 const yearId = () => `${filter.from ?? ''}-${filter.to ?? ''}`;
@@ -228,21 +252,83 @@ function yearText() {
   if (from && to) return from === to ? `${from}` : `${from}–${to}`;
   return from ? `från ${from}` : `till ${to}`;
 }
+const viewRes = () => mode === 'explore' ? exploreRes : tripRes;
+const viewPoint = () => mode === 'explore' ? exploreAt : (pos && { lat: pos.coords.latitude, lon: pos.coords.longitude });
 
-// Kör fn över items med högst n samtidiga anrop
+function setStatus(msg, err = false) { const s = $('status'); s.textContent = msg; s.title = msg; s.classList.toggle('err', err); }
+function setGps(msg, err = false) { const s = $('gpsStatus'); s.textContent = msg; s.title = msg; s.classList.toggle('err', err); }
+
 async function mapLimit(items, n, fn) {
-  const out = new Array(items.length); let i = 0;
+  let i = 0;
   await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
-    while (i < items.length) { const j = i++; out[j] = await fn(items[j], j); }
+    while (i < items.length) { const j = i++; await fn(items[j], j); }
   }));
-  return out;
 }
 
-function setStatus(msg, err = false) {
-  $('status').textContent = msg;
-  $('status').className = 'status' + (err ? ' err' : '');
+function distKm(a, b) {
+  const R = 6371, r = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * r, dLon = (b.lon - a.lon) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+// ---- Hämtning från GBIF ----
+async function facet(g, lat, lon, extra) {
+  const url = `${OCC}?datasetKey=${DATASET}${taxonParam(g)}&geoDistance=${lat},${lon},${RADIUS_KM}km${extra}` +
+    `&limit=0&facet=speciesKey&facetLimit=1000`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  return { counts: (data.facets?.[0]?.counts || []).map(c => ({ key: c.name, n: c.count })), total: data.count };
+}
+
+// Alla djurgrupper på en gång, så att man kan växla grupp utan ny hämtning.
+async function fetchAll(lat, lon) {
+  const ids = Object.keys(GROUPS);
+  const res = await Promise.all(ids.map(id => facet(GROUPS[id], lat, lon, yearParam())));
+  return { lat, lon, yr: yearId(), t: Date.now(), latest: {}, byGroup: Object.fromEntries(ids.map((id, i) => [id, res[i]])) };
+}
+
+// Resan: hämtar vid GPS-positionen och sparar en punkt.
+async function update() {
+  if (!pos) return;
+  const my = ++tripSeq;
+  const { latitude: lat, longitude: lon, accuracy: acc } = pos.coords;
+  lastFetch = { lat, lon, t: Date.now() };
+  if (mode === 'gps') setStatus('Hämtar observationer…');
+  try {
+    const r = await fetchAll(lat, lon);
+    if (my !== tripSeq) return;
+    r.acc = acc;
+    tripRes = r;
+    track.push({ t: r.t, lat, lon, acc: Math.round(acc), yr: r.yr,
+                 n: Object.fromEntries(Object.entries(r.byGroup).map(([k, v]) => [k, v.counts.length])),
+                 obs: Object.fromEntries(Object.entries(r.byGroup).map(([k, v]) => [k, v.total])) });
+    save(TRACK_KEY, track);
+    drawChart(); drawTrack();
+    showProgress();
+    if (mode === 'gps') renderCurrent();
+  } catch (e) {
+    if (my === tripSeq && mode === 'gps') setStatus('Kunde inte hämta data: ' + e.message, true);
+  }
+}
+
+// Utforska: hämtar vid vald punkt, påverkar inte resan.
+async function exploreFetch() {
+  if (!exploreAt) return;
+  const my = ++exploreSeq;
+  if (mode === 'explore') { setStatus('Hämtar observationer för vald punkt…'); $('count').textContent = '–'; }
+  try {
+    const r = await fetchAll(exploreAt.lat, exploreAt.lon);
+    if (my !== exploreSeq) return;
+    exploreRes = r;
+    if (mode === 'explore') renderCurrent();
+  } catch (e) {
+    if (my === exploreSeq && mode === 'explore') setStatus('Kunde inte hämta data: ' + e.message, true);
+  }
+}
+
+// ---- Artnamn ----
 async function speciesName(key) {
   if (names[key]) return names[key];
   let swe = null, sci = null;
@@ -260,73 +346,165 @@ async function speciesName(key) {
   return entry;
 }
 
-async function fetchCounts(g, lat, lon) {
-  const url = `https://api.gbif.org/v1/occurrence/search?datasetKey=${DATASET}` +
-    `${taxonParam(g)}&geoDistance=${lat},${lon},${RADIUS_KM}km${yearParam()}` +
-    `&limit=0&facet=speciesKey&facetLimit=1000`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const data = await res.json();
-  return { counts: (data.facets?.[0]?.counts || []).map(c => ({ key: c.name, n: c.count })), total: data.count };
+// ---- Senaste observation per art ----
+// GBIF kan inte sortera på datum. I stället delas tiden upp i "fack" (de senaste dagarna,
+// sedan månader, sedan år) och vi söker oss fram genom halvering: fråga vilka arter som
+// finns i den nyare halvan av ett intervall, gå vidare där, och resten i den äldre halvan.
+// Bara intervall som innehåller arter frågas, så det blir få anrop. Max 4 samtidigt och
+// automatiskt nytt försök om GBIF svarar "för många anrop" (429).
+// Resultatet återanvänds så länge man är inom 1 km och 30 min från där det räknades fram.
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+
+function dateLeaves() {
+  const L = [], today = new Date(); today.setHours(0, 0, 0, 0);
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(today, -i);
+    L.push({ a: d, b: d, label: i === 0 ? 'idag' : i === 1 ? 'igår' : `${d.getDate()} ${MON[d.getMonth()]}` });
+  }
+  const restEnd = addDays(today, -7);
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  if (restEnd >= monthStart) L.push({ a: monthStart, b: restEnd, label: MON[today.getMonth()] });
+  for (let m = today.getMonth() - 1; m >= -12; m--) {            // resten av i år och hela förra året
+    const a = new Date(today.getFullYear(), m, 1), b = new Date(a.getFullYear(), a.getMonth() + 1, 0);
+    L.push({ a, b, label: a.getFullYear() === THIS_YEAR ? MON[a.getMonth()] : `${MON[a.getMonth()]} ${a.getFullYear()}` });
+  }
+  for (let y = THIS_YEAR - 2; y >= THIS_YEAR - 15; y--) L.push({ a: new Date(y, 0, 1), b: new Date(y, 11, 31), label: `${y}` });
+  const oldEnd = THIS_YEAR - 16;
+  L.push({ a: new Date(1600, 0, 1), b: new Date(oldEnd, 11, 31), label: `före ${oldEnd + 1}` });
+  // Begränsa till valda år
+  return L.filter(x => (!filter.from || x.b.getFullYear() >= filter.from) && (!filter.to || x.a.getFullYear() <= filter.to));
 }
 
-// Hämtar alla djurgrupper på en gång, så att resans data finns för alla grupper
-// och man kan växla grupp utan att något försvinner.
-async function update() {
-  if (!pos) { setStatus('Tryck Starta för att hämta din position.'); return; }
-  const my = ++seq;
-  const { latitude: lat, longitude: lon, accuracy: acc } = pos.coords;
-  lastFetch = { lat, lon, t: Date.now() };
-  const yr = yearId();
-  setStatus(`Hämtar observationer för ${lat.toFixed(4)}, ${lon.toFixed(4)}…`);
+// Enkel kö: högst 4 anrop åt gången, nytt försök vid 429
+let active = 0; const waiting = [];
+async function throttled(fn) {
+  if (active >= 4) await new Promise(r => waiting.push(r));
+  active++;
   try {
-    const ids = Object.keys(GROUPS);
-    const res = await Promise.all(ids.map(id => fetchCounts(GROUPS[id], lat, lon)));
-    if (my !== seq) return;
-    const byGroup = Object.fromEntries(ids.map((id, i) => [id, res[i]]));
-    lastResults = { yr, byGroup, acc, manual: !!pos.manual, t: Date.now() };
-    track.push({
-      t: Date.now(), lat, lon, acc: Math.round(acc), yr,
-      n: Object.fromEntries(ids.map(id => [id, byGroup[id].counts.length])),
-      obs: Object.fromEntries(ids.map(id => [id, byGroup[id].total])),
-    });
-    save(TRACK_KEY, track);
-    drawChart();
-    drawTrack();
-    await renderCurrent();
-  } catch (e) {
-    if (my === seq) setStatus('Kunde inte hämta data: ' + e.message, true);
+    for (let i = 0; ; i++) {
+      try { return await fn(); }
+      catch (e) { if (!/429/.test(e.message) || i >= 4) throw e; await new Promise(r => setTimeout(r, 800 * 2 ** i)); }
+    }
+  } finally { active--; waiting.shift()?.(); }
+}
+
+// Ett "datumregister" per plats och grupp: { lat, lon, yr, t, gid, map, asked, done }.
+// Datum räknas bara fram för de arter som visas (asked) och fylls på när listan expanderas.
+let latestCache = [];
+// compute=false: använd bara det som redan finns (inga nya anrop).
+function latestFor(r, gid, keys, compute = true) {
+  let e = r.latest[gid];
+  if (!e) {
+    e = latestCache.find(c => c.gid === gid && c.yr === r.yr && Date.now() - c.t < 30 * 60_000 && distKm(c, r) < 1);
+    if (!e) {
+      if (!compute) return null;
+      e = { lat: r.lat, lon: r.lon, yr: r.yr, t: Date.now(), gid, map: {}, asked: new Set(), done: Promise.resolve() };
+      latestCache.unshift(e); latestCache = latestCache.slice(0, 12);
+    }
+    r.latest[gid] = e;
+  }
+  if (compute) {
+    const need = keys.filter(k => !e.asked.has(k));
+    if (need.length) {
+      need.forEach(k => e.asked.add(k));
+      e.done = Promise.all([e.done, findLatest(e, r, gid, need)]);
+    }
+  }
+  return e;
+}
+
+async function findLatest(e, r, gid, keys) {
+  const g = GROUPS[gid], leaves = dateLeaves();
+  if (!leaves.length) return;
+  // leaves[lo..hi] är sammanhängande: från leaves[hi].a (äldst) till leaves[lo].b (nyast)
+  async function resolve(lo, hi, ks) {
+    if (!ks.length) return;
+    if (lo === hi) { ks.forEach(k => { e.map[k] = leaves[lo].label; }); e.onProgress?.(); return; }
+    const mid = (lo + hi) >> 1;
+    const res = await throttled(() => facet(g, r.lat, r.lon, `&eventDate=${ymd(leaves[mid].a)},${ymd(leaves[lo].b)}`));
+    const inNewer = new Set(res.counts.map(c => c.key));
+    await Promise.all([resolve(lo, mid, ks.filter(k => inNewer.has(k))), resolve(mid + 1, hi, ks.filter(k => !inNewer.has(k)))]);
+  }
+  try {
+    // Först hela perioden: arter utan datum i någon observation får inget datum (hamnar inte felaktigt i äldsta facket).
+    const all = await throttled(() => facet(g, r.lat, r.lon, `&eventDate=${ymd(leaves.at(-1).a)},${ymd(leaves[0].b)}`));
+    const dated = new Set(all.counts.map(c => c.key));
+    await resolve(0, leaves.length - 1, keys.filter(k => dated.has(k)));
+  } catch (err) {
+    console.warn('Senaste datum:', err);
+    keys.forEach(k => { if (!(k in e.map)) e.asked.delete(k); }); // försök igen nästa gång
   }
 }
 
-// Visar siffra och lista för vald djurgrupp ur senaste hämtningen (ingen ny hämtning).
-let renderSeq = 0;
-async function renderCurrent() {
-  if (!lastResults) return;
-  const my = ++renderSeq;
+// ---- Visa vald plats och djurgrupp ----
+function syncLabels() {
   const g = grp();
-  const { counts, total } = lastResults.byGroup[filter.group];
+  $('countLabel').textContent = `${g.noun} inom 5 km · ${yearText()}`;
+  document.title = `Artappen · ${g.label}`;
+}
+
+async function renderCurrent() {
+  const my = ++renderSeq;
+  syncLabels();
+  const r = viewRes();
+  if (!r || r.yr !== yearId()) {
+    $('count').textContent = '–';
+    $('listTitle').textContent = 'Arter';
+    const msg = mode === 'explore'
+      ? (exploreAt ? 'Hämtar…' : 'Tryck på kartan för att utforska en plats.')
+      : pos ? 'Hämtar…' : 'Starta resan längst ner, eller välj Utforska på kartan.';
+    $('list').innerHTML = `<p class="empty">${esc(msg)}</p>`;
+    setStatus(msg);
+    return;
+  }
+  const gid = filter.group, g = grp();
+  const { counts, total } = r.byGroup[gid];
   $('count').textContent = counts.length;
-  $('listTitle').textContent = `${counts.length} arter här, vanligast först`;
-  await Promise.all(g.red.map(([n, r]) => loadRedlist(n, r).catch(e => console.warn('Rödlistan kunde inte laddas:', e))));
+  $('listTitle').textContent = `${counts.length} arter, vanligast först`;
+  const where = mode === 'explore' ? 'Vald punkt' : 'Din position';
+  const done = () => setStatus(`${where} · ${clock(r.t)} · ${fmtN(total)} obs.`);
+  await Promise.all(g.red.map(([n, k]) => loadRedlist(n, k).catch(e => console.warn('Rödlistan:', e))));
   if (my !== renderSeq) return;
-  const withNames = () => counts.map(c => ({ ...c, ...(names[c.key] || {}) }));
-  renderList(withNames());
+
+  // Datum för senaste observation räknas inte fram i fart (> 15 km/h) – det kostar många anrop
+  // och hinner knappt synas. De kommer tillbaka när du saktar in, och alltid i utforska-läget.
+  const allowDates = mode === 'explore' || !isFast();
+  const latest = latestFor(r, gid, shownKeys(counts), allowDates);
+  datesPaused = !allowDates;
+  if (datesPaused) $('listTitle').textContent += ' · datum pausade i fart';
+  const items = () => counts.map(c => ({ ...c, ...(names[c.key] || {}), last: latest?.map[c.key] }));
+  renderList(items());
+  if (latest) latest.onProgress = () => { if (my === renderSeq) renderList(items()); };
+
   const missing = counts.filter(c => !names[c.key]);
-  let done = 0;
+  let n = 0;
   await mapLimit(missing, 8, async c => {
     await speciesName(c.key);
-    if (++done % 25 === 0 && my === renderSeq) {
-      renderList(withNames());
-      setStatus(`Hämtar artnamn… ${done}/${missing.length}`);
-    }
+    if (++n % 25 === 0 && my === renderSeq) { renderList(items()); setStatus(`Hämtar artnamn… ${n}/${missing.length}`); }
   });
   if (my !== renderSeq) return;
-  renderList(withNames());
+  renderList(items());
+  done();
   if (selected) showSelection(false);
-  lastStatus = `Uppdaterad ${new Date(lastResults.t).toLocaleTimeString('sv-SE')} · ${total.toLocaleString('sv-SE')} observationer · ${lastResults.manual ? 'vald plats' : '±' + Math.round(lastResults.acc) + ' m'}`;
-  showProgress();
+  if (!latest) return;
+  await latest.done;
+  if (my === renderSeq) renderList(items());
 }
+
+// ---- Fart ----
+// GPS:ens egen fart om den finns, annars beräknad från positionerna den senaste halvminuten.
+const FAST_KMH = 15;
+let recentFixes = [], datesPaused = false;
+function speedKmh() {
+  const s = pos?.coords.speed;
+  if (s != null && s >= 0) return s * 3.6;
+  const now = recentFixes.at(-1), old = recentFixes.find(f => now && now.t - f.t <= 60_000);
+  if (!now || !old || now.t - old.t < 20_000) return 0;
+  return distKm(old, now) / ((now.t - old.t) / 3_600_000);
+}
+const isFast = () => speedKmh() > FAST_KMH;
 
 // ---- Svenska rödlistan 2025 (GBIF-checklista) ----
 const REDLIST_DS = '87e639cc-30a9-4007-bd2c-b0cab60326b9';
@@ -335,8 +513,8 @@ const THREAT = {
   ENDANGERED:            { code: 'EN', sv: 'Starkt hotad', rank: 2 },
   VULNERABLE:            { code: 'VU', sv: 'Sårbar', rank: 1 },
 };
-let redlist = {};    // GBIF speciesKey -> hotkategori för hela arten (bara VU/EN/CR)
-let redlistSsp = {}; // GBIF speciesKey -> { st, ssp } när bara en underart är bedömd
+let redlist = {};    // speciesKey -> hotkategori för hela arten (bara VU/EN/CR)
+let redlistSsp = {}; // speciesKey -> { st, ssp } när bara en underart är bedömd
 const redlistLoads = {};
 
 function loadRedlist(cls, rank = 'CLASS') {
@@ -367,6 +545,7 @@ function loadRedlist(cls, rank = 'CLASS') {
   })().catch(e => { delete redlistLoads[cls]; throw e; });
 }
 
+// ---- Artlistan ----
 function speciesRow(it, max) {
   const li = document.createElement('li');
   const fill = document.createElement('div');
@@ -385,143 +564,211 @@ function speciesRow(it, max) {
     name.appendChild(b);
   }
   name.append(it.swe || it.sci || '…');
-  if (it.swe && it.sci) {
-    const sci = document.createElement('span');
-    sci.className = 'sci'; sci.textContent = it.sci;
-    name.appendChild(sci);
-  }
+  const dt = document.createElement('span');
+  dt.className = 'dt';
+  dt.textContent = it.last ? `senast ${it.last}` : '';
+  name.appendChild(dt);
   const cnt = document.createElement('span');
-  cnt.className = 'cnt'; cnt.textContent = it.n.toLocaleString('sv-SE');
+  cnt.className = 'cnt'; cnt.textContent = fmtN(it.n);
+  cnt.title = 'Antal observationer';
   li.append(fill, name, cnt);
   li.dataset.key = it.key;
-  li.title = 'Klicka för att visa observationerna på kartan';
+  li.title = `${it.sci ? it.sci + ' · ' : ''}tryck för att visa observationerna på kartan`;
   if (String(it.key) === String(selected?.key)) li.classList.add('sel');
   li.onclick = () => selectSpecies(it);
   return li;
+}
+
+const TOP_N = 20, TOP_RED = 10, EXPAND_KEY = 'artappen.expanded', EXPAND_RED_KEY = 'artappen.expandedRed';
+let expanded = load(EXPAND_KEY, false), expandedRed = load(EXPAND_RED_KEY, false);
+// Hotade arter: mest hotade först, sedan flest observationer.
+const threatenedOf = items => items.filter(i => redlist[i.key])
+  .sort((a, b) => THREAT[redlist[b.key]].rank - THREAT[redlist[a.key]].rank || b.n - a.n);
+// Arterna som syns: de 20 vanligaste (eller alla) plus de 10 första hotade (eller alla).
+function shownKeys(counts) {
+  const keys = new Set(expanded ? counts.map(c => c.key) : counts.slice(0, TOP_N).map(c => c.key));
+  const red = threatenedOf(counts);
+  (expandedRed ? red : red.slice(0, TOP_RED)).forEach(c => keys.add(c.key));
+  return [...keys];
+}
+function moreButton(total, open, onToggle, noun) {
+  const b = document.createElement('button');
+  b.className = 'more';
+  b.textContent = open ? 'Visa färre' : `Visa alla ${total} ${noun}`;
+  b.onclick = onToggle;
+  return b;
 }
 
 function renderList(items) {
   const list = $('list');
   if (!items.length) { list.innerHTML = `<p class="empty">Inga ${grp().none} inom 5 km (${yearText()}).</p>`; return; }
   const max = items[0].n;
-  const threatened = items.filter(i => redlist[i.key])
-    .sort((a, b) => THREAT[redlist[b.key]].rank - THREAT[redlist[a.key]].rank || b.n - a.n);
-  const rest = items.filter(i => !redlist[i.key]);
+  // Rödlistade arter står kvar på sin plats i listan (med etikett) och samlas dessutom under listan.
+  const threatened = threatenedOf(items);
+  const scroll = list.parentElement.scrollTop;
   list.innerHTML = '';
+  const shown = expanded ? items : items.slice(0, TOP_N);
+  const ol = document.createElement('ol');
+  if (shown.length > 16) ol.className = 'two';
+  shown.forEach(it => ol.appendChild(speciesRow(it, max)));
+  list.appendChild(ol);
+  if (items.length > TOP_N) list.appendChild(moreButton(items.length, expanded,
+    () => { expanded = !expanded; save(EXPAND_KEY, expanded); renderCurrent(); }, 'arter'));
   if (threatened.length) {
     const box = document.createElement('div');
     box.className = 'redgroup';
     const h = document.createElement('h3');
-    h.textContent = `Hotade arter · ${threatened.length} st (Rödlistan 2025, VU/EN/CR)`;
-    const ol = document.createElement('ol');
-    if (threatened.length > 6) ol.className = 'two';
-    threatened.forEach(it => ol.appendChild(speciesRow(it, max)));
-    box.append(h, ol);
+    h.textContent = `Hotade arter · ${threatened.length} st (Rödlistan 2025)`;
+    const redShown = expandedRed ? threatened : threatened.slice(0, TOP_RED);
+    const rl = document.createElement('ol');
+    if (redShown.length > 6) rl.className = 'two';
+    redShown.forEach(it => rl.appendChild(speciesRow(it, max)));
+    box.append(h, rl);
+    if (threatened.length > TOP_RED) box.appendChild(moreButton(threatened.length, expandedRed,
+      () => { expandedRed = !expandedRed; save(EXPAND_RED_KEY, expandedRed); renderCurrent(); }, 'hotade arter'));
     list.appendChild(box);
   }
-  if (rest.length) {
-    if (threatened.length) {
-      const h = document.createElement('h3');
-      h.className = 'sub'; h.textContent = 'Övriga arter';
-      list.appendChild(h);
-    }
-    const ol = document.createElement('ol');
-    if (rest.length > 16) ol.className = 'two';
-    rest.forEach(it => ol.appendChild(speciesRow(it, max)));
-    list.appendChild(ol);
-  }
+  list.parentElement.scrollTop = scroll;
 }
 
-function distKm(a, b) {
-  const R = 6371, r = Math.PI / 180;
-  const dLat = (b.lat - a.lat) * r, dLon = (b.lon - a.lon) * r;
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
-
+// ---- Kurva över resan ----
 function drawChart() {
   const svg = $('chart');
-  const W = Math.max(svg.clientWidth, 100), H = Math.max(svg.clientHeight, 60), P = { l: 34, r: 8, t: 10, b: 22 };
+  const W = Math.max(svg.clientWidth, 100), H = Math.max(svg.clientHeight, 50), P = { l: 30, r: 6, t: 8, b: 18 };
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   const yr = yearId(), gid = filter.group;
   const tr = track.filter(p => p.yr === yr && p.n?.[gid] != null);
-  if (tr.length < 1) { svg.innerHTML = ''; $('chartInfo').textContent = `Kurvan för ${grp().label.toLowerCase()}, ${yearText()}, fylls på var 300:e meter du förflyttar dig.`; return; }
-  // x-axel: tillryggalagd sträcka (km)
+  if (tr.length < 1) { svg.innerHTML = ''; $('chartInfo').textContent = `Fylls på var 300:e meter när resan är igång.`; return; }
   let d = 0; const pts = tr.map((p, i) => { if (i) d += distKm(tr[i - 1], p); return { x: d, y: p.n[gid] }; });
   const maxX = Math.max(pts.at(-1).x, 0.001), maxY = Math.max(...pts.map(p => p.y), 1);
-  const sx = x => P.l + (x / maxX) * (W - P.l - P.r);
-  const sy = y => H - P.b - (y / maxY) * (H - P.t - P.b);
   const useIndex = pts.at(-1).x < 0.05; // står still → använd mätpunkt som x
-  const X = (p, i) => useIndex ? P.l + (tr.length > 1 ? i / (tr.length - 1) : 0.5) * (W - P.l - P.r) : sx(p.x);
-  const path = pts.map((p, i) => `${i ? 'L' : 'M'}${X(p, i).toFixed(1)},${sy(p.y).toFixed(1)}`).join(' ');
+  const X = (p, i) => P.l + (useIndex ? (tr.length > 1 ? i / (tr.length - 1) : 0.5) : p.x / maxX) * (W - P.l - P.r);
+  const Y = y => H - P.b - (y / maxY) * (H - P.t - P.b);
+  const path = pts.map((p, i) => `${i ? 'L' : 'M'}${X(p, i).toFixed(1)},${Y(p.y).toFixed(1)}`).join(' ');
   const css = getComputedStyle(document.documentElement);
   const accent = css.getPropertyValue('--accent'), muted = css.getPropertyValue('--muted'), line = css.getPropertyValue('--line');
   svg.innerHTML = `
     <line x1="${P.l}" y1="${H - P.b}" x2="${W - P.r}" y2="${H - P.b}" stroke="${line}"/>
-    <line x1="${P.l}" y1="${sy(maxY)}" x2="${W - P.r}" y2="${sy(maxY)}" stroke="${line}" stroke-dasharray="3 3"/>
-    <text x="${P.l - 6}" y="${sy(maxY) + 4}" text-anchor="end" font-size="11" fill="${muted}">${maxY}</text>
-    <text x="${P.l - 6}" y="${H - P.b + 4}" text-anchor="end" font-size="11" fill="${muted}">0</text>
-    <text x="${W - P.r}" y="${H - 6}" text-anchor="end" font-size="11" fill="${muted}">${useIndex ? tr.length + ' mätningar' : maxX.toFixed(1) + ' km'}</text>
-    <path d="${path}" fill="none" stroke="${accent}" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
-    ${pts.map((p, i) => `<circle cx="${X(p, i)}" cy="${sy(p.y)}" r="3" fill="${accent}"/>`).join('')}`;
-  const start = new Date(tr[0].t).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
-  $('chartInfo').textContent = `${grp().label}, ${yearText()} · ${tr.length} mätningar sedan ${start} · ${pts.at(-1).x.toFixed(1)} km`;
+    <line x1="${P.l}" y1="${Y(maxY)}" x2="${W - P.r}" y2="${Y(maxY)}" stroke="${line}" stroke-dasharray="3 3"/>
+    <text x="${P.l - 5}" y="${Y(maxY) + 4}" text-anchor="end" font-size="10" fill="${muted}">${maxY}</text>
+    <text x="${P.l - 5}" y="${H - P.b + 4}" text-anchor="end" font-size="10" fill="${muted}">0</text>
+    <text x="${W - P.r}" y="${H - 4}" text-anchor="end" font-size="10" fill="${muted}">${useIndex ? tr.length + ' mätningar' : maxX.toFixed(1) + ' km'}</text>
+    <path d="${path}" fill="none" stroke="${accent}" stroke-width="2.2" stroke-linejoin="round"/>
+    ${tr.length < 60 ? pts.map((p, i) => `<circle cx="${X(p, i)}" cy="${Y(p.y)}" r="2.5" fill="${accent}"/>`).join('') : ''}`;
+  $('chartInfo').textContent = `${grp().label} · ${tr.length} mätningar sedan ${clock(tr[0].t)} · ${pts.at(-1).x.toFixed(1)} km`;
 }
 
 // ---- Karta ----
-const map = L.map('map', { zoomControl: true }).setView([62.5, 16], 4);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const map = L.map('map', { zoomControl: true, attributionControl: true }).setView([62.5, 16], 4);
+map.attributionControl.setPrefix(false);
+// OpenStreetMap, tonad till gråskala (se .basemap i CSS) så att observationerna och resan syns bättre.
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19, attribution: '&copy; OpenStreetMap'
+  maxZoom: 19, className: 'basemap', attribution: '© OpenStreetMap · Data: GBIF/Artportalen'
 }).addTo(map);
 const obsUrl = () => `https://api.gbif.org/v2/map/occurrence/adhoc/{z}/{x}/{y}@1x.png?datasetKey=${DATASET}${taxonParam(grp())}${yearParam()}&style=classic.poly&bin=hex&hexPerTile=30&srs=EPSG:3857`;
-const obsLayer = L.tileLayer(obsUrl(), {
-  maxZoom: 19, opacity: 0.5, attribution: 'Observationer: GBIF / Artportalen'
-}).addTo(map);
-const trackLine = L.polyline([], { color: '#e8590c', weight: 4, opacity: 0.85 }).addTo(map);
-const radiusCircle = L.circle([0, 0], { radius: RADIUS_KM * 1000, color: '#2f6b3a', weight: 2, fill: false });
-const accCircle = L.circle([0, 0], { radius: 1, color: '#1e6fd9', weight: 1, fillOpacity: 0.12 });
-const me = L.circleMarker([0, 0], { radius: 7, color: '#fff', weight: 2, fillColor: '#1e6fd9', fillOpacity: 1 });
+const OBS_OPACITY = 0.35;
+const obsLayer = L.tileLayer(obsUrl(), { maxZoom: 19, opacity: OBS_OPACITY }).addTo(map);
+const trackLine = L.polyline([], { color: css('--trip'), weight: 3, opacity: 0.8 }).addTo(map);
+const radiusCircle = L.circle([0, 0], { radius: RADIUS_KM * 1000, color: css('--me'), weight: 1.5, opacity: 0.5, fill: false, interactive: false });
+const accCircle = L.circle([0, 0], { radius: 1, stroke: false, fillColor: css('--me'), fillOpacity: 0.12, interactive: false });
+const me = L.circleMarker([0, 0], { radius: 7, color: '#fff', weight: 2.5, fillColor: css('--me'), fillOpacity: 1, interactive: false });
+const exploreCircle = L.circle([0, 0], { radius: RADIUS_KM * 1000, color: css('--explore'), weight: 1.5, dashArray: '6 6', fill: false, interactive: false });
+const exploreDot = L.circleMarker([0, 0], { radius: 7, color: '#fff', weight: 2.5, fillColor: css('--explore'), fillOpacity: 1, interactive: false });
+const rejectCircle = L.circle([0, 0], { radius: 1, color: '#888', weight: 1, dashArray: '4 4', fillOpacity: 0.04, interactive: false });
 let follow = true, centered = false;
 map.on('dragstart', () => { follow = false; });
 
-// Knapp: centrera kartan på mig igen och följ med
+// Lägesväljare på kartan: Min position / Utforska
+const modeCtl = L.control({ position: 'topright' });
+modeCtl.onAdd = () => {
+  const d = L.DomUtil.create('div', 'mapseg');
+  d.innerHTML = '<button data-mode="gps">Min position</button><button data-mode="explore">Utforska</button>';
+  L.DomEvent.disableClickPropagation(d);
+  d.onclick = e => { const b = e.target.closest('button'); if (b) setMode(b.dataset.mode); };
+  return d;
+};
+modeCtl.addTo(map);
+
+// Knapp under zoom: centrera på det som visas
 const recenter = L.control({ position: 'topleft' });
 recenter.onAdd = () => {
   const d = L.DomUtil.create('div', 'leaflet-bar');
-  d.innerHTML = '<a href="#" title="Centrera på min position" role="button" style="font-size:16px">◎</a>';
+  d.innerHTML = '<a href="#" title="Centrera" role="button" style="font-size:16px">◎</a>';
   L.DomEvent.disableClickPropagation(d);
-  d.firstChild.onclick = e => {
-    e.preventDefault();
-    if (!pos) { setStatus('Ingen position ännu – tryck Starta.'); return; }
-    follow = true;
-    map.fitBounds(radiusCircle.getBounds());
-  };
+  d.firstChild.onclick = e => { e.preventDefault(); fitView(); };
   return d;
 };
 recenter.addTo(map);
 
+// Infoskylt längst ner till vänster (markerad art eller tips i utforska-läget)
+const hint = L.control({ position: 'bottomleft' });
+hint.onAdd = () => { const d = L.DomUtil.create('div', 'maphint'); L.DomEvent.disableClickPropagation(d); return d; };
+function showHint(html) {
+  if (!html) { hint.remove(); return; }
+  hint.addTo(map); hint.getContainer().innerHTML = html;
+}
+
+function fitView() {
+  if (mode === 'explore' && exploreAt) { map.fitBounds(exploreCircle.getBounds()); return; }
+  if (mode === 'gps' && pos) { follow = true; map.fitBounds(radiusCircle.getBounds()); }
+}
+
+function setMode(m) {
+  if (m === mode) { fitView(); return; }
+  mode = m;
+  document.querySelectorAll('.mapseg button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
+  $('map').classList.toggle('exploring', mode === 'explore');
+  if (selected) clearSelection(false);
+  if (mode === 'explore') {
+    follow = false;
+    if (exploreAt) map.fitBounds(exploreCircle.getBounds());
+    showHint(exploreAt ? null : 'Tryck på kartan där du vill utforska.');
+  } else {
+    showHint(null);
+    if (pos) { follow = true; map.fitBounds(radiusCircle.getBounds()); }
+  }
+  renderCurrent();
+}
+
+map.on('click', e => {
+  if (mode !== 'explore') return;
+  exploreAt = { lat: e.latlng.lat, lon: e.latlng.lng };
+  exploreDot.setLatLng(e.latlng).addTo(map);
+  exploreCircle.setLatLng(e.latlng).addTo(map);
+  if (map.getZoom() < 11) map.fitBounds(exploreCircle.getBounds()); // utzoomat: gå in till den valda platsen
+  showHint(null);
+  if (selected) clearSelection(false);
+  exploreFetch();
+});
+
+function drawTrack() { trackLine.setLatLngs(track.map(p => [p.lat, p.lon])); }
+
+function showPosition(p) {
+  const ll = [p.coords.latitude, p.coords.longitude];
+  me.setLatLng(ll).addTo(map);
+  accCircle.setLatLng(ll).setRadius(p.coords.accuracy).addTo(map);
+  radiusCircle.setLatLng(ll).addTo(map);
+  if (mode !== 'gps') return;
+  if (!centered) { map.fitBounds(radiusCircle.getBounds()); centered = true; }
+  else if (follow) map.panTo(ll);
+}
+
 // ---- Markerad art: visa dess observationer på kartan ----
 let selected = null, selSeq = 0;
 const selLayer = L.layerGroup().addTo(map);
-const selInfo = L.control({ position: 'topright' });
-selInfo.onAdd = () => { const d = L.DomUtil.create('div', 'selinfo'); L.DomEvent.disableClickPropagation(d); return d; };
-
-const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
 function markRows() {
   document.querySelectorAll('#list li[data-key]').forEach(li => li.classList.toggle('sel', li.dataset.key === String(selected?.key)));
 }
-
-function clearSelection() {
+function clearSelection(refit = true) {
   selected = null; selSeq++;
   selLayer.clearLayers();
-  selInfo.remove();
-  obsLayer.setOpacity(0.5);
+  showHint(mode === 'explore' && !exploreAt ? 'Tryck på kartan där du vill utforska.' : null);
+  obsLayer.setOpacity(OBS_OPACITY);
   markRows();
-  follow = true;
-  if (pos) map.fitBounds(radiusCircle.getBounds());
+  if (refit) fitView();
 }
-
 function selectSpecies(it) {
   if (String(selected?.key) === String(it.key)) { clearSelection(); return; }
   selected = { key: it.key, name: it.swe || it.sci || 'Arten' };
@@ -530,26 +777,24 @@ function selectSpecies(it) {
 }
 
 async function showSelection(fit) {
-  if (!selected || !pos) return;
+  const at = viewPoint();
+  if (!selected || !at) return;
   const my = ++selSeq;
-  const { latitude: lat, longitude: lon } = pos.coords;
-  selInfo.addTo(map);
-  const info = selInfo.getContainer();
-  info.innerHTML = `<b>${esc(selected.name)}</b> · hämtar observationer…`;
-  const base = `https://api.gbif.org/v1/occurrence/search?datasetKey=${DATASET}&speciesKey=${selected.key}` +
-    `&geoDistance=${lat},${lon},${RADIUS_KM}km${yearParam()}&hasCoordinate=true&limit=300`;
-  const MAX = 1500;
+  showHint(`<b>${esc(selected.name)}</b> · hämtar…`);
+  const base = `${OCC}?datasetKey=${DATASET}&speciesKey=${selected.key}` +
+    `&geoDistance=${at.lat},${at.lon},${RADIUS_KM}km${yearParam()}&hasCoordinate=true&limit=300`;
   let recs = [], total = 0;
   try {
-    for (let off = 0; off < MAX; off += 300) {
+    for (let off = 0; off < 1500; off += 300) {
       const d = await fetch(`${base}&offset=${off}`).then(r => r.json());
       if (my !== selSeq) return;
       total = d.count; recs.push(...d.results);
       if (d.endOfRecords) break;
     }
-  } catch (e) { info.innerHTML = `<b>${esc(selected.name)}</b> · kunde inte hämta (${esc(e.message)})`; return; }
+  } catch (e) { showHint(`<b>${esc(selected.name)}</b> · kunde inte hämta`); return; }
   selLayer.clearLayers();
-  obsLayer.setOpacity(0.2);
+  obsLayer.setOpacity(0.12);
+  const color = css('--sel');
   for (const r of recs) {
     const id = (r.occurrenceID || '').split(':').pop();
     const date = (r.eventDate || '').slice(0, 10) || r.year || 'okänt datum';
@@ -559,31 +804,19 @@ async function showSelection(fit) {
       (r.coordinateUncertaintyInMeters ? `<br>±${Math.round(r.coordinateUncertaintyInMeters)} m` : '') +
       (/^\d+$/.test(id) ? `<br><a href="https://www.artportalen.se/Sighting/${id}" target="_blank" rel="noopener">Visa i Artportalen</a>` : '');
     L.circleMarker([r.decimalLatitude, r.decimalLongitude], {
-      radius: 6, color: '#fff', weight: 1.5, fillColor: '#d6336c', fillOpacity: 0.85
+      radius: 5.5, color: '#fff', weight: 1.2, fillColor: color, fillOpacity: 0.85, bubblingMouseEvents: false
     }).bindPopup(html).addTo(selLayer);
   }
-  const shown = recs.length < total ? `visar ${recs.length.toLocaleString('sv-SE')} av ${total.toLocaleString('sv-SE')}` : `${total.toLocaleString("sv-SE")}`;
-  info.innerHTML = `<b>${esc(selected.name)}</b> · ${shown} observationer · ${esc(yearText())}<button title="Avmarkera">✕</button>`;
-  info.querySelector('button').onclick = clearSelection;
+  const shown = recs.length < total ? `${fmtN(recs.length)} av ${fmtN(total)}` : fmtN(total);
+  showHint(`<b>${esc(selected.name)}</b> · ${shown} obs.<button title="Avmarkera">✕</button>`);
+  hint.getContainer().querySelector('button').onclick = () => clearSelection();
   if (fit && recs.length) {
     follow = false;
-    map.fitBounds(L.featureGroup(selLayer.getLayers()).getBounds().extend(me.getLatLng()).pad(0.15), { maxZoom: 15 });
+    map.fitBounds(L.featureGroup(selLayer.getLayers()).getBounds().extend([at.lat, at.lon]).pad(0.15), { maxZoom: 15 });
   }
 }
 
-function drawTrack() { trackLine.setLatLngs(track.map(p => [p.lat, p.lon])); }
-
-function showPosition(p) {
-  const ll = [p.coords.latitude, p.coords.longitude];
-  me.setLatLng(ll).addTo(map);
-  accCircle.setLatLng(ll).setRadius(p.coords.accuracy).addTo(map);
-  radiusCircle.setLatLng(ll).addTo(map);
-  if (!centered) { map.fitBounds(radiusCircle.getBounds()); centered = true; }
-  else if (follow) map.panTo(ll);
-}
-
-// Sträcka sedan senaste hämtningen. Rörelse mindre än positionens osäkerhet räknas inte,
-// så att wifi-positionens småhopp inte ger onödiga hämtningar.
+// ---- Resan: GPS, när den ska hämta, och skydd mot felaktiga positioner ----
 function movedSinceFetch() {
   if (!pos || !lastFetch) return 0;
   return distKm(lastFetch, { lat: pos.coords.latitude, lon: pos.coords.longitude }) * 1000;
@@ -592,29 +825,23 @@ function maybeUpdate() {
   if (!pos) return;
   if (!lastFetch) { update(); return; }
   const since = Date.now() - lastFetch.t;
-  const moved = movedSinceFetch();
   const needed = Math.max(MOVE_M, pos.coords.accuracy || 0);
-  if ((moved >= needed && since >= MIN_GAP_MS) || since >= IDLE_MS) update();
+  if ((movedSinceFetch() >= needed && since >= MIN_GAP_MS) || since >= IDLE_MS) update();
   else showProgress();
 }
-let lastStatus = '';
 function showProgress() {
-  if (!lastStatus || !lastFetch) return;
-  const needed = Math.max(MOVE_M, pos?.coords.accuracy || 0);
+  if (!pos || !lastFetch) return;
+  const needed = Math.max(MOVE_M, pos.coords.accuracy || 0);
   const left = Math.max(0, Math.round(needed - movedSinceFetch()));
   const idle = Math.max(0, Math.ceil((IDLE_MS - (Date.now() - lastFetch.t)) / 60_000));
-  setStatus(`${lastStatus} · ny hämtning om ${left} m eller ${idle} min`);
+  setGps(`Resan pågår · GPS ±${Math.round(pos.coords.accuracy)} m · nästa hämtning om ${left} m eller ${idle} min`);
 }
 
-// ---- Skydd mot felaktiga positioner ----
-// 1) För osäkra positioner (t.ex. IP-baserad gissning på flera km) används inte.
-// 2) Ett hopp som skulle kräva orimlig fart räknas som fel – tills flera positioner
-//    i rad bekräftar den nya platsen (då har man t.ex. väckt datorn på ett nytt ställe).
-const MAX_ACC_M = 1500;
-const MAX_KMH = 250;
+// 1) För osäkra positioner (t.ex. IP-baserad gissning) används inte.
+// 2) Ett hopp som kräver orimlig fart räknas som fel – tills flera positioner i rad bekräftar det.
+const MAX_ACC_M = 1500, MAX_KMH = 250;
 const CONFIRM_FIXES = 3, CONFIRM_RADIUS_M = 500, CONFIRM_MS = 20_000;
 let candidates = [];
-
 function checkFix(p) {
   const c = p.coords;
   if (c.accuracy > MAX_ACC_M) return { ok: false, why: `för osäker position (±${(c.accuracy / 1000).toFixed(1)} km)` };
@@ -622,124 +849,86 @@ function checkFix(p) {
   const here = { lat: c.latitude, lon: c.longitude };
   const km = distKm({ lat: pos.coords.latitude, lon: pos.coords.longitude }, here);
   const h = Math.max((p.timestamp - pos.timestamp) / 3_600_000, 1 / 3600);
-  // Rörelse inom positionernas osäkerhet räknas inte som fart.
   const effKm = Math.max(0, km - (c.accuracy + pos.coords.accuracy) / 1000);
   if (effKm / h <= MAX_KMH) { candidates = []; return { ok: true }; }
-  // Orimligt hopp: samla kandidater och godta först om de är eniga en stund.
   candidates = candidates.filter(q => distKm(q, here) * 1000 <= CONFIRM_RADIUS_M);
   candidates.push({ ...here, t: p.timestamp });
-  if (candidates.length >= CONFIRM_FIXES && p.timestamp - candidates[0].t >= CONFIRM_MS) {
-    candidates = [];
-    return { ok: true, jumped: Math.round(km) };
-  }
+  if (candidates.length >= CONFIRM_FIXES && p.timestamp - candidates[0].t >= CONFIRM_MS) { candidates = []; return { ok: true }; }
   return { ok: false, why: `orimligt hopp på ${km.toFixed(1)} km – väntar på bekräftelse (${candidates.length}/${CONFIRM_FIXES})` };
 }
 
 let first = true;
-function accept(p, force = false) {
-  pos = p;
-  rejectCircle.remove();
-  showPosition(p);
-  if (first) { first = false; timer = setInterval(maybeUpdate, 5_000); update(); }
-  else if (force) update();
-  else maybeUpdate();
-}
-
 function onFix(p) {
   const chk = checkFix(p);
   if (!chk.ok) {
-    // Visa var datorn tror att du är, så man ser varför den ignoreras.
     rejectCircle.setLatLng([p.coords.latitude, p.coords.longitude]).setRadius(p.coords.accuracy).addTo(map);
-    const hint = pos ? '' : ' Datorn hittar inte var du är – vänta en stund, eller tryck "Välj plats på kartan".';
-    setStatus(`Ignorerar position: ${chk.why}.${hint}`, true);
-    if (!pos && !centered) map.fitBounds(rejectCircle.getBounds());
+    setGps(`Ignorerar position: ${chk.why}.${pos ? '' : ' Under tiden kan du utforska kartan.'}`, true);
     return;
   }
-  if (chk.jumped) console.info(`Ny plats bekräftad efter hopp på ${chk.jumped} km`);
-  accept(p);
+  rejectCircle.remove();
+  pos = p;
+  recentFixes.push({ lat: p.coords.latitude, lon: p.coords.longitude, t: p.timestamp });
+  recentFixes = recentFixes.filter(f => p.timestamp - f.t <= 60_000);
+  showPosition(p);
+  if (first) { first = false; timer = setInterval(maybeUpdate, 5_000); update(); }
+  else maybeUpdate();
+  if (datesPaused && mode === 'gps' && !isFast()) renderCurrent(); // saktat in: visa datumen igen
 }
 
-// Håll skärmen tänd medan appen kör – webbläsaren får ingen position när skärmen är släckt.
-let wakeLock = null;
+// Håll skärmen tänd medan resan pågår – webbläsaren får ingen position när skärmen är släckt.
 async function keepAwake() {
-  try { if ('wakeLock' in navigator && document.visibilityState === 'visible') wakeLock = await navigator.wakeLock.request('screen'); } catch {}
+  try { if ('wakeLock' in navigator && document.visibilityState === 'visible') await navigator.wakeLock.request('screen'); } catch {}
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && watchId != null) keepAwake(); });
 
 function start() {
+  if (!('geolocation' in navigator)) { setGps('Webbläsaren saknar GPS-stöd. Du kan utforska kartan i stället.', true); return; }
   keepAwake();
-  if (!('geolocation' in navigator)) { setStatus('Webbläsaren saknar GPS-stöd. Tryck "Välj plats på kartan".', true); return; }
-  $('startBtn').textContent = 'Kör…'; $('startBtn').disabled = true;
-  setStatus('Söker din position… (första gången frågar webbläsaren om lov)');
+  $('startBtn').textContent = 'Resan pågår'; $('startBtn').disabled = true;
+  setGps('Söker din position… (första gången frågar webbläsaren om lov)');
+  if (mode === 'gps') renderCurrent();
   watchId = navigator.geolocation.watchPosition(onFix, err => {
     const why = err.code === 1 ? 'webbläsaren fick inte använda platstjänster' : err.message;
-    setStatus(`Positionsfel: ${why}. Tryck Starta igen, eller "Välj plats på kartan".`, true);
+    setGps(`Positionsfel: ${why}. Tryck Starta resa igen.`, true);
     navigator.geolocation.clearWatch(watchId); watchId = null;
-    $('startBtn').textContent = 'Starta'; $('startBtn').disabled = false;
+    $('startBtn').textContent = 'Starta resa'; $('startBtn').disabled = false;
   }, { enableHighAccuracy: true, maximumAge: 5_000, timeout: 60_000 });
 }
 
-// Gråstreckad cirkel: en position som ignorerades
-const rejectCircle = L.circle([0, 0], { radius: 1, color: '#888', weight: 1.5, dashArray: '5 5', fillOpacity: 0.05 });
-
-// ---- Välj plats manuellt (när datorn inte hittar positionen) ----
-let picking = false;
-function setPicking(on) {
-  picking = on;
-  $('pickBtn').classList.toggle('on', on);
-  $('map').classList.toggle('picking', on);
-  if (on) setStatus('Klicka på kartan där du är.');
-}
-$('pickBtn').onclick = () => setPicking(!picking);
-map.on('click', e => {
-  if (!picking) return;
-  setPicking(false);
-  // En vald plats räknas som exakt. Kommer det senare en bra GPS-position tar den över
-  // (ett stort hopp kräver då som vanligt bekräftelse).
-  const p = { coords: { latitude: e.latlng.lat, longitude: e.latlng.lng, accuracy: 0 }, timestamp: Date.now(), manual: true };
-  candidates = [];
-  follow = true; centered = false;
-  accept(p, true); // hämta direkt, utan att vänta på spärren mot täta hämtningar
-});
-
 // ---- Filter: djurgrupp och år ----
 function fillYears() {
-  const opts = (first) => [`<option value="">${first}</option>`]
+  const opts = first => [`<option value="">${first}</option>`]
     .concat(Array.from({ length: THIS_YEAR - FIRST_YEAR + 1 }, (_, i) => THIS_YEAR - i).map(y => `<option>${y}</option>`)).join('');
   $('yearFrom').innerHTML = opts('tidigast');
   $('yearTo').innerHTML = opts('senast');
 }
-
 function syncControls() {
-  const g = grp();
   document.querySelectorAll('#groupSeg button').forEach(b => b.classList.toggle('on', b.dataset.group === filter.group));
   $('yearFrom').value = filter.from ?? '';
   $('yearTo').value = filter.to ?? '';
   document.querySelectorAll('#yearChips button').forEach(b => {
     const span = +b.dataset.span;
-    const on = span === 0 ? (!filter.from && !filter.to) : (filter.from === THIS_YEAR - span + 1 && !filter.to);
-    b.classList.toggle('on', on);
+    b.classList.toggle('on', span === 0 ? (!filter.from && !filter.to) : (filter.from === THIS_YEAR - span + 1 && !filter.to));
   });
-  $('title').textContent = `${g.label} inom 5 km · Artportalen via GBIF`;
-  $('countLabel').textContent = `${g.noun} observerade inom 5 km · ${yearText()}`;
-  $('obsLegend').textContent = g.obs;
-  document.title = `${g.label} nära dig`;
+  document.querySelectorAll('.mapseg button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
+  syncLabels();
 }
-
 function applyFilter() {
   if (filter.from && filter.to && filter.from > filter.to) [filter.from, filter.to] = [filter.to, filter.from];
   save(FILTER_KEY, filter);
   syncControls();
   obsLayer.setUrl(obsUrl());
   drawChart();
-  // Byte av djurgrupp: allt finns redan hämtat – visa direkt, ingen ny hämtning.
-  if (lastResults && lastResults.yr === yearId()) { renderCurrent(); return; }
-  $('count').textContent = '–';
-  $('list').innerHTML = '<p class="empty">Hämtar…</p>';
-  if (pos) update(); else setStatus('Tryck Starta för att hämta observationer.');
+  // Byte av djurgrupp: allt finns redan hämtat. Byte av år: hämta om för resa och utforskad punkt.
+  if (tripRes && tripRes.yr !== yearId() && pos) update();
+  if (exploreRes && exploreRes.yr !== yearId() && exploreAt) exploreFetch();
+  renderCurrent();
 }
 
-$('groupSeg').onclick = e => { const b = e.target.closest('button'); if (b && b.dataset.group !== filter.group) { if (selected) clearSelection(); filter.group = b.dataset.group; applyFilter(); } };
+$('groupSeg').onclick = e => {
+  const b = e.target.closest('button');
+  if (b && b.dataset.group !== filter.group) { if (selected) clearSelection(false); filter.group = b.dataset.group; applyFilter(); }
+};
 $('yearChips').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
   const span = +b.dataset.span;
@@ -748,20 +937,23 @@ $('yearChips').onclick = e => {
 };
 $('yearFrom').onchange = e => { filter.from = e.target.value ? +e.target.value : null; applyFilter(); };
 $('yearTo').onchange = e => { filter.to = e.target.value ? +e.target.value : null; applyFilter(); };
+$('startBtn').onclick = start;
+$('clearBtn').onclick = () => {
+  if (track.length && !confirm('Rensa hela resan och kurvan?')) return;
+  track = []; save(TRACK_KEY, track); drawChart(); drawTrack();
+};
+
 fillYears();
 syncControls();
-
-$('startBtn').onclick = start;
-// Har webbläsaren redan gett lov att använda platsen startar vi direkt.
-// Service worker: gör appen installerbar (Chrome: "Installera app").
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(e => console.warn('Service worker:', e));
-navigator.permissions?.query({ name: 'geolocation' }).then(st => { if (st.state === 'granted' && watchId == null) start(); }).catch(() => {});
-$('clearBtn').onclick = () => { track = []; save(TRACK_KEY, track); drawChart(); drawTrack(); };
+renderCurrent();
 drawChart();
 drawTrack();
+if (track.length) map.fitBounds(trackLine.getBounds().pad(0.3));
 new ResizeObserver(() => map.invalidateSize()).observe($('map'));
 new ResizeObserver(() => drawChart()).observe($('chart'));
-if (track.length) map.fitBounds(trackLine.getBounds().pad(0.3));
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(e => console.warn('Service worker:', e));
+// Har webbläsaren redan gett lov att använda platsen startar resan direkt.
+navigator.permissions?.query({ name: 'geolocation' }).then(st => { if (st.state === 'granted' && watchId == null) start(); }).catch(() => {});
 </script>
 </body>
 </html>
