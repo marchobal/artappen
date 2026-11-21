@@ -1,7 +1,7 @@
 // Artappens service worker: gör appen installerbar och låter den starta utan nät.
 // Sidan hämtas alltid från nätet i första hand, så att nya versioner syns direkt;
 // den sparade kopian används bara när nätet saknas.
-const CACHE = 'artappen-v1';
+const CACHE = 'artappen-v2';
 const SHELL = ['./', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -18,7 +18,8 @@ self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return; // GBIF, kartor m.m. går direkt
   e.respondWith(
-    fetch(e.request)
+    // no-cache: fråga alltid servern om filen ändrats (billigt), så att nya versioner syns direkt
+    fetch(e.request, { cache: 'no-cache' })
       .then(res => {
         if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
         return res;

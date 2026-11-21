@@ -226,7 +226,8 @@ const DATASET = '38b4c89f-584c-41bb-bd8f-cd1def33e92f'; // Artportalen
 const GROUPS = {
   mammals: { keys: [359], red: [['Mammalia', 'CLASS']], label: 'Däggdjur', noun: 'däggdjursarter', none: 'däggdjursobservationer' },
   birds:   { keys: [212], red: [['Aves', 'CLASS']], label: 'Fåglar', noun: 'fågelarter', none: 'fågelobservationer' },
-  herps:   { keys: [131, 358], red: [['Amphibia', 'CLASS'], ['Squamata', 'ORDER']], label: 'Grod- och kräldjur',
+  herps:   { keys: [131, 11592253, 11418114], // groddjur, ödlor och ormar (Squamata), sköldpaddor (Testudines)
+             red: [['Amphibia', 'CLASS'], ['Squamata', 'ORDER']], label: 'Grod- och kräldjur',
              noun: 'arter av grod- och kräldjur', none: 'observationer av grod- och kräldjur' },
 };
 const taxonParam = g => g.keys.map(k => `&taxonKey=${k}`).join('');
