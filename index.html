@@ -70,6 +70,7 @@
            font-variant-numeric: tabular-nums; min-width: 2.2ch; text-align: right; }
   .statline { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #countLabel { font-weight: 600; font-size: .95rem; }
+  .groupicon { height: 36px; width: auto; flex: none; margin-left: -4px; align-self: center; }
   #status { font-size: .85rem; color: var(--muted); }
   #status:empty { display: none; } /* bara meddelanden som "Hämtar…" eller fel visas här */
 
@@ -189,6 +190,7 @@
           <div class="statline" id="countLabel">arter inom 5 km.</div>
           <div class="statline" id="status">Starta resan längst ner, eller utforska kartan.</div>
         </div>
+        <img class="groupicon" id="groupIcon" src="img/mammals.png" alt="">
       </section>
 
       <section class="card mapcard"><div id="map"></div></section>
@@ -464,6 +466,10 @@ async function findLatest(e, r, gid, keys) {
 function syncLabels() {
   const g = grp();
   $('countLabel').textContent = 'arter inom 5 km.';
+  // Ikon för vald djurgrupp: vildsvin, kungsfågel eller padda
+  const icon = $('groupIcon');
+  if (!icon.src.endsWith(`img/${filter.group}.png`)) icon.src = `img/${filter.group}.png`;
+  icon.alt = g.label;
   document.title = `Artappen · ${g.label}`;
 }
 
