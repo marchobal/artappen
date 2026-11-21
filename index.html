@@ -1,0 +1,762 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Artappen">
+<meta name="theme-color" content="#2f6b3a">
+<title>Däggdjur nära dig</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  #map { height: 320px; border-radius: 10px; z-index: 0; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); font-size: .8rem; margin-top: 8px; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: -1px; margin-right: 4px; }
+  :root {
+    --bg: #f6f5f1; --card: #ffffff; --text: #1d1f1c; --muted: #6b6f68;
+    --accent: #2f6b3a; --line: #e3e1da; --bar: #cfe3d2;
+    --redbg: #fdf0ee; --redline: #f0c4bd; --redtext: #a8321f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #141613; --card: #1d201c; --text: #ecebe6; --muted: #9a9e96;
+            --accent: #7fc28b; --line: #2e322d; --bar: #2c4a31;
+            --redbg: #2a1b18; --redline: #5a2e26; --redtext: #f0a08f; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 1.1rem; font-weight: 600; margin: 8px 0 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+          padding: 16px; margin-bottom: 16px; }
+  .big { font-size: 6rem; font-weight: 700; line-height: 1; color: var(--accent);
+         font-variant-numeric: tabular-nums; }
+  .label { color: var(--muted); font-size: .95rem; }
+  .status { color: var(--muted); font-size: .85rem; margin-top: 8px; }
+  .status.err { color: #c0392b; }
+  ol { list-style: none; padding: 0; margin: 0; }
+  li { position: relative; display: flex; justify-content: space-between; gap: 8px;
+       padding: 8px 10px; border-radius: 8px; margin-bottom: 4px; overflow: hidden; }
+  li .barfill { position: absolute; inset: 0 auto 0 0; background: var(--bar); z-index: 0; border-radius: 8px; }
+  li span { position: relative; z-index: 1; }
+  li .sci { color: var(--muted); font-style: italic; font-size: .85rem; margin-left: 6px; }
+  li .cnt { font-variant-numeric: tabular-nums; color: var(--muted); }
+  h2 { font-size: 1rem; margin: 0 0 10px; }
+  #chart { width: 100%; height: 160px; display: block; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  button { font: inherit; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line);
+           background: var(--card); color: var(--text); cursor: pointer; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .empty { color: var(--muted); font-size: .9rem; }
+  @media (max-width: 899px) {
+    main { padding: 12px max(12px, env(safe-area-inset-left)) calc(24px + env(safe-area-inset-bottom)); }
+    h1 { font-size: 1rem; }
+    .layout { display: flex; flex-direction: column; }
+    .left { display: contents; }
+    .toprow { display: contents; }
+    .countcard { order: 1; } .mapcard { order: 2; } .listcard { order: 3; } .chartcard { order: 4; }
+    .big { font-size: 4.5rem; }
+    #map { height: 42vh; min-height: 240px; }
+    .controls { width: 100%; }
+    .seg button { padding: 8px 10px; }
+    .countcard .row button { flex: 1 1 auto; }
+  }
+  .topbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin: 8px 0 16px; }
+  .topbar h1 { margin: 0; }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--card); }
+  .seg button { border: 0; border-radius: 0; padding: 6px 12px; background: transparent; font-size: .9rem; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  #map.picking { cursor: crosshair; }
+  button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .seg button.on { background: var(--accent); color: #fff; }
+  .yr { font-size: .9rem; color: var(--muted); }
+  select { font: inherit; font-size: .9rem; padding: 5px 6px; border-radius: 8px; border: 1px solid var(--line);
+           background: var(--card); color: var(--text); }
+  .listcard ol li { padding: 3px 9px; margin-bottom: 2px; font-size: .9rem; }
+  .redgroup { border: 1px solid var(--redline); background: var(--redbg); border-radius: 10px;
+              padding: 8px 8px 4px; margin-bottom: 10px; }
+  .listcard h3 { font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .03em;
+                 margin: 0 0 6px 2px; color: var(--muted); }
+  .redgroup h3 { color: var(--redtext); }
+  .badge { display: inline-block; font-size: .7rem; font-weight: 700; padding: 1px 5px; border-radius: 4px;
+           margin-right: 6px; color: #fff; vertical-align: 1px; }
+  .badge.cr { background: #b3001b; } .badge.en { background: #d9480f; } .badge.vu { background: #e8a200; color: #1d1f1c; }
+  .badge.ssp { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--muted); cursor: help; }
+  .listcard li { cursor: pointer; }
+  .listcard li:hover { box-shadow: inset 0 0 0 1px var(--muted); }
+  .listcard li.sel { box-shadow: inset 0 0 0 2px #d6336c; }
+  .selinfo { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
+             padding: 6px 10px; font: 13px/1.35 -apple-system, BlinkMacSystemFont, sans-serif; max-width: 280px;
+             box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+  .selinfo b { color: #d6336c; }
+  .selinfo button { margin-left: 8px; padding: 0 6px; font-size: 13px; }
+  .leaflet-popup-content { font-size: 13px; }
+  .listcard li .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @media (min-width: 900px) and (min-height: 560px) {
+    body { height: 100vh; overflow: hidden; }
+    main { max-width: none; height: 100vh; display: flex; flex-direction: column; padding: 12px 16px; }
+    .topbar { margin: 0 0 10px; }
+    .layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr); gap: 12px; }
+    .left { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+    .toprow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+    .card { margin: 0; padding: 14px; }
+    .big { font-size: 5rem; }
+    #chart { height: 130px; }
+    .mapcard { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    #map { flex: 1; height: auto; min-height: 160px; }
+    .listcard { min-height: 0; overflow-y: auto; }
+    .listcard ol.two { column-count: 2; column-gap: 8px; }
+    .listcard ol.two li { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header class="topbar">
+    <h1 id="title">Däggdjur inom 5 km · Artportalen via GBIF</h1>
+    <div class="controls">
+      <div class="seg" id="groupSeg" role="group" aria-label="Djurgrupp">
+        <button data-group="mammals">Däggdjur</button>
+        <button data-group="birds">Fåglar</button>
+        <button data-group="herps">Grod- & kräldjur</button>
+      </div>
+      <div class="seg" id="yearChips" role="group" aria-label="Snabbval år">
+        <button data-span="1">I år</button>
+        <button data-span="5">5 år</button>
+        <button data-span="10">10 år</button>
+        <button data-span="0">Alla år</button>
+      </div>
+      <label class="yr">Från <select id="yearFrom"></select></label>
+      <label class="yr">till <select id="yearTo"></select></label>
+    </div>
+  </header>
+  <div class="layout">
+    <div class="left">
+      <div class="toprow">
+        <section class="card countcard">
+          <div class="big" id="count">–</div>
+          <div class="label" id="countLabel">arter observerade inom 5 km</div>
+          <div class="status" id="status">Tryck Starta för att hämta din position.</div>
+          <div class="row" style="margin-top:12px">
+            <button class="primary" id="startBtn">Starta</button>
+            <button id="pickBtn" title="Om datorn inte hittar din position">Välj plats på kartan</button>
+            <button id="clearBtn">Rensa resan</button>
+          </div>
+        </section>
+
+        <section class="card chartcard">
+          <h2>Antal arter längs resan</h2>
+          <svg id="chart"></svg>
+          <div class="status" id="chartInfo"></div>
+        </section>
+      </div>
+
+      <section class="card mapcard">
+        <div id="map"></div>
+        <div class="legend">
+          <span><i style="background:#1e6fd9"></i>Du</span>
+          <span><i style="border:2px solid #2f6b3a"></i>5 km</span>
+          <span><i style="background:#e8590c;border-radius:2px;height:3px;vertical-align:3px"></i>Resan</span>
+          <span><i style="border-radius:2px;width:36px;background:linear-gradient(90deg,#ffee55,#f7a530,#d7261e);opacity:.75"></i><span id="obsLegend">Däggdjursobservationer</span> (få → många)</span>
+        </div>
+      </section>
+    </div>
+
+    <section class="card listcard">
+      <h2 id="listTitle">Arter här, vanligast först</h2>
+      <div id="list"><p class="empty">Inga data ännu.</p></div>
+    </section>
+  </div>
+</main>
+
+<script>
+const DATASET = '38b4c89f-584c-41bb-bd8f-cd1def33e92f'; // Artportalen
+const GROUPS = {
+  mammals: { keys: [359], red: [['Mammalia', 'CLASS']], label: 'Däggdjur', noun: 'däggdjursarter',
+             obs: 'Däggdjursobservationer', none: 'däggdjursobservationer' },
+  birds:   { keys: [212], red: [['Aves', 'CLASS']], label: 'Fåglar', noun: 'fågelarter',
+             obs: 'Fågelobservationer', none: 'fågelobservationer' },
+  herps:   { keys: [131, 358], red: [['Amphibia', 'CLASS'], ['Squamata', 'ORDER']], label: 'Grod- och kräldjur',
+             short: 'Grod- & kräldjur', noun: 'arter av grod- och kräldjur',
+             obs: 'Grod- och kräldjursobservationer', none: 'observationer av grod- och kräldjur' },
+};
+const taxonParam = g => g.keys.map(k => `&taxonKey=${k}`).join('');
+const THIS_YEAR = new Date().getFullYear();
+const FIRST_YEAR = 1970;
+const FILTER_KEY = 'artappen.filter';
+const RADIUS_KM = 5;
+const MOVE_M = 300;        // hämta igen när du flyttat dig minst så här långt …
+const MIN_GAP_MS = 10_000;  // … men inte oftare än så här
+const IDLE_MS = 5 * 60_000; // och annars var femte minut även om du står still
+let lastFetch = null;       // { lat, lon, t } för senaste hämtningen
+const TRACK_KEY = 'artappen.track';
+const NAME_KEY = 'artappen.names';
+
+const $ = id => document.getElementById(id);
+let pos = null, timer = null, watchId = null;
+
+function load(key, fallback) {
+  try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
+}
+function save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
+
+// Varje punkt på resan: { t, lat, lon, acc, yr, n: { mammals, birds, herps }, obs: {…} }
+// Äldre punkter (en djurgrupp per punkt, fältet f) görs om till det formatet.
+let track = load(TRACK_KEY, []).map(p => {
+  if (p.yr !== undefined) return p;
+  const [g, yr] = (p.f || 'mammals|-').split('|');
+  return { t: p.t, lat: p.lat, lon: p.lon, yr, n: { [g]: p.n }, obs: { [g]: p.obs } };
+});
+let lastResults = null; // { yr, byGroup: { mammals: { counts, total }, … } } från senaste hämtningen
+const names = load(NAME_KEY, {});
+let filter = Object.assign({ group: 'mammals', from: null, to: null }, load(FILTER_KEY, {}));
+if (!GROUPS[filter.group]) filter.group = 'mammals';
+let seq = 0; // skyddar mot att ett gammalt svar skriver över ett nyare
+
+const grp = () => GROUPS[filter.group];
+const yearId = () => `${filter.from ?? ''}-${filter.to ?? ''}`;
+const yearParam = () => (filter.from || filter.to) ? `&year=${filter.from ?? '*'},${filter.to ?? '*'}` : '';
+function yearText() {
+  const { from, to } = filter;
+  if (!from && !to) return 'alla år';
+  if (from && to) return from === to ? `${from}` : `${from}–${to}`;
+  return from ? `från ${from}` : `till ${to}`;
+}
+
+// Kör fn över items med högst n samtidiga anrop
+async function mapLimit(items, n, fn) {
+  const out = new Array(items.length); let i = 0;
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
+    while (i < items.length) { const j = i++; out[j] = await fn(items[j], j); }
+  }));
+  return out;
+}
+
+function setStatus(msg, err = false) {
+  $('status').textContent = msg;
+  $('status').className = 'status' + (err ? ' err' : '');
+}
+
+async function speciesName(key) {
+  if (names[key]) return names[key];
+  let swe = null, sci = null;
+  try {
+    const [v, s] = await Promise.all([
+      fetch(`https://api.gbif.org/v1/species/${key}/vernacularNames?limit=300`).then(r => r.json()),
+      fetch(`https://api.gbif.org/v1/species/${key}`).then(r => r.json()),
+    ]);
+    const hit = (v.results || []).find(r => r.language === 'swe');
+    if (hit) swe = hit.vernacularName.charAt(0).toUpperCase() + hit.vernacularName.slice(1);
+    sci = s.canonicalName || s.scientificName || null;
+  } catch {}
+  const entry = { swe, sci };
+  if (sci) { names[key] = entry; save(NAME_KEY, names); }
+  return entry;
+}
+
+async function fetchCounts(g, lat, lon) {
+  const url = `https://api.gbif.org/v1/occurrence/search?datasetKey=${DATASET}` +
+    `${taxonParam(g)}&geoDistance=${lat},${lon},${RADIUS_KM}km${yearParam()}` +
+    `&limit=0&facet=speciesKey&facetLimit=1000`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  return { counts: (data.facets?.[0]?.counts || []).map(c => ({ key: c.name, n: c.count })), total: data.count };
+}
+
+// Hämtar alla djurgrupper på en gång, så att resans data finns för alla grupper
+// och man kan växla grupp utan att något försvinner.
+async function update() {
+  if (!pos) { setStatus('Tryck Starta för att hämta din position.'); return; }
+  const my = ++seq;
+  const { latitude: lat, longitude: lon, accuracy: acc } = pos.coords;
+  lastFetch = { lat, lon, t: Date.now() };
+  const yr = yearId();
+  setStatus(`Hämtar observationer för ${lat.toFixed(4)}, ${lon.toFixed(4)}…`);
+  try {
+    const ids = Object.keys(GROUPS);
+    const res = await Promise.all(ids.map(id => fetchCounts(GROUPS[id], lat, lon)));
+    if (my !== seq) return;
+    const byGroup = Object.fromEntries(ids.map((id, i) => [id, res[i]]));
+    lastResults = { yr, byGroup, acc, manual: !!pos.manual, t: Date.now() };
+    track.push({
+      t: Date.now(), lat, lon, acc: Math.round(acc), yr,
+      n: Object.fromEntries(ids.map(id => [id, byGroup[id].counts.length])),
+      obs: Object.fromEntries(ids.map(id => [id, byGroup[id].total])),
+    });
+    save(TRACK_KEY, track);
+    drawChart();
+    drawTrack();
+    await renderCurrent();
+  } catch (e) {
+    if (my === seq) setStatus('Kunde inte hämta data: ' + e.message, true);
+  }
+}
+
+// Visar siffra och lista för vald djurgrupp ur senaste hämtningen (ingen ny hämtning).
+let renderSeq = 0;
+async function renderCurrent() {
+  if (!lastResults) return;
+  const my = ++renderSeq;
+  const g = grp();
+  const { counts, total } = lastResults.byGroup[filter.group];
+  $('count').textContent = counts.length;
+  $('listTitle').textContent = `${counts.length} arter här, vanligast först`;
+  await Promise.all(g.red.map(([n, r]) => loadRedlist(n, r).catch(e => console.warn('Rödlistan kunde inte laddas:', e))));
+  if (my !== renderSeq) return;
+  const withNames = () => counts.map(c => ({ ...c, ...(names[c.key] || {}) }));
+  renderList(withNames());
+  const missing = counts.filter(c => !names[c.key]);
+  let done = 0;
+  await mapLimit(missing, 8, async c => {
+    await speciesName(c.key);
+    if (++done % 25 === 0 && my === renderSeq) {
+      renderList(withNames());
+      setStatus(`Hämtar artnamn… ${done}/${missing.length}`);
+    }
+  });
+  if (my !== renderSeq) return;
+  renderList(withNames());
+  if (selected) showSelection(false);
+  lastStatus = `Uppdaterad ${new Date(lastResults.t).toLocaleTimeString('sv-SE')} · ${total.toLocaleString('sv-SE')} observationer · ${lastResults.manual ? 'vald plats' : '±' + Math.round(lastResults.acc) + ' m'}`;
+  showProgress();
+}
+
+// ---- Svenska rödlistan 2025 (GBIF-checklista) ----
+const REDLIST_DS = '87e639cc-30a9-4007-bd2c-b0cab60326b9';
+const THREAT = {
+  CRITICALLY_ENDANGERED: { code: 'CR', sv: 'Akut hotad', rank: 3 },
+  ENDANGERED:            { code: 'EN', sv: 'Starkt hotad', rank: 2 },
+  VULNERABLE:            { code: 'VU', sv: 'Sårbar', rank: 1 },
+};
+let redlist = {};    // GBIF speciesKey -> hotkategori för hela arten (bara VU/EN/CR)
+let redlistSsp = {}; // GBIF speciesKey -> { st, ssp } när bara en underart är bedömd
+const redlistLoads = {};
+
+function loadRedlist(cls, rank = 'CLASS') {
+  return redlistLoads[cls] ??= (async () => {
+    const cacheKey = `artappen.redlist.v3.${cls}`;
+    const cached = load(cacheKey, null);
+    if (cached && Date.now() - cached.t < 30 * 864e5) { Object.assign(redlist, cached.map); Object.assign(redlistSsp, cached.ssp); return; }
+    const api = 'https://api.gbif.org/v1/species';
+    const c = await fetch(`${api}/search?datasetKey=${REDLIST_DS}&q=${cls}&rank=${rank}&limit=1`).then(r => r.json());
+    const classKey = c.results?.[0]?.key;
+    if (!classKey) throw new Error(`hittade inte ${cls} i rödlistan`);
+    const all = await fetch(`${api}/search?datasetKey=${REDLIST_DS}&highertaxonKey=${classKey}&limit=1000`).then(r => r.json());
+    const map = {}, ssp = {};
+    for (const r of all.results || []) {
+      const st = (r.threatStatuses || []).find(t => THREAT[t]);
+      if (!st || !r.nubKey) continue;
+      if (r.rank === 'SPECIES') {
+        if (!map[r.nubKey] || THREAT[st].rank > THREAT[map[r.nubKey]].rank) map[r.nubKey] = st;
+      } else if (r.rank === 'SUBSPECIES') {
+        // Bara underarten är bedömd (t.ex. sydlig kärrsnäppa) – arten lyfts inte fram, men märks.
+        const s = await fetch(`${api}/${r.nubKey}`).then(x => x.json());
+        if (s.speciesKey) ssp[s.speciesKey] = { st, ssp: (s.canonicalName || '').split(' ').slice(2).join(' ') };
+      }
+      // Populationer (t.ex. Östersjöns tumlare) hoppas över: kategorin gäller inte hela arten.
+    }
+    Object.assign(redlist, map); Object.assign(redlistSsp, ssp);
+    save(cacheKey, { t: Date.now(), map, ssp });
+  })().catch(e => { delete redlistLoads[cls]; throw e; });
+}
+
+function speciesRow(it, max) {
+  const li = document.createElement('li');
+  const fill = document.createElement('div');
+  fill.className = 'barfill';
+  fill.style.width = (it.n / max * 100) + '%';
+  const name = document.createElement('span');
+  name.className = 'nm';
+  const th = THREAT[redlist[it.key]];
+  const sub = !th && redlistSsp[it.key];
+  if (th || sub) {
+    const t = th || THREAT[sub.st];
+    const b = document.createElement('b');
+    b.className = 'badge ' + t.code.toLowerCase() + (sub ? ' ssp' : '');
+    b.textContent = t.code;
+    b.title = sub ? `${t.sv} gäller bara underarten ${sub.ssp}` : t.sv;
+    name.appendChild(b);
+  }
+  name.append(it.swe || it.sci || '…');
+  if (it.swe && it.sci) {
+    const sci = document.createElement('span');
+    sci.className = 'sci'; sci.textContent = it.sci;
+    name.appendChild(sci);
+  }
+  const cnt = document.createElement('span');
+  cnt.className = 'cnt'; cnt.textContent = it.n.toLocaleString('sv-SE');
+  li.append(fill, name, cnt);
+  li.dataset.key = it.key;
+  li.title = 'Klicka för att visa observationerna på kartan';
+  if (String(it.key) === String(selected?.key)) li.classList.add('sel');
+  li.onclick = () => selectSpecies(it);
+  return li;
+}
+
+function renderList(items) {
+  const list = $('list');
+  if (!items.length) { list.innerHTML = `<p class="empty">Inga ${grp().none} inom 5 km (${yearText()}).</p>`; return; }
+  const max = items[0].n;
+  const threatened = items.filter(i => redlist[i.key])
+    .sort((a, b) => THREAT[redlist[b.key]].rank - THREAT[redlist[a.key]].rank || b.n - a.n);
+  const rest = items.filter(i => !redlist[i.key]);
+  list.innerHTML = '';
+  if (threatened.length) {
+    const box = document.createElement('div');
+    box.className = 'redgroup';
+    const h = document.createElement('h3');
+    h.textContent = `Hotade arter · ${threatened.length} st (Rödlistan 2025, VU/EN/CR)`;
+    const ol = document.createElement('ol');
+    if (threatened.length > 6) ol.className = 'two';
+    threatened.forEach(it => ol.appendChild(speciesRow(it, max)));
+    box.append(h, ol);
+    list.appendChild(box);
+  }
+  if (rest.length) {
+    if (threatened.length) {
+      const h = document.createElement('h3');
+      h.className = 'sub'; h.textContent = 'Övriga arter';
+      list.appendChild(h);
+    }
+    const ol = document.createElement('ol');
+    if (rest.length > 16) ol.className = 'two';
+    rest.forEach(it => ol.appendChild(speciesRow(it, max)));
+    list.appendChild(ol);
+  }
+}
+
+function distKm(a, b) {
+  const R = 6371, r = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * r, dLon = (b.lon - a.lon) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function drawChart() {
+  const svg = $('chart');
+  const W = Math.max(svg.clientWidth, 100), H = Math.max(svg.clientHeight, 60), P = { l: 34, r: 8, t: 10, b: 22 };
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const yr = yearId(), gid = filter.group;
+  const tr = track.filter(p => p.yr === yr && p.n?.[gid] != null);
+  if (tr.length < 1) { svg.innerHTML = ''; $('chartInfo').textContent = `Kurvan för ${grp().label.toLowerCase()}, ${yearText()}, fylls på var 300:e meter du förflyttar dig.`; return; }
+  // x-axel: tillryggalagd sträcka (km)
+  let d = 0; const pts = tr.map((p, i) => { if (i) d += distKm(tr[i - 1], p); return { x: d, y: p.n[gid] }; });
+  const maxX = Math.max(pts.at(-1).x, 0.001), maxY = Math.max(...pts.map(p => p.y), 1);
+  const sx = x => P.l + (x / maxX) * (W - P.l - P.r);
+  const sy = y => H - P.b - (y / maxY) * (H - P.t - P.b);
+  const useIndex = pts.at(-1).x < 0.05; // står still → använd mätpunkt som x
+  const X = (p, i) => useIndex ? P.l + (tr.length > 1 ? i / (tr.length - 1) : 0.5) * (W - P.l - P.r) : sx(p.x);
+  const path = pts.map((p, i) => `${i ? 'L' : 'M'}${X(p, i).toFixed(1)},${sy(p.y).toFixed(1)}`).join(' ');
+  const css = getComputedStyle(document.documentElement);
+  const accent = css.getPropertyValue('--accent'), muted = css.getPropertyValue('--muted'), line = css.getPropertyValue('--line');
+  svg.innerHTML = `
+    <line x1="${P.l}" y1="${H - P.b}" x2="${W - P.r}" y2="${H - P.b}" stroke="${line}"/>
+    <line x1="${P.l}" y1="${sy(maxY)}" x2="${W - P.r}" y2="${sy(maxY)}" stroke="${line}" stroke-dasharray="3 3"/>
+    <text x="${P.l - 6}" y="${sy(maxY) + 4}" text-anchor="end" font-size="11" fill="${muted}">${maxY}</text>
+    <text x="${P.l - 6}" y="${H - P.b + 4}" text-anchor="end" font-size="11" fill="${muted}">0</text>
+    <text x="${W - P.r}" y="${H - 6}" text-anchor="end" font-size="11" fill="${muted}">${useIndex ? tr.length + ' mätningar' : maxX.toFixed(1) + ' km'}</text>
+    <path d="${path}" fill="none" stroke="${accent}" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+    ${pts.map((p, i) => `<circle cx="${X(p, i)}" cy="${sy(p.y)}" r="3" fill="${accent}"/>`).join('')}`;
+  const start = new Date(tr[0].t).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+  $('chartInfo').textContent = `${grp().label}, ${yearText()} · ${tr.length} mätningar sedan ${start} · ${pts.at(-1).x.toFixed(1)} km`;
+}
+
+// ---- Karta ----
+const map = L.map('map', { zoomControl: true }).setView([62.5, 16], 4);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19, attribution: '&copy; OpenStreetMap'
+}).addTo(map);
+const obsUrl = () => `https://api.gbif.org/v2/map/occurrence/adhoc/{z}/{x}/{y}@1x.png?datasetKey=${DATASET}${taxonParam(grp())}${yearParam()}&style=classic.poly&bin=hex&hexPerTile=30&srs=EPSG:3857`;
+const obsLayer = L.tileLayer(obsUrl(), {
+  maxZoom: 19, opacity: 0.5, attribution: 'Observationer: GBIF / Artportalen'
+}).addTo(map);
+const trackLine = L.polyline([], { color: '#e8590c', weight: 4, opacity: 0.85 }).addTo(map);
+const radiusCircle = L.circle([0, 0], { radius: RADIUS_KM * 1000, color: '#2f6b3a', weight: 2, fill: false });
+const accCircle = L.circle([0, 0], { radius: 1, color: '#1e6fd9', weight: 1, fillOpacity: 0.12 });
+const me = L.circleMarker([0, 0], { radius: 7, color: '#fff', weight: 2, fillColor: '#1e6fd9', fillOpacity: 1 });
+let follow = true, centered = false;
+map.on('dragstart', () => { follow = false; });
+
+// Knapp: centrera kartan på mig igen och följ med
+const recenter = L.control({ position: 'topleft' });
+recenter.onAdd = () => {
+  const d = L.DomUtil.create('div', 'leaflet-bar');
+  d.innerHTML = '<a href="#" title="Centrera på min position" role="button" style="font-size:16px">◎</a>';
+  L.DomEvent.disableClickPropagation(d);
+  d.firstChild.onclick = e => {
+    e.preventDefault();
+    if (!pos) { setStatus('Ingen position ännu – tryck Starta.'); return; }
+    follow = true;
+    map.fitBounds(radiusCircle.getBounds());
+  };
+  return d;
+};
+recenter.addTo(map);
+
+// ---- Markerad art: visa dess observationer på kartan ----
+let selected = null, selSeq = 0;
+const selLayer = L.layerGroup().addTo(map);
+const selInfo = L.control({ position: 'topright' });
+selInfo.onAdd = () => { const d = L.DomUtil.create('div', 'selinfo'); L.DomEvent.disableClickPropagation(d); return d; };
+
+const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+function markRows() {
+  document.querySelectorAll('#list li[data-key]').forEach(li => li.classList.toggle('sel', li.dataset.key === String(selected?.key)));
+}
+
+function clearSelection() {
+  selected = null; selSeq++;
+  selLayer.clearLayers();
+  selInfo.remove();
+  obsLayer.setOpacity(0.5);
+  markRows();
+  follow = true;
+  if (pos) map.fitBounds(radiusCircle.getBounds());
+}
+
+function selectSpecies(it) {
+  if (String(selected?.key) === String(it.key)) { clearSelection(); return; }
+  selected = { key: it.key, name: it.swe || it.sci || 'Arten' };
+  markRows();
+  showSelection(true);
+}
+
+async function showSelection(fit) {
+  if (!selected || !pos) return;
+  const my = ++selSeq;
+  const { latitude: lat, longitude: lon } = pos.coords;
+  selInfo.addTo(map);
+  const info = selInfo.getContainer();
+  info.innerHTML = `<b>${esc(selected.name)}</b> · hämtar observationer…`;
+  const base = `https://api.gbif.org/v1/occurrence/search?datasetKey=${DATASET}&speciesKey=${selected.key}` +
+    `&geoDistance=${lat},${lon},${RADIUS_KM}km${yearParam()}&hasCoordinate=true&limit=300`;
+  const MAX = 1500;
+  let recs = [], total = 0;
+  try {
+    for (let off = 0; off < MAX; off += 300) {
+      const d = await fetch(`${base}&offset=${off}`).then(r => r.json());
+      if (my !== selSeq) return;
+      total = d.count; recs.push(...d.results);
+      if (d.endOfRecords) break;
+    }
+  } catch (e) { info.innerHTML = `<b>${esc(selected.name)}</b> · kunde inte hämta (${esc(e.message)})`; return; }
+  selLayer.clearLayers();
+  obsLayer.setOpacity(0.2);
+  for (const r of recs) {
+    const id = (r.occurrenceID || '').split(':').pop();
+    const date = (r.eventDate || '').slice(0, 10) || r.year || 'okänt datum';
+    const html = `<b>${esc(selected.name)}</b><br>${esc(date)}` +
+      (r.individualCount ? ` · ${esc(r.individualCount)} st` : '') +
+      (r.locality ? `<br>${esc(r.locality)}` : '') +
+      (r.coordinateUncertaintyInMeters ? `<br>±${Math.round(r.coordinateUncertaintyInMeters)} m` : '') +
+      (/^\d+$/.test(id) ? `<br><a href="https://www.artportalen.se/Sighting/${id}" target="_blank" rel="noopener">Visa i Artportalen</a>` : '');
+    L.circleMarker([r.decimalLatitude, r.decimalLongitude], {
+      radius: 6, color: '#fff', weight: 1.5, fillColor: '#d6336c', fillOpacity: 0.85
+    }).bindPopup(html).addTo(selLayer);
+  }
+  const shown = recs.length < total ? `visar ${recs.length.toLocaleString('sv-SE')} av ${total.toLocaleString('sv-SE')}` : `${total.toLocaleString("sv-SE")}`;
+  info.innerHTML = `<b>${esc(selected.name)}</b> · ${shown} observationer · ${esc(yearText())}<button title="Avmarkera">✕</button>`;
+  info.querySelector('button').onclick = clearSelection;
+  if (fit && recs.length) {
+    follow = false;
+    map.fitBounds(L.featureGroup(selLayer.getLayers()).getBounds().extend(me.getLatLng()).pad(0.15), { maxZoom: 15 });
+  }
+}
+
+function drawTrack() { trackLine.setLatLngs(track.map(p => [p.lat, p.lon])); }
+
+function showPosition(p) {
+  const ll = [p.coords.latitude, p.coords.longitude];
+  me.setLatLng(ll).addTo(map);
+  accCircle.setLatLng(ll).setRadius(p.coords.accuracy).addTo(map);
+  radiusCircle.setLatLng(ll).addTo(map);
+  if (!centered) { map.fitBounds(radiusCircle.getBounds()); centered = true; }
+  else if (follow) map.panTo(ll);
+}
+
+// Sträcka sedan senaste hämtningen. Rörelse mindre än positionens osäkerhet räknas inte,
+// så att wifi-positionens småhopp inte ger onödiga hämtningar.
+function movedSinceFetch() {
+  if (!pos || !lastFetch) return 0;
+  return distKm(lastFetch, { lat: pos.coords.latitude, lon: pos.coords.longitude }) * 1000;
+}
+function maybeUpdate() {
+  if (!pos) return;
+  if (!lastFetch) { update(); return; }
+  const since = Date.now() - lastFetch.t;
+  const moved = movedSinceFetch();
+  const needed = Math.max(MOVE_M, pos.coords.accuracy || 0);
+  if ((moved >= needed && since >= MIN_GAP_MS) || since >= IDLE_MS) update();
+  else showProgress();
+}
+let lastStatus = '';
+function showProgress() {
+  if (!lastStatus || !lastFetch) return;
+  const needed = Math.max(MOVE_M, pos?.coords.accuracy || 0);
+  const left = Math.max(0, Math.round(needed - movedSinceFetch()));
+  const idle = Math.max(0, Math.ceil((IDLE_MS - (Date.now() - lastFetch.t)) / 60_000));
+  setStatus(`${lastStatus} · ny hämtning om ${left} m eller ${idle} min`);
+}
+
+// ---- Skydd mot felaktiga positioner ----
+// 1) För osäkra positioner (t.ex. IP-baserad gissning på flera km) används inte.
+// 2) Ett hopp som skulle kräva orimlig fart räknas som fel – tills flera positioner
+//    i rad bekräftar den nya platsen (då har man t.ex. väckt datorn på ett nytt ställe).
+const MAX_ACC_M = 1500;
+const MAX_KMH = 250;
+const CONFIRM_FIXES = 3, CONFIRM_RADIUS_M = 500, CONFIRM_MS = 20_000;
+let candidates = [];
+
+function checkFix(p) {
+  const c = p.coords;
+  if (c.accuracy > MAX_ACC_M) return { ok: false, why: `för osäker position (±${(c.accuracy / 1000).toFixed(1)} km)` };
+  if (!pos) return { ok: true };
+  const here = { lat: c.latitude, lon: c.longitude };
+  const km = distKm({ lat: pos.coords.latitude, lon: pos.coords.longitude }, here);
+  const h = Math.max((p.timestamp - pos.timestamp) / 3_600_000, 1 / 3600);
+  // Rörelse inom positionernas osäkerhet räknas inte som fart.
+  const effKm = Math.max(0, km - (c.accuracy + pos.coords.accuracy) / 1000);
+  if (effKm / h <= MAX_KMH) { candidates = []; return { ok: true }; }
+  // Orimligt hopp: samla kandidater och godta först om de är eniga en stund.
+  candidates = candidates.filter(q => distKm(q, here) * 1000 <= CONFIRM_RADIUS_M);
+  candidates.push({ ...here, t: p.timestamp });
+  if (candidates.length >= CONFIRM_FIXES && p.timestamp - candidates[0].t >= CONFIRM_MS) {
+    candidates = [];
+    return { ok: true, jumped: Math.round(km) };
+  }
+  return { ok: false, why: `orimligt hopp på ${km.toFixed(1)} km – väntar på bekräftelse (${candidates.length}/${CONFIRM_FIXES})` };
+}
+
+let first = true;
+function accept(p, force = false) {
+  pos = p;
+  rejectCircle.remove();
+  showPosition(p);
+  if (first) { first = false; timer = setInterval(maybeUpdate, 5_000); update(); }
+  else if (force) update();
+  else maybeUpdate();
+}
+
+function onFix(p) {
+  const chk = checkFix(p);
+  if (!chk.ok) {
+    // Visa var datorn tror att du är, så man ser varför den ignoreras.
+    rejectCircle.setLatLng([p.coords.latitude, p.coords.longitude]).setRadius(p.coords.accuracy).addTo(map);
+    const hint = pos ? '' : ' Datorn hittar inte var du är – vänta en stund, eller tryck "Välj plats på kartan".';
+    setStatus(`Ignorerar position: ${chk.why}.${hint}`, true);
+    if (!pos && !centered) map.fitBounds(rejectCircle.getBounds());
+    return;
+  }
+  if (chk.jumped) console.info(`Ny plats bekräftad efter hopp på ${chk.jumped} km`);
+  accept(p);
+}
+
+// Håll skärmen tänd medan appen kör – webbläsaren får ingen position när skärmen är släckt.
+let wakeLock = null;
+async function keepAwake() {
+  try { if ('wakeLock' in navigator && document.visibilityState === 'visible') wakeLock = await navigator.wakeLock.request('screen'); } catch {}
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && watchId != null) keepAwake(); });
+
+function start() {
+  keepAwake();
+  if (!('geolocation' in navigator)) { setStatus('Webbläsaren saknar GPS-stöd. Tryck "Välj plats på kartan".', true); return; }
+  $('startBtn').textContent = 'Kör…'; $('startBtn').disabled = true;
+  setStatus('Söker din position… (första gången frågar webbläsaren om lov)');
+  watchId = navigator.geolocation.watchPosition(onFix, err => {
+    const why = err.code === 1 ? 'webbläsaren fick inte använda platstjänster' : err.message;
+    setStatus(`Positionsfel: ${why}. Tryck Starta igen, eller "Välj plats på kartan".`, true);
+    navigator.geolocation.clearWatch(watchId); watchId = null;
+    $('startBtn').textContent = 'Starta'; $('startBtn').disabled = false;
+  }, { enableHighAccuracy: true, maximumAge: 5_000, timeout: 60_000 });
+}
+
+// Gråstreckad cirkel: en position som ignorerades
+const rejectCircle = L.circle([0, 0], { radius: 1, color: '#888', weight: 1.5, dashArray: '5 5', fillOpacity: 0.05 });
+
+// ---- Välj plats manuellt (när datorn inte hittar positionen) ----
+let picking = false;
+function setPicking(on) {
+  picking = on;
+  $('pickBtn').classList.toggle('on', on);
+  $('map').classList.toggle('picking', on);
+  if (on) setStatus('Klicka på kartan där du är.');
+}
+$('pickBtn').onclick = () => setPicking(!picking);
+map.on('click', e => {
+  if (!picking) return;
+  setPicking(false);
+  // En vald plats räknas som exakt. Kommer det senare en bra GPS-position tar den över
+  // (ett stort hopp kräver då som vanligt bekräftelse).
+  const p = { coords: { latitude: e.latlng.lat, longitude: e.latlng.lng, accuracy: 0 }, timestamp: Date.now(), manual: true };
+  candidates = [];
+  follow = true; centered = false;
+  accept(p, true); // hämta direkt, utan att vänta på spärren mot täta hämtningar
+});
+
+// ---- Filter: djurgrupp och år ----
+function fillYears() {
+  const opts = (first) => [`<option value="">${first}</option>`]
+    .concat(Array.from({ length: THIS_YEAR - FIRST_YEAR + 1 }, (_, i) => THIS_YEAR - i).map(y => `<option>${y}</option>`)).join('');
+  $('yearFrom').innerHTML = opts('tidigast');
+  $('yearTo').innerHTML = opts('senast');
+}
+
+function syncControls() {
+  const g = grp();
+  document.querySelectorAll('#groupSeg button').forEach(b => b.classList.toggle('on', b.dataset.group === filter.group));
+  $('yearFrom').value = filter.from ?? '';
+  $('yearTo').value = filter.to ?? '';
+  document.querySelectorAll('#yearChips button').forEach(b => {
+    const span = +b.dataset.span;
+    const on = span === 0 ? (!filter.from && !filter.to) : (filter.from === THIS_YEAR - span + 1 && !filter.to);
+    b.classList.toggle('on', on);
+  });
+  $('title').textContent = `${g.label} inom 5 km · Artportalen via GBIF`;
+  $('countLabel').textContent = `${g.noun} observerade inom 5 km · ${yearText()}`;
+  $('obsLegend').textContent = g.obs;
+  document.title = `${g.label} nära dig`;
+}
+
+function applyFilter() {
+  if (filter.from && filter.to && filter.from > filter.to) [filter.from, filter.to] = [filter.to, filter.from];
+  save(FILTER_KEY, filter);
+  syncControls();
+  obsLayer.setUrl(obsUrl());
+  drawChart();
+  // Byte av djurgrupp: allt finns redan hämtat – visa direkt, ingen ny hämtning.
+  if (lastResults && lastResults.yr === yearId()) { renderCurrent(); return; }
+  $('count').textContent = '–';
+  $('list').innerHTML = '<p class="empty">Hämtar…</p>';
+  if (pos) update(); else setStatus('Tryck Starta för att hämta observationer.');
+}
+
+$('groupSeg').onclick = e => { const b = e.target.closest('button'); if (b && b.dataset.group !== filter.group) { if (selected) clearSelection(); filter.group = b.dataset.group; applyFilter(); } };
+$('yearChips').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const span = +b.dataset.span;
+  filter.from = span ? THIS_YEAR - span + 1 : null; filter.to = null;
+  applyFilter();
+};
+$('yearFrom').onchange = e => { filter.from = e.target.value ? +e.target.value : null; applyFilter(); };
+$('yearTo').onchange = e => { filter.to = e.target.value ? +e.target.value : null; applyFilter(); };
+fillYears();
+syncControls();
+
+$('startBtn').onclick = start;
+// Har webbläsaren redan gett lov att använda platsen startar vi direkt.
+navigator.permissions?.query({ name: 'geolocation' }).then(st => { if (st.state === 'granted' && watchId == null) start(); }).catch(() => {});
+$('clearBtn').onclick = () => { track = []; save(TRACK_KEY, track); drawChart(); drawTrack(); };
+drawChart();
+drawTrack();
+new ResizeObserver(() => map.invalidateSize()).observe($('map'));
+new ResizeObserver(() => drawChart()).observe($('chart'));
+if (track.length) map.fitBounds(trackLine.getBounds().pad(0.3));
+</script>
+</body>
+</html>
