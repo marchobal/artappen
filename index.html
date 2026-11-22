@@ -143,6 +143,33 @@
   .toplist img { width: 24px; height: 18px; object-fit: contain; flex: none; }
   .toplist .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .toplist .cnt { color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
+  .toplist li[data-key] { cursor: pointer; }
+  /* Info-knapp på varje art */
+  .infobtn { position: relative; z-index: 1; flex: none; width: 22px; height: 22px; padding: 0; border-radius: 50%;
+             font: italic 700 13px/20px Georgia, serif; color: var(--muted); background: var(--card); border: 1px solid var(--line); }
+  .infobtn:hover { color: var(--accent); border-color: var(--accent); }
+  /* Informationskortet: underifrån i mobilen, i mitten på datorn */
+  .sheet-backdrop { position: fixed; inset: 0; z-index: 3000; background: rgba(0,0,0,.5); display: flex; align-items: flex-end; justify-content: center; }
+  .sheet-backdrop[hidden] { display: none; }
+  .sheet { position: relative; width: 100%; max-width: 560px; max-height: 88vh; overflow-y: auto; background: var(--card); color: var(--text);
+           border-radius: 18px 18px 0 0; padding: 16px 16px calc(20px + env(safe-area-inset-bottom)); box-shadow: 0 -4px 24px rgba(0,0,0,.3); }
+  @media (min-width: 900px) { .sheet-backdrop { align-items: center; } .sheet { border-radius: 18px; max-height: 86vh; } }
+  .sheet-close { position: absolute; top: 10px; right: 10px; z-index: 2; width: 34px; height: 34px; padding: 0; border-radius: 50%;
+                 background: rgba(0,0,0,.45); color: #fff; border: 0; font-size: 15px; }
+  .info-img { margin: -16px -16px 12px; }
+  .info-img img { display: block; width: 100%; max-height: 300px; object-fit: cover; border-radius: 18px 18px 0 0; background: var(--line); }
+  .info-img .credit { font-size: .72rem; color: var(--muted); padding: 4px 16px 0; }
+  .info-img .credit a, .info-src a { color: inherit; }
+  .sheet h2#infoTitle { font-size: 1.35rem; text-transform: none; letter-spacing: 0; color: var(--text); margin: 0; padding-right: 40px; }
+  .info-sci { color: var(--muted); font-style: italic; margin: 2px 0 8px; }
+  .info-facts { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+  .info-facts span { font-size: .8rem; background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+  .info-text { line-height: 1.5; font-size: .95rem; margin: 0 0 4px; }
+  .info-src { font-size: .72rem; color: var(--muted); margin-bottom: 14px; }
+  .info-links { display: flex; flex-wrap: wrap; gap: 8px; }
+  .info-links a, .info-links button { font-size: .88rem; padding: 7px 12px; border-radius: 10px; border: 1px solid var(--line);
+                                      color: var(--text); text-decoration: none; background: var(--card); }
+  .info-links .primary { background: var(--accent); color: #fff; border-color: var(--accent); }
   .small { font-size: .8rem; color: var(--muted); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tripbtns { display: flex; gap: 8px; }
   .tripbtns button { flex: 1; }
@@ -260,6 +287,14 @@
     </div>
   </div>
 </main>
+
+<!-- Informationskort om en art -->
+<div class="sheet-backdrop" id="infoBackdrop" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="infoTitle">
+    <button class="sheet-close" id="infoClose" aria-label="Stäng">✕</button>
+    <div id="infoBody"></div>
+  </div>
+</div>
 
 <script>
 const DATASET = '38b4c89f-584c-41bb-bd8f-cd1def33e92f'; // Artportalen
@@ -647,7 +682,10 @@ function speciesRow(it, max) {
   const cnt = document.createElement('span');
   cnt.className = 'cnt'; cnt.textContent = fmtN(it.n);
   cnt.title = 'Antal observationer';
-  li.append(fill, name, cnt);
+  const ib = document.createElement('button');
+  ib.className = 'infobtn'; ib.textContent = 'i'; ib.title = 'Om arten'; ib.setAttribute('aria-label', 'Om arten');
+  ib.onclick = e => { e.stopPropagation(); openInfo({ ...it, where: mode === 'explore' ? 'vid vald punkt' : 'inom 5 km' }); };
+  li.append(fill, name, cnt, ib);
   li.dataset.key = it.key;
   li.title = `${it.sci ? it.sci + ' · ' : ''}tryck för att visa observationerna på kartan`;
   if (String(it.key) === String(selected?.key)) li.classList.add('sel');
@@ -778,14 +816,106 @@ async function renderTrip() {
     document.querySelectorAll('#topSeg button').forEach(b => b.classList.toggle('on', b.dataset.top === topMode));
     $('topList').innerHTML = top.length ? top.map((x, i) => {
       const nm = names[x.key], th = THREAT[redlist[x.key]];
-      return `<li title="${esc(nm?.sci || '')}"><span class="rank">${i + 1}</span><img src="img/${x.gid}.png" alt="${esc(GROUPS[x.gid].label)}">` +
+      return `<li data-key="${x.key}" data-i="${i}" title="${esc(nm?.sci || '')} – tryck för mer om arten"><span class="rank">${i + 1}</span><img src="img/${x.gid}.png" alt="${esc(GROUPS[x.gid].label)}">` +
         `<span class="nm">${th ? `<b class="badge ${th.code.toLowerCase()}" title="${th.sv}">${th.code}</b>` : ''}${esc(nm?.swe || nm?.sci || '…')}</span>` +
         `<span class="cnt">${fmtN(x.n)} obs.</span></li>`;
     }).join('') : '<li class="muted">Inga hotade arter längs resan än.</li>';
   };
   draw();
+  $('topList').onclick = e => {
+    const li = e.target.closest('li[data-key]'); if (!li) return;
+    const x = top[+li.dataset.i];
+    openInfo({ key: x.key, n: x.n, ...(names[x.key] || {}), gid: x.gid, where: 'längs resan (max vid en punkt)' });
+  };
   const missing = top.filter(x => !names[x.key]);
   if (missing.length) { await Promise.all(missing.map(x => speciesName(x.key))); draw(); }
+}
+
+// ---- Informationskort: bild och text om arten ----
+// Som Plex: GBIF-nyckeln slås upp i Wikidata, som länkar vidare till svenska Wikipedia (text),
+// Wikimedia Commons (bild med fotograf och licens), Dyntaxa (Artfakta) och xeno-canto (läten).
+// Allt hämtas direkt från webbläsaren utan nycklar och sparas i telefonen i 30 dagar.
+const INFO_KEY = 'artappen.info.v1';
+const infoCache = load(INFO_KEY, {});
+const qs = p => new URLSearchParams({ ...p, format: 'json', origin: '*' });
+const plain = html => new DOMParser().parseFromString(html || '', 'text/html').body.textContent.trim();
+
+async function speciesInfo(key, sci) {
+  const hit = infoCache[key];
+  if (hit && Date.now() - hit.t < 30 * 864e5) return hit;
+  const WD = 'https://www.wikidata.org/w/api.php';
+  const find = async q => (await fetch(`${WD}?${qs({ action: 'query', list: 'search', srsearch: q, srlimit: 1 })}`).then(r => r.json())).query?.search?.[0]?.title;
+  // 1) GBIF-nyckel → Wikidata (annars via vetenskapligt namn)
+  let qid = await find(`haswbstatement:P846=${key}`);
+  if (!qid && sci) qid = await find(`haswbstatement:"P225=${sci}"`);
+  const info = { t: Date.now(), qid };
+  if (qid) {
+    const e = Object.values((await fetch(`${WD}?${qs({ action: 'wbgetentities', ids: qid, props: 'sitelinks|claims', sitefilter: 'svwiki' })}`).then(r => r.json())).entities)[0];
+    const claim = p => e.claims?.[p]?.[0]?.mainsnak?.datavalue?.value;
+    Object.assign(info, { wiki: e.sitelinks?.svwiki?.title, image: claim('P18'), dyntaxa: claim('P1939'), xc: claim('P2426') });
+  }
+  // 2) Kort text från svenska Wikipedia
+  if (info.wiki) {
+    const d = await fetch(`https://sv.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(info.wiki)}`).then(r => r.ok ? r.json() : null).catch(() => null);
+    if (d?.extract) { info.text = d.extract; info.wikiUrl = d.content_urls?.desktop?.page; }
+    if (!info.image && d?.originalimage?.source) info.image = decodeURIComponent(d.originalimage.source.split('/').pop());
+  }
+  // 3) Bild från Wikimedia Commons, med fotograf och licens
+  if (info.image) {
+    const d = await fetch(`https://commons.wikimedia.org/w/api.php?${qs({ action: 'query', titles: `File:${info.image}`, prop: 'imageinfo',
+      iiprop: 'url|extmetadata', iiurlwidth: 800, iiextmetadatafilter: 'Artist|LicenseShortName|LicenseUrl' })}`).then(r => r.json()).catch(() => null);
+    const ii = d && Object.values(d.query?.pages || {})[0]?.imageinfo?.[0];
+    if (ii) info.img = { src: ii.thumburl || ii.url, page: ii.descriptionurl, artist: plain(ii.extmetadata?.Artist?.value) || 'okänd',
+                         license: ii.extmetadata?.LicenseShortName?.value || '', licenseUrl: ii.extmetadata?.LicenseUrl?.value || '' };
+  }
+  infoCache[key] = info; save(INFO_KEY, infoCache);
+  return info;
+}
+
+let infoSeq = 0, infoOpener = null;
+function closeInfo() {
+  $('infoBackdrop').hidden = true; document.body.style.overflow = '';
+  infoOpener?.focus?.(); infoOpener = null;
+}
+$('infoClose').onclick = closeInfo;
+$('infoBackdrop').onclick = e => { if (e.target === e.currentTarget) closeInfo(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('infoBackdrop').hidden) closeInfo(); });
+
+async function openInfo(it) {
+  const my = ++infoSeq;
+  infoOpener = document.activeElement;
+  const th = THREAT[redlist[it.key]], sub = !th && redlistSsp[it.key];
+  const name = it.swe || it.sci || 'Arten';
+  const facts = [
+    it.n != null ? `${fmtN(it.n)} obs. ${it.where || ''}` : '',
+    it.last ? `senast ${it.last}` : '',
+    th ? `<b class="badge ${th.code.toLowerCase()}">${th.code}</b>${th.sv} · Rödlistan 2025` : '',
+    sub ? `${THREAT[sub.st].code}: gäller underarten ${esc(sub.ssp)}` : '',
+  ].filter(Boolean);
+  const head = `<h2 id="infoTitle">${esc(name)}</h2>${it.sci ? `<div class="info-sci">${esc(it.sci)}</div>` : ''}` +
+    (facts.length ? `<div class="info-facts">${facts.map(f => `<span>${f}</span>`).join('')}</div>` : '');
+  const mapBtn = it.where && !it.gid ? `<button class="primary" id="infoMap">Visa på kartan</button>` : '';
+  $('infoBody').innerHTML = head + '<p class="info-text muted">Hämtar bild och text…</p>';
+  $('infoBackdrop').hidden = false; document.body.style.overflow = 'hidden';
+  $('infoClose').focus();
+  let info;
+  try { info = await speciesInfo(it.key, it.sci); }
+  catch { if (my === infoSeq) $('infoBody').innerHTML = head + '<p class="info-text muted">Kunde inte hämta information just nu.</p>'; return; }
+  if (my !== infoSeq) return;
+  const img = info.img ? `<figure class="info-img"><img src="${esc(info.img.src)}" alt="${esc(name)}">` +
+    `<figcaption class="credit">Foto: <a href="${esc(info.img.page)}" target="_blank" rel="noopener">${esc(info.img.artist)}</a>` +
+    `${info.img.license ? ` · ${info.img.licenseUrl ? `<a href="${esc(info.img.licenseUrl)}" target="_blank" rel="noopener">${esc(info.img.license)}</a>` : esc(info.img.license)}` : ''} · Wikimedia Commons</figcaption></figure>` : '';
+  const text = info.text
+    ? `<p class="info-text">${esc(info.text)}</p><div class="info-src">Text: <a href="${esc(info.wikiUrl)}" target="_blank" rel="noopener">svenska Wikipedia</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.sv" target="_blank" rel="noopener">CC BY-SA 4.0</a></div>`
+    : '<p class="info-text muted">Ingen artikel på svenska Wikipedia hittades.</p>';
+  const links = [
+    mapBtn,
+    info.wikiUrl ? `<a href="${esc(info.wikiUrl)}" target="_blank" rel="noopener">Wikipedia</a>` : '',
+    info.dyntaxa ? `<a href="https://artfakta.se/taxa/${esc(info.dyntaxa)}" target="_blank" rel="noopener">Artfakta</a>` : '',
+    info.xc ? `<a href="https://xeno-canto.org/species/${esc(info.xc)}" target="_blank" rel="noopener">Lyssna på xeno-canto</a>` : '',
+  ].filter(Boolean).join('');
+  $('infoBody').innerHTML = img + head + text + (links ? `<div class="info-links">${links}</div>` : '');
+  $('infoMap')?.addEventListener('click', () => { closeInfo(); if (String(selected?.key) !== String(it.key)) selectSpecies(it); else scrollToMap(); });
 }
 
 // ---- Kurva över resan ----
