@@ -23,7 +23,7 @@ def occurrence_key(sci):
 os.makedirs('data', exist_ok=True); os.makedirs('img/sprites', exist_ok=True)
 out = {}
 for f in sorted(os.listdir(f'{lab}/src')):
-    if not f.endswith('.json'): continue
+    if not f.endswith('.json') or f == 'meta.json': continue
     m = json.load(open(f'{lab}/src/{f}'))
     s = m['slug']
     pal_file = f'{lab}/out/{s}-palette.json'
