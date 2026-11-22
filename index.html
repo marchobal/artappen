@@ -164,6 +164,16 @@
   .info-sci { color: var(--muted); font-style: italic; margin: 2px 0 8px; }
   .info-facts { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
   .info-facts span { font-size: .8rem; background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+  /* Färgschema och pixelfigur (byggs i förväg på Macen från frilagda foton) */
+  .palette { display: flex; height: 22px; border-radius: 6px; overflow: hidden; margin: 2px 0 4px; }
+  .palette i { display: block; min-width: 0; }
+  .pal-row { display: flex; align-items: center; gap: 12px; margin: 4px 0 2px; }
+  .pal-row .palette { flex: 1; }
+  .sprite { width: 48px; height: 48px; image-rendering: pixelated; flex: none; }
+  .pal-credit { font-size: .72rem; color: var(--muted); margin-bottom: 10px; }
+  .pal-credit a { color: inherit; }
+  li .minipal { display: inline-flex; vertical-align: 1px; margin-left: 7px; height: 8px; width: 34px; border-radius: 2px; overflow: hidden; }
+  li .minipal i { display: block; height: 100%; }
   .info-text { line-height: 1.5; font-size: .95rem; margin: 0 0 4px; }
   .info-src { font-size: .72rem; color: var(--muted); margin-bottom: 14px; }
   .info-links { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -673,6 +683,13 @@ function speciesRow(it, max) {
     name.appendChild(nb);
   }
   name.append(it.swe || it.sci || '…');
+  const pal = palettes[it.key];
+  if (pal) {
+    const mp = document.createElement('span');
+    mp.className = 'minipal'; mp.title = 'Färgschema';
+    mp.innerHTML = paletteHTML(pal.colors.slice(0, 6), 0.1);
+    name.appendChild(mp);
+  }
   const dt = document.createElement('span');
   // Färskt: idag fylld markering, senaste veckan grön text
   dt.className = 'dt' + (it.fresh ? ' ' + it.fresh : '');
@@ -831,6 +848,14 @@ async function renderTrip() {
   if (missing.length) { await Promise.all(missing.map(x => speciesName(x.key))); draw(); }
 }
 
+// ---- Färgscheman och pixelfigurer ----
+// data/palettes.json byggs på Macen (tools/): fotot friläggs och färgerna räknas fram ur fågeln.
+let palettes = {};
+fetch('data/palettes.json').then(r => r.ok ? r.json() : {}).then(d => { palettes = d || {}; renderCurrent(); }).catch(() => {});
+// Bredd efter andel, men minst 8 % så att små accentfärger (steglitsens röda) syns
+const paletteHTML = (colors, minShare = 0.08) =>
+  colors.map(([r, g, b, f]) => `<i style="background:rgb(${r},${g},${b});flex:${Math.max(f, minShare).toFixed(3)}"></i>`).join('');
+
 // ---- Informationskort: bild och text om arten ----
 // Som Plex: GBIF-nyckeln slås upp i Wikidata, som länkar vidare till svenska Wikipedia (text),
 // Wikimedia Commons (bild med fotograf och licens), Dyntaxa (Artfakta) och xeno-canto (läten).
@@ -914,7 +939,12 @@ async function openInfo(it) {
     info.dyntaxa ? `<a href="https://artfakta.se/taxa/${esc(info.dyntaxa)}" target="_blank" rel="noopener">Artfakta</a>` : '',
     info.xc ? `<a href="https://xeno-canto.org/species/${esc(info.xc)}" target="_blank" rel="noopener">Lyssna på xeno-canto</a>` : '',
   ].filter(Boolean).join('');
-  $('infoBody').innerHTML = img + head + text + (links ? `<div class="info-links">${links}</div>` : '');
+  const pal = palettes[it.key];
+  const palBlock = pal ? `<div class="pal-row"><img class="sprite" src="${esc(pal.sprite)}" alt="Pixelfigur av ${esc(name)}">` +
+    `<div class="palette" title="Färgschema">${paletteHTML(pal.colors)}</div></div>` +
+    `<div class="pal-credit">Färgschema och pixelfigur ur foto av <a href="${esc(pal.credit.page)}" target="_blank" rel="noopener">${esc(pal.credit.artist)}</a>` +
+    ` · ${esc(pal.credit.license)}</div>` : '';
+  $('infoBody').innerHTML = img + head + palBlock + text + (links ? `<div class="info-links">${links}</div>` : '');
   $('infoMap')?.addEventListener('click', () => { closeInfo(); if (String(selected?.key) !== String(it.key)) selectSpecies(it); else scrollToMap(); });
 }
 
