@@ -11,6 +11,7 @@ Snällt mot Wikimedia (https://meta.wikimedia.org/wiki/User-Agent_policy):
   - väntar enligt Retry-After om servern ber om det (429)
 
 Användning: python3 -I tools/fetch_photos.py <utmapp> "Svenskt namn=Vetenskapligt namn" ...
+       eller: python3 -I tools/fetch_photos.py <utmapp> lista.json   (från tools/species_list.py)
 Skriver <utmapp>/<slug>.jpg och <utmapp>/<slug>.json (en per art), samt <utmapp>/meta.json.
 """
 import json, os, re, sys, time, unicodedata, urllib.error, urllib.parse, urllib.request
@@ -45,12 +46,22 @@ def norm_file(name):
     return name[:1].upper() + name[1:]
 
 out = sys.argv[1]
-species = [dict(zip(('swe', 'sci'), a.split('=', 1))) for a in sys.argv[2:]]
-todo = [s for s in species if not (os.path.exists(f"{out}/{slug(s['swe'])}.json") and os.path.exists(f"{out}/{slug(s['swe'])}.jpg"))]
+if sys.argv[2].endswith('.json'):
+    species = [s for s in json.load(open(sys.argv[2])) if ' x ' not in s['sci']]  # hoppa över hybrider
+else:
+    species = [dict(zip(('swe', 'sci'), a.split('=', 1))) for a in sys.argv[2:]]
+# Unika filnamn (två arter kan få samma svenska namn)
+seen = {}
+for s in species:
+    base = slug(s['swe']); seen[base] = seen.get(base, 0) + 1
+    s['slug'] = base if seen[base] == 1 else f"{base}-{s.get('gbif', seen[base])}"
+def slug_of(s): return s['slug']
+todo = [s for s in species if not (os.path.exists(f"{out}/{slug_of(s)}.json") and os.path.exists(f"{out}/{slug_of(s)}.jpg"))]
 print(f'{len(species)} arter, {len(species) - len(todo)} redan hämtade, {len(todo)} kvar', flush=True)
 
 # 1) GBIF-nycklar (GBIF:s eget API, inte Wikimedia)
 for s in todo:
+    if s.get('gbif'): continue
     s['gbif'] = get('https://api.gbif.org/v1/species/match?' + urllib.parse.urlencode({'name': s['sci']}))['usageKey']
 
 # 2) En SPARQL-fråga mot Wikidata för alla arter: objekt, bild, Dyntaxa-id, svensk Wikipedia-artikel
@@ -73,6 +84,27 @@ if todo:
         if 'article' in b: f['wiki'] = b['article']['value']
     for s in todo: s.update(found.get(str(s['gbif']), {}))
     time.sleep(PAUSE_API)
+    # Arter där GBIF-nyckeln inte finns på Wikidata (t.ex. efter byte av släkte): sök på vetenskapligt namn
+    missing = [s for s in todo if not s.get('qid')]
+    if missing:
+        values = ' '.join(json.dumps(s['sci']) for s in missing)
+        q2 = f'''SELECT ?sci ?item ?image ?dyntaxa ?article WHERE {{
+          VALUES ?sci {{ {values} }}
+          ?item wdt:P225 ?sci .
+          OPTIONAL {{ ?item wdt:P18 ?image }}
+          OPTIONAL {{ ?item wdt:P1939 ?dyntaxa }}
+          OPTIONAL {{ ?article schema:about ?item ; schema:isPartOf <https://sv.wikipedia.org/> }}
+        }}'''
+        res = get('https://query.wikidata.org/sparql', data=urllib.parse.urlencode({'query': q2, 'format': 'json'}).encode())
+        byname = {}
+        for b in res['results']['bindings']:
+            f = byname.setdefault(b['sci']['value'], {'qid': b['item']['value'].rsplit('/', 1)[-1]})
+            if 'image' in b and 'file' not in f: f['file'] = norm_file(b['image']['value'].rsplit('/', 1)[-1])
+            if 'dyntaxa' in b: f['dyntaxa'] = b['dyntaxa']['value']
+            if 'article' in b: f['wiki'] = b['article']['value']
+        for s in missing: s.update(byname.get(s['sci'], {}))
+        print(f"{len(missing)} arter söktes på namn, {sum(1 for s in missing if s.get('qid'))} hittades", flush=True)
+        time.sleep(PAUSE_API)
 
 # 3) Fotograf, licens och bildadress från Commons, 50 bilder per anrop
 withfile = [s for s in todo if s.get('file')]
@@ -93,12 +125,12 @@ for i in range(0, len(withfile), 50):
 
 # 4) Bildfilerna, en i taget. Uppgifterna sparas per art direkt, så ett avbrott går att återuppta.
 for s in todo:
-    name = slug(s['swe'])
+    name = slug_of(s)
     if not s.get('thumb'):
         print(f"{s['swe']:12} – ingen bild hittades på Wikidata/Commons", flush=True); continue
     img = get(s['thumb'], raw=True)  # hämta först, skriv sedan (ingen tom fil om det misslyckas)
     with open(f'{out}/{name}.jpg', 'wb') as f: f.write(img)
-    meta = {'slug': name, 'swe': s['swe'], 'sci': s['sci'], 'gbif': s['gbif'], 'qid': s['qid'], 'file': s['file'],
+    meta = {'slug': name, 'swe': s['swe'], 'sci': s['sci'], 'gbif': s['gbif'], 'qid': s.get('qid'), 'obs': s.get('obs'), 'file': s['file'],
             'page': s['page'], 'artist': s['artist'], 'license': s['license'], 'licenseUrl': s['licenseUrl'],
             'dyntaxa': s.get('dyntaxa'), 'wiki': s.get('wiki')}
     json.dump(meta, open(f'{out}/{name}.json', 'w'), ensure_ascii=False, indent=1)
@@ -106,6 +138,6 @@ for s in todo:
     time.sleep(PAUSE_IMAGE)
 
 # Sammanställning av alla arter som är klara
-allmeta = [json.load(open(f"{out}/{slug(s['swe'])}.json")) for s in species if os.path.exists(f"{out}/{slug(s['swe'])}.json")]
+allmeta = [json.load(open(f"{out}/{slug_of(s)}.json")) for s in species if os.path.exists(f"{out}/{slug_of(s)}.json")]
 json.dump(allmeta, open(f'{out}/meta.json', 'w'), ensure_ascii=False, indent=1)
 print(f'Klart: {len(allmeta)} av {len(species)} arter har foto och uppgifter.', flush=True)

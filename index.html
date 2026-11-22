@@ -79,6 +79,11 @@
   .mapcard { padding: 0; overflow: hidden; }
   #map { height: 46vh; min-height: 260px; z-index: 0; background: var(--line); }
   #map.exploring { cursor: crosshair; }
+  #map.twofinger { touch-action: pan-x pan-y; } /* ett finger skrollar sidan */
+  .twofinger-tip { position: absolute; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center;
+                   padding: 20px; text-align: center; color: #fff; font-weight: 600; background: rgba(0,0,0,.45);
+                   opacity: 0; transition: opacity .25s; pointer-events: none; }
+  .twofinger-tip.show { opacity: 1; }
   .mapseg { display: flex; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 5px rgba(0,0,0,.25); background: var(--card); }
   .mapseg button { border: 0; border-radius: 0; padding: 7px 12px; font-size: .85rem; background: var(--card); color: var(--text); }
   .mapseg button + button { border-left: 1px solid var(--line); }
@@ -977,7 +982,24 @@ function drawChart() {
 
 // ---- Karta ----
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const map = L.map('map', { zoomControl: true, attributionControl: true }).setView([62.5, 16], 4);
+// På pekskärm: ett finger skrollar sidan, två fingrar flyttar och zoomar kartan
+// (Leaflets nypzoom flyttar också kartan när fingrarna rör sig). Mus och styrplatta som vanligt.
+const touchOnly = matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches;
+const map = L.map('map', { zoomControl: true, attributionControl: true, dragging: !touchOnly }).setView([62.5, 16], 4);
+if (touchOnly) {
+  const box = $('map');
+  box.classList.add('twofinger');
+  const tip = L.DomUtil.create('div', 'twofinger-tip', box);
+  tip.textContent = 'Använd två fingrar för att flytta kartan';
+  let start = null, hideT = 0;
+  box.addEventListener('touchstart', e => { start = e.touches.length === 1 ? e.touches[0].clientY : null; }, { passive: true });
+  box.addEventListener('touchmove', e => {
+    if (start === null || e.touches.length !== 1 || Math.abs(e.touches[0].clientY - start) < 12) return;
+    start = null; tip.classList.add('show'); clearTimeout(hideT);
+    hideT = setTimeout(() => tip.classList.remove('show'), 1400);
+  }, { passive: true });
+  map.on('zoomstart movestart', () => tip.classList.remove('show'));
+}
 map.attributionControl.setPrefix(false);
 // OpenStreetMap, tonad till gråskala (se .basemap i CSS) så att observationerna och resan syns bättre.
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {

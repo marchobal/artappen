@@ -6,8 +6,9 @@ root = sys.argv[1] if len(sys.argv) > 1 else 'lab/pixel'
 slugs = sorted({f[:-7] for f in os.listdir(f'{root}/out') if f.endswith('-16.png')})
 meta = [json.load(open(f'{root}/src/{s}.json')) if os.path.exists(f'{root}/src/{s}.json')
         else {'slug': s, 'swe': s.capitalize(), 'sci': '', 'page': '#', 'artist': '(uppgifter saknas än)', 'license': ''} for s in slugs]
+meta.sort(key=lambda m: -(m.get('obs') or 10**9))  # vanligast först
 rows = []
-for m in meta:
+for nr, m in enumerate(meta, 1):
     s = m['slug']
     if not os.path.exists(f'{root}/out/{s}-16.png'):
         continue
@@ -18,12 +19,12 @@ for m in meta:
     swatch = ''.join(f'<i title="{100 * p[3] / total:.1f} %" style="background:rgb({p[0]},{p[1]},{p[2]});flex:{max(p[3] / total, 0.08):.3f}"></i>' for p in pal)
     rows.append(f'''
   <section>
-    <h2>{html.escape(m['swe'])} <em>{html.escape(m['sci'])}</em></h2>
+    <h2 id="{s}"><span class="nr">{nr}.</span> {html.escape(m['swe'])} <em>{html.escape(m['sci'])}</em></h2>
     <div class="row">
-      <figure><img class="photo" src="src/{s}.jpg" alt=""><figcaption>Foto</figcaption></figure>
-      <figure class="chk"><img class="cut" src="out/{s}-cutout.png" alt=""><figcaption>Friläggning</figcaption></figure>
-      <figure class="chk"><img class="px" src="out/{s}-24.png" alt=""><figcaption>24 × 24</figcaption></figure>
-      <figure class="chk"><img class="px" src="out/{s}-16.png" alt=""><figcaption>16 × 16</figcaption></figure>
+      <figure><img loading="lazy" class="photo" src="src/{s}.jpg" alt=""><figcaption>Foto</figcaption></figure>
+      <figure class="chk"><img loading="lazy" class="cut" src="out/{s}-cutout.png" alt=""><figcaption>Friläggning</figcaption></figure>
+      <figure class="chk"><img loading="lazy" class="px" src="out/{s}-24.png" alt=""><figcaption>24 × 24</figcaption></figure>
+      <figure class="chk"><img loading="lazy" class="px" src="out/{s}-16.png" alt=""><figcaption>16 × 16</figcaption></figure>
       <figure><div class="small"><img src="out/{s}-16.png" alt=""><img src="out/{s}-24.png" alt=""></div><figcaption>Ikonstorlek</figcaption></figure>
       <figure><div class="swatch">{swatch}</div><figcaption>Färgschema</figcaption></figure>
     </div>
@@ -41,7 +42,7 @@ page = f'''<!doctype html>
   main {{ max-width:1100px; margin:0 auto; padding:16px; }}
   h1 {{ font-size:1.2rem; }} .lead {{ color:var(--muted); max-width:70ch; }}
   section {{ background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px 14px; margin:12px 0; }}
-  h2 {{ font-size:1rem; margin:0 0 8px; }} h2 em {{ color:var(--muted); font-weight:400; }}
+  h2 {{ font-size:1rem; margin:0 0 8px; }} h2 em {{ color:var(--muted); font-weight:400; }} .nr {{ color:var(--muted); font-weight:400; margin-right:4px; }}
   .row {{ display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end; }}
   figure {{ margin:0; text-align:center; }} figcaption {{ font-size:.75rem; color:var(--muted); margin-top:4px; }}
   .photo {{ height:120px; border-radius:8px; }}
@@ -54,7 +55,7 @@ page = f'''<!doctype html>
   .credit {{ font-size:.72rem; color:var(--muted); margin:8px 0 0; }} .credit a {{ color:inherit; }}
 </style></head><body><main>
 <h1>Test: frilagda fåglar och 8-bitarsfigurer</h1>
-<p class="lead">Foton från Wikimedia Commons, frilagda med macOS inbyggda motivigenkänning och sedan nerskalade
+<p class="lead"><b>{len(rows)} arter</b>, vanligast först. Ange numret eller namnet på de som ser konstiga ut, så byter vi foto eller hoppar över dem. Foton från Wikimedia Commons, frilagda med macOS inbyggda motivigenkänning och sedan nerskalade
 till 24×24 och 16×16 pixlar med ett färgschema som räknas från den frilagda bilden (så att små accentfärger kommer med), mättade färger och en mörk kontur. Inget AI-genererat – färgerna kommer från fotot.</p>
 {''.join(rows)}
 </main></body></html>'''
