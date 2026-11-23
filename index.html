@@ -224,8 +224,10 @@
     .controls { width: 100%; }
     .yearpick { left: 0; right: 0; }
     .seg button { padding: 8px 10px; }
-    .brandrow { width: 100%; }
+    .brandrow { width: 100%; flex-wrap: wrap; row-gap: 8px; }
     .brandrow .tripbtn { margin-left: auto; }
+    /* länkarna till visualiseringarna får en egen rad på smala skärmar */
+    .brandrow .flyttbtn { flex: 1 1 40%; text-align: center; }
     #tripShow + .tripbtn, .tripbtn + #tripShow:not([hidden]) { margin-left: 0; }
   }
   @media (max-width: 480px) { .brand small { display: none; } }
@@ -264,6 +266,7 @@
       <button class="primary tripbtn" id="startBtn" title="Följ dig längs vägen och samla arter, med kurva och topplista">Starta resa</button>
       <button id="tripShow" hidden title="Visa den sparade resan">Visa resa</button>
       <a class="flyttbtn" href="flytt/" title="Se flyttfåglarnas fynd röra sig över Sverige genom året">Flyttfåglar</a>
+      <a class="flyttbtn" href="trend/" title="Se hur fågelstammarna förändras, enligt Svensk Fågeltaxering">Fågelstammar</a>
     </div>
     <div class="controls">
       <div class="seg" id="groupSeg" role="group" aria-label="Djurgrupp">

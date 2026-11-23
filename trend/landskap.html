@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#05070d">
+<title>Landskapet · Artappen</title>
+<style>
+  :root { --bg: #05070d; --text: #e8ecf5; --muted: #8d97ad; --border: #8fa6c8; --accent: #5ab4ff; --index: #ffb86b;
+    --panel: rgba(8, 12, 22, 0.78); }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  #scene { position: absolute; inset: 0; touch-action: none; }
+  .head { position: absolute; top: max(14px, env(safe-area-inset-top)); left: 16px; z-index: 5; max-width: 320px; }
+  .back { color: var(--muted); font-size: 13px; text-decoration: none; display: inline-block; margin-bottom: 4px; }
+  .head h1 { margin: 0; font-size: 15px; font-weight: 500; letter-spacing: 0.3px; color: var(--border); }
+  .head .sub { color: var(--muted); font-size: 11px; margin-top: 3px; line-height: 1.4; }
+  #art { margin-top: 8px; font: inherit; font-size: 14px; color: var(--text); background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.18); border-radius: 8px; padding: 5px 8px; max-width: 100%; }
+  #art option { color: #000; }
+  .year { position: absolute; right: 18px; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 62px); z-index: 5;
+    color: var(--border); font-size: 22px; letter-spacing: 0.5px; font-variant-numeric: tabular-nums; }
+  .bar { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(14px, env(safe-area-inset-bottom));
+    z-index: 5; display: flex; gap: 8px; align-items: center; background: var(--panel); backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.08); border-radius: 999px; padding: 6px; }
+  button { font: inherit; color: var(--text); background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px; padding: 6px 12px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+  button.on { background: var(--accent); border-color: var(--accent); color: #031021; font-weight: 600; }
+  .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); z-index: 10;
+    background: rgba(5,7,13,0.5); }
+  @media (max-width: 600px) { .year { font-size: 18px; } .bar button { padding: 6px 9px; font-size: 12px; } }
+</style>
+</head>
+<body>
+<div id="scene"></div>
+<div class="loading" id="loading">Hämtar data …</div>
+<div class="head">
+  <a class="back" href="./">← Fågelstammar på kartan</a>
+  <h1 id="title"></h1>
+  <div class="sub">Arten ligger som en lysande hinna över Sveriges terräng. Ju fler fåglar som räknas på Fågeltaxeringens rutter i trakten, desto starkare lyser den och desto högre lyfter den.</div>
+  <select id="art" aria-label="Välj art"></select>
+</div>
+<div class="year" id="year"></div>
+<div class="bar">
+  <button id="play">❚❚ Pausa</button>
+  <button id="spin" class="on">Snurra</button>
+  <button id="home">Startvy</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const START = 1998;
+const SPECIES = new URLSearchParams(location.search).get('art');
+
+// Samma koordinater som flyttmolnet: Web Mercator, Sverige ungefär 10 enheter långt.
+const merc = (lat, lon) => { const la = lat * Math.PI / 180;
+  return [(lon + 180) / 360, (1 - Math.log(Math.tan(la) + 1 / Math.cos(la)) / Math.PI) / 2]; };
+const [x0, y0] = merc(69.06, 10.95), [x1, y1] = merc(55.33, 24.17);
+const CX = (x0 + x1) / 2, CY = (y0 + y1) / 2, S = 10 / (y1 - y0);
+const toXZ = (lat, lon) => { const [x, y] = merc(lat, lon); return [(x - CX) * S, (y - CY) * S]; };
+const HALF_X = (x1 - x0) / 2 * S, HALF_Z = 5;
+const LIFT = 0.55;                // hur högt hinnan lyfter där arten är som vanligast
+const TERRAIN = 0.45 / 1700;      // terrängens höjd: 1700 m blir 0,45 enheter (överdrivet, så att fjällen syns)
+const RADIUS = 0.55;              // hur långt en rutt "når" (ungefär 60 km)
+
+// ---- scen ----
+const el = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setClearColor(0x05070d);
+el.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 200);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.autoRotate = true; controls.autoRotateSpeed = 0.5;
+controls.minDistance = 4; controls.maxPolarAngle = Math.PI * 0.47;   // inte under marken
+function resize() { const w = el.clientWidth, h = el.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+function startView() {
+  const k = el.clientWidth < el.clientHeight ? 2.1 : 1;
+  camera.position.set(4.5 * k, 6 * k, 8 * k); controls.target.set(0, 0.3, 0.6);
+  controls.maxDistance = camera.position.distanceTo(controls.target) * 1.25;
+}
+addEventListener('resize', resize); resize(); startView();
+
+// ---- rutnätet: ett landskap över Sverige ----
+const NX = 160, NZ = Math.round(NX * HALF_Z / HALF_X);
+// Två ytor på samma rutnät: terrängen (mörk mark) och artens hinna ovanpå
+const terrainGeo = new THREE.PlaneGeometry(HALF_X * 2, HALF_Z * 2, NX - 1, NZ - 1);
+terrainGeo.rotateX(-Math.PI / 2);
+const geo = terrainGeo.clone();
+const P = geo.attributes.position, NV = P.count;
+const inside = new Float32Array(NV);     // 1 inne i Sverige, 0 utanför (mjuk kant)
+const ground = new Float32Array(NV);     // terrängens höjd i enheter
+const tColors = new Float32Array(NV * 3);
+terrainGeo.setAttribute('color', new THREE.BufferAttribute(tColors, 3));
+const terrain = new THREE.Mesh(terrainGeo, new THREE.MeshLambertMaterial({ vertexColors: true }));
+// ljus snett från sydväst, så att fjäll och dalar får skugga
+const sun = new THREE.DirectionalLight(0xffffff, 1.0); sun.position.set(-6, 5, 4); scene.add(sun);
+scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+scene.add(terrain);
+
+// Hinnan: lyser där arten finns, genomskinlig och osynlig där den saknas. Svaga höjdkurvor ger den struktur.
+const aV = new Float32Array(NV);
+geo.setAttribute('aV', new THREE.BufferAttribute(aV, 1));
+const film = new THREE.Mesh(geo, new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+  vertexShader: `attribute float aV; varying float vV;
+    void main() { vV = aV; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `varying float vV;
+    void main() {
+      float v = clamp(vV, 0.0, 1.0);
+      vec3 col = mix(vec3(0.16, 0.38, 0.95), vec3(0.88, 0.96, 1.0), v);
+      float c = abs(fract(vV * 7.0) - 0.5);
+      float line = (1.0 - smoothstep(0.0, 0.06, c)) * smoothstep(0.03, 0.12, vV);
+      float a = smoothstep(0.0, 0.05, vV) * (0.16 + 0.55 * v) + line * 0.22;
+      gl_FragColor = vec4(col * a, a);
+    }`,
+}));
+film.renderOrder = 1;
+scene.add(film);
+
+// Sveriges gräns på marken, och en mask så att landskapet bara finns inom Sverige
+let border = null;
+const ready = fetch('../data/sverige.json').then(r => r.json()).then(async g => {
+  const pts = [];
+  const mask = document.createElement('canvas'); mask.width = 400; mask.height = Math.round(400 * HALF_Z / HALF_X);
+  const mc = mask.getContext('2d'); mc.fillStyle = '#fff';
+  const toMask = (x, z) => [(x + HALF_X) / (2 * HALF_X) * mask.width, (z + HALF_Z) / (2 * HALF_Z) * mask.height];
+  for (const poly of g.geometry.coordinates) for (const ring of poly) {
+    mc.beginPath();
+    ring.forEach(([lon, lat], i) => {
+      const [x, z] = toXZ(lat, lon); const [mx, mz] = toMask(x, z);
+      i ? mc.lineTo(mx, mz) : mc.moveTo(mx, mz);
+      if (i) { const [px, pz] = toXZ(ring[i - 1][1], ring[i - 1][0]); pts.push(px, 0.002, pz, x, 0.002, z); }
+    });
+    mc.closePath(); mc.fill();
+  }
+  // mjuk kant: masken suddas så att landskapet sluttar ner mot gränsen i stället för att bli en vägg
+  const soft = document.createElement('canvas'); soft.width = mask.width; soft.height = mask.height;
+  const sc = soft.getContext('2d'); sc.filter = 'blur(8px)'; sc.drawImage(mask, 0, 0);
+  mc.globalCompositeOperation = 'source-in'; mc.drawImage(soft, 0, 0);
+  const md = mc.getImageData(0, 0, mask.width, mask.height).data;
+  for (let i = 0; i < NV; i++) {
+    const [mx, mz] = toMask(P.getX(i), P.getZ(i));
+    const ix = Math.min(mask.width - 1, Math.max(0, Math.round(mx))), iz = Math.min(mask.height - 1, Math.max(0, Math.round(mz)));
+    inside[i] = Math.pow(md[(iz * mask.width + ix) * 4 + 3] / 255 * md[(iz * mask.width + ix) * 4] / 255, 1.5);
+  }
+  // jämna ut masken över grannpunkterna, så att enstaka punkter vid kust och sjöar inte blir hål eller spetsar
+  for (let pass = 0; pass < 2; pass++) {
+    const src = inside.slice();
+    for (let r = 0; r < NZ; r++) for (let c = 0; c < NX; c++) {
+      let s = 0, k = 0;
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+        const rr = r + dr, cc = c + dc;
+        if (rr >= 0 && rr < NZ && cc >= 0 && cc < NX) { s += src[rr * NX + cc]; k++; }
+      }
+      inside[r * NX + c] = Math.max(src[r * NX + c], s / k);   // fyller hål men drar inte in kusten
+    }
+  }
+  // Terrängen ur höjdkartan (AWS Terrain Tiles), bara inom Sverige
+  const hm = await (await fetch('../data/sverige_hojd.json')).json();
+  for (let i = 0; i < NV; i++) {
+    const mx = P.getX(i) / S + CX, my = P.getZ(i) / S + CY;
+    const ix = Math.min(hm.w - 1, Math.max(0, Math.floor((mx - hm.x0) / (hm.x1 - hm.x0) * hm.w)));
+    const iy = Math.min(hm.h - 1, Math.max(0, Math.floor((my - hm.y0) / (hm.y1 - hm.y0) * hm.h)));
+    const m = hm.m[iy * hm.w + ix];
+    ground[i] = m * TERRAIN * inside[i];
+    terrainGeo.attributes.position.setY(i, ground[i]);
+    const a = inside[i], l = 0.07 + Math.min(1, m / 1500) * 0.16;          // högre mark är lite ljusare
+    tColors[i * 3] = (l * 0.9) * a + 0.0196 * (1 - a); tColors[i * 3 + 1] = l * a + 0.0275 * (1 - a); tColors[i * 3 + 2] = (l * 1.25) * a + 0.051 * (1 - a);
+  }
+  terrainGeo.computeVertexNormals();
+  border = new THREE.BufferGeometry(); border.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  const bl = new THREE.LineSegments(border, new THREE.LineBasicMaterial({ color: 0x8fa6c8, transparent: true, opacity: 0.35, depthTest: false }));
+  bl.renderOrder = 2; scene.add(bl);
+});
+
+// ---- data ----
+let rutter = null, list = null, years = [], heights = [], t = 0;
+// För varje punkt i rutnätet: närliggande rutter och deras vikter (räknas en gång)
+let near = null;
+
+async function load(key) {
+  document.getElementById('loading').style.display = 'grid';
+  await ready;
+  if (!rutter) {
+    [rutter, list] = await Promise.all(['rutter', 'arter'].map(f => fetch(`../data/trend/sft/${f}.json`).then(r => r.json())));
+    const sel = document.getElementById('art');
+    list.arter.forEach(a => sel.add(new Option(a.namn, a.key)));
+    sel.onchange = () => { history.replaceState(null, '', `?art=${sel.value}`); load(sel.value); };
+    const rx = rutter.routes.map(([, lat, lon]) => toXZ(lat, lon));
+    near = [];
+    for (let i = 0; i < NV; i++) {
+      const vx = P.getX(i), vz = P.getZ(i), n = [];
+      if (inside[i] > 0.01) rx.forEach(([x, z], r) => {
+        const d2 = (x - vx) ** 2 + (z - vz) ** 2;
+        if (d2 < RADIUS * RADIUS * 4) n.push(r, Math.exp(-d2 / (RADIUS * RADIUS)));
+      });
+      near.push(n);
+    }
+  }
+  const sp = list.arter.find(a => String(a.key) === String(key)) || list.arter.find(a => a.namn === 'Tofsvipa') || list.arter[0];
+  document.getElementById('art').value = sp.key;
+  const art = await (await fetch(`../data/trend/sft/${sp.key}.json`)).json();
+  const from = rutter.years.indexOf(START);
+  years = rutter.years.slice(from);
+  const Y = years.length, R = rutter.routes.length;
+  // Antal per rutt och år, utjämnat över tre år; null = inte räknad
+  const surveyed = rutter.surveyed.slice(from).map(a => new Set(a));
+  const val = [];
+  for (let r = 0; r < R; r++) {
+    const c = art.counts[r] ? art.counts[r].slice(from) : null;
+    const n = years.map((_, y) => surveyed[y].has(r) ? (c && c[y] != null ? c[y] : 0) : null);
+    val.push(n.map((_, y) => { let s = 0, k = 0;
+      for (let j = Math.max(0, y - 1); j <= Math.min(Y - 1, y + 1); j++) if (n[j] != null) { s += n[j]; k++; }
+      return k ? s / k : null; }));
+  }
+  // Höjd per punkt och år: viktat medel av räknade rutter i närheten
+  heights = years.map((_, y) => {
+    const h = new Float32Array(NV);
+    for (let i = 0; i < NV; i++) {
+      const n = near[i]; let s = 0, w = 0;
+      for (let k = 0; k < n.length; k += 2) { const v = val[n[k]][y]; if (v != null) { s += v * n[k + 1]; w += n[k + 1]; } }
+      h[i] = w > 0 ? (s / w) * Math.min(1, w / 0.6) : 0;   // tonas ut där rutterna är få och långt bort
+    }
+    return h;
+  });
+  // Skala: 99:e percentilen blir högsta topp
+  const all = []; heights.forEach(h => h.forEach(v => v > 0 && all.push(v))); all.sort((a, b) => a - b);
+  const top = all[Math.floor(all.length * 0.995)] || 1;
+  // mjukt logaritmisk: få fåglar ger en synlig kulle, många fortfarande högst
+  heights = heights.map(h => h.map(v => v <= 0.02 ? 0 : Math.min(1.1, Math.log1p(v / (top / 6)) / Math.log1p(6))));
+  document.getElementById('title').textContent = sp.namn;
+  document.title = `${sp.namn} · Landskapet`;
+  document.getElementById('loading').style.display = 'none';
+}
+
+function shape() {
+  if (!heights.length) return;
+  const tt = Math.min(t, years.length - 1), i0 = Math.floor(tt), i1 = Math.min(years.length - 1, i0 + 1), f = tt - i0;
+  const h0 = heights[i0], h1 = heights[i1];
+  for (let i = 0; i < NV; i++) {
+    const v = (h0[i] + (h1[i] - h0[i]) * f) * inside[i];
+    P.setY(i, ground[i] + 0.02 + v * LIFT);   // hinnan ligger strax över marken och lyfter där arten är vanlig
+    aV[i] = v;
+  }
+  P.needsUpdate = true; geo.attributes.aV.needsUpdate = true;
+  document.getElementById('year').textContent = years[Math.round(tt)];
+}
+
+// ---- reglage ----
+let playing = true, last = 0;
+const playBtn = document.getElementById('play');
+playBtn.onclick = () => { playing = !playing; playBtn.textContent = playing ? '❚❚ Pausa' : '▶ Spela'; };
+const spinBtn = document.getElementById('spin');
+spinBtn.onclick = () => { controls.autoRotate = !controls.autoRotate; spinBtn.classList.toggle('on', controls.autoRotate); };
+document.getElementById('home').onclick = startView;
+function frame(now) {
+  const dt = last ? Math.min((now - last) / 1000, 0.1) : 0; last = now;
+  if (playing && years.length) { t += dt * 0.8; if (t > years.length - 1 + 1.5) t = 0; }
+  shape(); controls.update(); renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+load(SPECIES).then(() => requestAnimationFrame(frame))
+  .catch(err => { document.getElementById('loading').textContent = err.message; });
+</script>
+</body>
+</html>

@@ -1,0 +1,969 @@
+{
+ "arter": [
+  {
+   "key": 2498273,
+   "namn": "Alfågel",
+   "rutter": 47
+  },
+  {
+   "key": 2489160,
+   "namn": "Backsvala",
+   "rutter": 105
+  },
+  {
+   "key": 2498265,
+   "namn": "Bergand",
+   "rutter": 22
+  },
+  {
+   "key": 2494441,
+   "namn": "Bergfink",
+   "rutter": 426
+  },
+  {
+   "key": 2480420,
+   "namn": "Bivråk",
+   "rutter": 168
+  },
+  {
+   "key": 2490737,
+   "namn": "Björktrast",
+   "rutter": 674
+  },
+  {
+   "key": 8000602,
+   "namn": "Bläsand",
+   "rutter": 137
+  },
+  {
+   "key": 2480487,
+   "namn": "Blå kärrhök",
+   "rutter": 58
+  },
+  {
+   "key": 4408732,
+   "namn": "Blåhake",
+   "rutter": 129
+  },
+  {
+   "key": 2487879,
+   "namn": "Blåmes",
+   "rutter": 462
+  },
+  {
+   "key": 2494422,
+   "namn": "Bofink",
+   "rutter": 650
+  },
+  {
+   "key": 6093527,
+   "namn": "Brandkronad kungsfågel",
+   "rutter": 26
+  },
+  {
+   "key": 2480482,
+   "namn": "Brun kärrhök",
+   "rutter": 119
+  },
+  {
+   "key": 8250742,
+   "namn": "Brushane",
+   "rutter": 74
+  },
+  {
+   "key": 2492521,
+   "namn": "Buskskvätta",
+   "rutter": 620
+  },
+  {
+   "key": 2493145,
+   "namn": "Busksångare",
+   "rutter": 17
+  },
+  {
+   "key": 8144830,
+   "namn": "Bändelkorsnäbb",
+   "rutter": 138
+  },
+  {
+   "key": 2473421,
+   "namn": "Dalripa",
+   "rutter": 277
+  },
+  {
+   "key": 2494543,
+   "namn": "Domherre",
+   "rutter": 613
+  },
+  {
+   "key": 2481800,
+   "namn": "Drillsnäppa",
+   "rutter": 423
+  },
+  {
+   "key": 2490774,
+   "namn": "Dubbeltrast",
+   "rutter": 629
+  },
+  {
+   "key": 2480589,
+   "namn": "Duvhök",
+   "rutter": 232
+  },
+  {
+   "key": 2481835,
+   "namn": "Dvärgbeckasin",
+   "rutter": 34
+  },
+  {
+   "key": 6065841,
+   "namn": "Dvärgmås",
+   "rutter": 49
+  },
+  {
+   "key": 2491544,
+   "namn": "Dvärgsparv",
+   "rutter": 18
+  },
+  {
+   "key": 2498352,
+   "namn": "Ejder",
+   "rutter": 28
+  },
+  {
+   "key": 2481819,
+   "namn": "Enkelbeckasin",
+   "rutter": 639
+  },
+  {
+   "key": 2487843,
+   "namn": "Entita",
+   "rutter": 236
+  },
+  {
+   "key": 9752149,
+   "namn": "Fasan",
+   "rutter": 146
+  },
+  {
+   "key": 2480726,
+   "namn": "Fiskgjuse",
+   "rutter": 272
+  },
+  {
+   "key": 7982160,
+   "namn": "Fiskmås",
+   "rutter": 573
+  },
+  {
+   "key": 9367409,
+   "namn": "Fisktärna",
+   "rutter": 281
+  },
+  {
+   "key": 2481613,
+   "namn": "Fjällabb",
+   "rutter": 59
+  },
+  {
+   "key": 5227679,
+   "namn": "Fjällripa",
+   "rutter": 53
+  },
+  {
+   "key": 2480524,
+   "namn": "Fjällvråk",
+   "rutter": 190
+  },
+  {
+   "key": 2493549,
+   "namn": "Flodsångare",
+   "rutter": 18
+  },
+  {
+   "key": 2490310,
+   "namn": "Forsärla",
+   "rutter": 77
+  },
+  {
+   "key": 2481726,
+   "namn": "Gluttsnäppa",
+   "rutter": 415
+  },
+  {
+   "key": 2493091,
+   "namn": "Gransångare",
+   "rutter": 550
+  },
+  {
+   "key": 2498009,
+   "namn": "Gravand",
+   "rutter": 31
+  },
+  {
+   "key": 9761484,
+   "namn": "Gräsand",
+   "rutter": 492
+  },
+  {
+   "key": 2493548,
+   "namn": "Gräshoppsångare",
+   "rutter": 67
+  },
+  {
+   "key": 2492576,
+   "namn": "Grå flugsnappare",
+   "rutter": 658
+  },
+  {
+   "key": 2498036,
+   "namn": "Grågås",
+   "rutter": 241
+  },
+  {
+   "key": 2482051,
+   "namn": "Gråhakedopping",
+   "rutter": 22
+  },
+  {
+   "key": 9797180,
+   "namn": "Gråhäger",
+   "rutter": 216
+  },
+  {
+   "key": 5231630,
+   "namn": "Gråsiska",
+   "rutter": 458
+  },
+  {
+   "key": 5231190,
+   "namn": "Gråsparv",
+   "rutter": 150
+  },
+  {
+   "key": 2478548,
+   "namn": "Gråspett",
+   "rutter": 99
+  },
+  {
+   "key": 2481139,
+   "namn": "Gråtrut",
+   "rutter": 298
+  },
+  {
+   "key": 2481713,
+   "namn": "Grönbena",
+   "rutter": 445
+  },
+  {
+   "key": 5845582,
+   "namn": "Grönfink",
+   "rutter": 480
+  },
+  {
+   "key": 2478523,
+   "namn": "Gröngöling",
+   "rutter": 252
+  },
+  {
+   "key": 6092830,
+   "namn": "Grönsiska",
+   "rutter": 685
+  },
+  {
+   "key": 2491534,
+   "namn": "Gulsparv",
+   "rutter": 473
+  },
+  {
+   "key": 9701857,
+   "namn": "Gulärla",
+   "rutter": 492
+  },
+  {
+   "key": 5231438,
+   "namn": "Gärdsmyg",
+   "rutter": 511
+  },
+  {
+   "key": 5231918,
+   "namn": "Gök",
+   "rutter": 703
+  },
+  {
+   "key": 8012314,
+   "namn": "Göktyta",
+   "rutter": 447
+  },
+  {
+   "key": 2481172,
+   "namn": "Havstrut",
+   "rutter": 93
+  },
+  {
+   "key": 2497306,
+   "namn": "Hornuggla",
+   "rutter": 19
+  },
+  {
+   "key": 2489214,
+   "namn": "Hussvala",
+   "rutter": 342
+  },
+  {
+   "key": 8104397,
+   "namn": "Hämpling",
+   "rutter": 169
+  },
+  {
+   "key": 2493220,
+   "namn": "Härmsångare",
+   "rutter": 309
+  },
+  {
+   "key": 2497894,
+   "namn": "Hökuggla",
+   "rutter": 110
+  },
+  {
+   "key": 2497295,
+   "namn": "Jorduggla",
+   "rutter": 112
+  },
+  {
+   "key": 5231763,
+   "namn": "Järnsparv",
+   "rutter": 655
+  },
+  {
+   "key": 2473663,
+   "namn": "Järpe",
+   "rutter": 378
+  },
+  {
+   "key": 5232437,
+   "namn": "Kanadagås",
+   "rutter": 392
+  },
+  {
+   "key": 9282206,
+   "namn": "Kattuggla",
+   "rutter": 88
+  },
+  {
+   "key": 2498326,
+   "namn": "Knipa",
+   "rutter": 551
+  },
+  {
+   "key": 2498343,
+   "namn": "Knölsvan",
+   "rutter": 112
+  },
+  {
+   "key": 2490719,
+   "namn": "Koltrast",
+   "rutter": 555
+  },
+  {
+   "key": 4408498,
+   "namn": "Kornknarr",
+   "rutter": 43
+  },
+  {
+   "key": 2482492,
+   "namn": "Korp",
+   "rutter": 709
+  },
+  {
+   "key": 8214667,
+   "namn": "Kricka",
+   "rutter": 416
+  },
+  {
+   "key": 2482515,
+   "namn": "Kråka",
+   "rutter": 667
+  },
+  {
+   "key": 2484596,
+   "namn": "Kungsfågel",
+   "rutter": 627
+  },
+  {
+   "key": 2481759,
+   "namn": "Kärrsnäppa",
+   "rutter": 38
+  },
+  {
+   "key": 2493136,
+   "namn": "Kärrsångare",
+   "rutter": 136
+  },
+  {
+   "key": 9515886,
+   "namn": "Ladusvala",
+   "rutter": 488
+  },
+  {
+   "key": 2487862,
+   "namn": "Lappmes",
+   "rutter": 92
+  },
+  {
+   "key": 2491678,
+   "namn": "Lappsparv",
+   "rutter": 66
+  },
+  {
+   "key": 2497522,
+   "namn": "Lappuggla",
+   "rutter": 24
+  },
+  {
+   "key": 2482449,
+   "namn": "Lavskrika",
+   "rutter": 290
+  },
+  {
+   "key": 2480332,
+   "namn": "Ljungpipare",
+   "rutter": 239
+  },
+  {
+   "key": 2493084,
+   "namn": "Lundsångare",
+   "rutter": 26
+  },
+  {
+   "key": 2481035,
+   "namn": "Lärkfalk",
+   "rutter": 185
+  },
+  {
+   "key": 2493052,
+   "namn": "Lövsångare",
+   "rutter": 707
+  },
+  {
+   "key": 2492605,
+   "namn": "Mindre flugsnappare",
+   "rutter": 95
+  },
+  {
+   "key": 9015784,
+   "namn": "Mindre hackspett",
+   "rutter": 190
+  },
+  {
+   "key": 9629160,
+   "namn": "Mindre korsnäbb",
+   "rutter": 642
+  },
+  {
+   "key": 2481700,
+   "namn": "Morkulla",
+   "rutter": 442
+  },
+  {
+   "key": 2481740,
+   "namn": "Mosnäppa",
+   "rutter": 49
+  },
+  {
+   "key": 7537888,
+   "namn": "Myrsnäppa",
+   "rutter": 33
+  },
+  {
+   "key": 8109681,
+   "namn": "Nattskärra",
+   "rutter": 41
+  },
+  {
+   "key": 2492542,
+   "namn": "Näktergal",
+   "rutter": 124
+  },
+  {
+   "key": 2482613,
+   "namn": "Nötkråka",
+   "rutter": 120
+  },
+  {
+   "key": 5229493,
+   "namn": "Nötskrika",
+   "rutter": 493
+  },
+  {
+   "key": 2484916,
+   "namn": "Nötväcka",
+   "rutter": 329
+  },
+  {
+   "key": 2480537,
+   "namn": "Ormvråk",
+   "rutter": 378
+  },
+  {
+   "key": 2473682,
+   "namn": "Orre",
+   "rutter": 525
+  },
+  {
+   "key": 2491482,
+   "namn": "Ortolansparv",
+   "rutter": 100
+  },
+  {
+   "key": 5231198,
+   "namn": "Pilfink",
+   "rutter": 191
+  },
+  {
+   "key": 5739298,
+   "namn": "Pärluggla",
+   "rutter": 52
+  },
+  {
+   "key": 2473958,
+   "namn": "Rapphöna",
+   "rutter": 24
+  },
+  {
+   "key": 2495455,
+   "namn": "Ringduva",
+   "rutter": 592
+  },
+  {
+   "key": 7865305,
+   "namn": "Ringtrast",
+   "rutter": 60
+  },
+  {
+   "key": 2494459,
+   "namn": "Rosenfink",
+   "rutter": 179
+  },
+  {
+   "key": 2482513,
+   "namn": "Råka",
+   "rutter": 37
+  },
+  {
+   "key": 5229168,
+   "namn": "Röd glada",
+   "rutter": 82
+  },
+  {
+   "key": 2481714,
+   "namn": "Rödbena",
+   "rutter": 217
+  },
+  {
+   "key": 2492462,
+   "namn": "Rödhake",
+   "rutter": 649
+  },
+  {
+   "key": 5739317,
+   "namn": "Rödstjärt",
+   "rutter": 684
+  },
+  {
+   "key": 2490781,
+   "namn": "Rödvingetrast",
+   "rutter": 658
+  },
+  {
+   "key": 2480910,
+   "namn": "Rördrom",
+   "rutter": 49
+  },
+  {
+   "key": 5228199,
+   "namn": "Rörhöna",
+   "rutter": 25
+  },
+  {
+   "key": 2493118,
+   "namn": "Rörsångare",
+   "rutter": 133
+  },
+  {
+   "key": 2498285,
+   "namn": "Salskrake",
+   "rutter": 42
+  },
+  {
+   "key": 2484605,
+   "namn": "Sidensvans",
+   "rutter": 307
+  },
+  {
+   "key": 2481174,
+   "namn": "Silltrut",
+   "rutter": 68
+  },
+  {
+   "key": 5229230,
+   "namn": "Silvertärna",
+   "rutter": 195
+  },
+  {
+   "key": 2498247,
+   "namn": "Sjöorre",
+   "rutter": 71
+  },
+  {
+   "key": 5229490,
+   "namn": "Skata",
+   "rutter": 370
+  },
+  {
+   "key": 8332393,
+   "namn": "Skedand",
+   "rutter": 21
+  },
+  {
+   "key": 2495471,
+   "namn": "Skogsduva",
+   "rutter": 212
+  },
+  {
+   "key": 2481728,
+   "namn": "Skogssnäppa",
+   "rutter": 597
+  },
+  {
+   "key": 6065824,
+   "namn": "Skrattmås",
+   "rutter": 336
+  },
+  {
+   "key": 2482054,
+   "namn": "Skäggdopping",
+   "rutter": 63
+  },
+  {
+   "key": 2497509,
+   "namn": "Slaguggla",
+   "rutter": 32
+  },
+  {
+   "key": 5739290,
+   "namn": "Smalnäbbad simsnäppa",
+   "rutter": 47
+  },
+  {
+   "key": 2481958,
+   "namn": "Smålom",
+   "rutter": 298
+  },
+  {
+   "key": 2498375,
+   "namn": "Småskrake",
+   "rutter": 189
+  },
+  {
+   "key": 2481784,
+   "namn": "Småspov",
+   "rutter": 289
+  },
+  {
+   "key": 9362027,
+   "namn": "Snatterand",
+   "rutter": 27
+  },
+  {
+   "key": 2491719,
+   "namn": "Snösparv",
+   "rutter": 34
+  },
+  {
+   "key": 2488949,
+   "namn": "Sommargylling",
+   "rutter": 25
+  },
+  {
+   "key": 2474377,
+   "namn": "Sothöna",
+   "rutter": 64
+  },
+  {
+   "key": 2480637,
+   "namn": "Sparvhök",
+   "rutter": 324
+  },
+  {
+   "key": 5232162,
+   "namn": "Sparvuggla",
+   "rutter": 59
+  },
+  {
+   "key": 2477872,
+   "namn": "Spillkråka",
+   "rutter": 561
+  },
+  {
+   "key": 9809229,
+   "namn": "Stare",
+   "rutter": 283
+  },
+  {
+   "key": 2494686,
+   "namn": "Steglits",
+   "rutter": 184
+  },
+  {
+   "key": 9813242,
+   "namn": "Stenfalk",
+   "rutter": 129
+  },
+  {
+   "key": 2494329,
+   "namn": "Stenknäck",
+   "rutter": 203
+  },
+  {
+   "key": 5231240,
+   "namn": "Stenskvätta",
+   "rutter": 360
+  },
+  {
+   "key": 2498112,
+   "namn": "Stjärtand",
+   "rutter": 23
+  },
+  {
+   "key": 2495000,
+   "namn": "Stjärtmes",
+   "rutter": 277
+  },
+  {
+   "key": 2481959,
+   "namn": "Storlom",
+   "rutter": 413
+  },
+  {
+   "key": 2481890,
+   "namn": "Storskarv",
+   "rutter": 131
+  },
+  {
+   "key": 9537647,
+   "namn": "Storskrake",
+   "rutter": 340
+  },
+  {
+   "key": 2481792,
+   "namn": "Storspov",
+   "rutter": 289
+  },
+  {
+   "key": 7788295,
+   "namn": "Strandskata",
+   "rutter": 71
+  },
+  {
+   "key": 2495093,
+   "namn": "Strömstare",
+   "rutter": 65
+  },
+  {
+   "key": 2477968,
+   "namn": "Större hackspett",
+   "rutter": 626
+  },
+  {
+   "key": 2494154,
+   "namn": "Större korsnäbb",
+   "rutter": 453
+  },
+  {
+   "key": 9566659,
+   "namn": "Större strandpipare",
+   "rutter": 73
+  },
+  {
+   "key": 2482059,
+   "namn": "Svarthakedopping",
+   "rutter": 48
+  },
+  {
+   "key": 2492956,
+   "namn": "Svarthätta",
+   "rutter": 434
+  },
+  {
+   "key": 2487871,
+   "namn": "Svartmes",
+   "rutter": 475
+  },
+  {
+   "key": 2481725,
+   "namn": "Svartsnäppa",
+   "rutter": 97
+  },
+  {
+   "key": 2492606,
+   "namn": "Svartvit flugsnappare",
+   "rutter": 653
+  },
+  {
+   "key": 2498238,
+   "namn": "Svärta",
+   "rutter": 55
+  },
+  {
+   "key": 9687165,
+   "namn": "Sädesärla",
+   "rutter": 596
+  },
+  {
+   "key": 2498027,
+   "namn": "Sädgås",
+   "rutter": 58
+  },
+  {
+   "key": 2491557,
+   "namn": "Sävsparv",
+   "rutter": 542
+  },
+  {
+   "key": 2493129,
+   "namn": "Sävsångare",
+   "rutter": 147
+  },
+  {
+   "key": 8077224,
+   "namn": "Sånglärka",
+   "rutter": 215
+  },
+  {
+   "key": 2498347,
+   "namn": "Sångsvan",
+   "rutter": 531
+  },
+  {
+   "key": 9705453,
+   "namn": "Talgoxe",
+   "rutter": 661
+  },
+  {
+   "key": 2494771,
+   "namn": "Tallbit",
+   "rutter": 63
+  },
+  {
+   "key": 2487866,
+   "namn": "Talltita",
+   "rutter": 629
+  },
+  {
+   "key": 7901064,
+   "namn": "Taltrast",
+   "rutter": 683
+  },
+  {
+   "key": 2473577,
+   "namn": "Tjäder",
+   "rutter": 515
+  },
+  {
+   "key": 2487883,
+   "namn": "Tofsmes",
+   "rutter": 466
+  },
+  {
+   "key": 2480242,
+   "namn": "Tofsvipa",
+   "rutter": 264
+  },
+  {
+   "key": 9616058,
+   "namn": "Tornfalk",
+   "rutter": 378
+  },
+  {
+   "key": 5228676,
+   "namn": "Tornseglare",
+   "rutter": 482
+  },
+  {
+   "key": 2474950,
+   "namn": "Trana",
+   "rutter": 613
+  },
+  {
+   "key": 2477804,
+   "namn": "Tretåig hackspett",
+   "rutter": 275
+  },
+  {
+   "key": 2492942,
+   "namn": "Trädgårdssångare",
+   "rutter": 527
+  },
+  {
+   "key": 2487603,
+   "namn": "Trädkrypare",
+   "rutter": 502
+  },
+  {
+   "key": 2490604,
+   "namn": "Trädlärka",
+   "rutter": 163
+  },
+  {
+   "key": 2490246,
+   "namn": "Trädpiplärka",
+   "rutter": 666
+  },
+  {
+   "key": 2495696,
+   "namn": "Turkduva",
+   "rutter": 39
+  },
+  {
+   "key": 7745240,
+   "namn": "Törnskata",
+   "rutter": 323
+  },
+  {
+   "key": 2474156,
+   "namn": "Vaktel",
+   "rutter": 42
+  },
+  {
+   "key": 9444556,
+   "namn": "Varfågel",
+   "rutter": 128
+  },
+  {
+   "key": 2474831,
+   "namn": "Vattenrall",
+   "rutter": 29
+  },
+  {
+   "key": 2491582,
+   "namn": "Videsparv",
+   "rutter": 209
+  },
+  {
+   "key": 2498261,
+   "namn": "Vigg",
+   "rutter": 230
+  },
+  {
+   "key": 5232464,
+   "namn": "Vitkindad gås",
+   "rutter": 77
+  },
+  {
+   "key": 2490266,
+   "namn": "Ängspiplärka",
+   "rutter": 477
+  }
+ ]
+}
