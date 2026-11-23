@@ -187,6 +187,14 @@
   .info-links .primary { background: var(--accent); color: #fff; border-color: var(--accent); }
   .small { font-size: .8rem; color: var(--muted); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tripbtns { display: flex; gap: 8px; }
+  /* Stationärt läge (ingen resa): bara en liten ruta som erbjuder resan */
+  .tripintro { font-size: .88rem; color: var(--muted); margin: 0 0 10px; line-height: 1.4; }
+  body:not(.tripview) .chartcard, body:not(.tripview) .topcard,
+  body:not(.tripview) #tripSummary, body:not(.tripview) #clearBtn, body:not(.tripview) #gpsStatus { display: none; }
+  body.tripview .tripintro, body.tripview #tripShow { display: none; }
+  .tripcard h2 { display: flex; justify-content: space-between; align-items: center; }
+  #tripHide { border: 0; background: transparent; color: var(--muted); font-size: .8rem; padding: 2px 4px; text-transform: none; letter-spacing: 0; }
+  body:not(.tripview) #tripHide, body.triprun #tripHide { display: none; }
   .tripbtns button { flex: 1; }
   #gpsStatus { font-size: .85rem; color: var(--muted); margin-top: 10px; min-height: 2.6em; line-height: 1.3; white-space: pre-line;
                display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -214,6 +222,11 @@
     #map { flex: 1; height: auto; min-height: 200px; }
     .bottomrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
     .chartcard, .tripcard { height: 206px; }
+    body:not(.tripview) .bottomrow { grid-template-columns: 1fr; }
+    body:not(.tripview) .tripcard { height: auto; display: flex; align-items: center; gap: 16px; }
+    body:not(.tripview) .tripcard h2 { margin: 0; }
+    body:not(.tripview) .tripintro { margin: 0; flex: 1; }
+    body:not(.tripview) .tripbtns { flex: none; }
     .tripcard { overflow-y: auto; }
     #chart { height: 130px; }
     .right { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
@@ -262,7 +275,7 @@
             <span id="countLabel">arter inom 5 km.</span>
             <img class="groupicon" id="groupIcon" src="img/mammals.png" alt="">
           </div>
-          <div class="statline" id="status">Starta resan längst ner, eller utforska kartan.</div>
+          <div class="statline" id="status">Söker din position…</div>
         </div>
       </section>
 
@@ -275,11 +288,13 @@
           <div class="small" id="chartInfo"></div>
         </section>
         <section class="card tripcard">
-          <h2>Resa</h2>
+          <h2>Resa <button id="tripHide" title="Dölj resan (den sparas tills du rensar)">Dölj</button></h2>
+          <p class="tripintro">Ska du ut och åka eller gå? Starta en resa så följer appen dig och samlar arter längs vägen, med kurva och topplista.</p>
           <div id="tripSummary" class="tripsum"></div>
           <div class="tripbtns">
             <button class="primary" id="startBtn">Starta resa</button>
             <button id="clearBtn">Rensa resan</button>
+            <button id="tripShow" hidden>Visa sparad resa</button>
           </div>
           <div id="gpsStatus">Resan följer din position och hämtar nya arter var 300:e meter.</div>
         </section>
@@ -328,6 +343,7 @@ const RADIUS_KM = 5;
 const MOVE_M = 300;         // resan hämtar igen när du flyttat dig minst så här långt …
 const MIN_GAP_MS = 10_000;  // … men inte oftare än så här
 const IDLE_MS = 5 * 60_000; // och annars var femte minut även om du står still
+const HOME_MOVE_M = 500, HOME_IDLE_MS = 15 * 60_000; // utan resa: hämta om vid 500 m eller var 15:e minut
 const FILTER_KEY = 'artappen.filter', TRACK_KEY = 'artappen.track', NAME_KEY = 'artappen.names.v2';
 const MON = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
 
@@ -346,6 +362,10 @@ let mode = 'gps';          // 'gps' = visa din position, 'explore' = visa vald p
 let exploreAt = null;      // { lat, lon }
 let tripRes = null, exploreRes = null; // { lat, lon, yr, t, acc?, byGroup: { id: { counts, total } }, latest: {} }
 let lastFetch = null, timer = null, watchId = null;
+// Appen är stationär i första hand: den visar arterna där du är. Resan slås på med Starta resa.
+const TRIPVIEW_KEY = 'artappen.tripView';
+let tripOn = false;                           // resan pågår (spelar in punkter, håller skärmen tänd)
+let tripView = load(TRIPVIEW_KEY, false);     // resans rutor visas (pågående eller sparad resa)
 let tripSeq = 0, exploreSeq = 0, renderSeq = 0;
 
 // Varje punkt på resan: { t, lat, lon, acc, yr, n: { mammals, birds, herps }, obs: {…} }
@@ -371,7 +391,7 @@ const viewRes = () => mode === 'explore' ? exploreRes : tripRes;
 const viewPoint = () => mode === 'explore' ? exploreAt : (pos && { lat: pos.coords.latitude, lon: pos.coords.longitude });
 
 function setStatus(msg, err = false) { const s = $('status'); s.textContent = msg; s.title = msg; s.classList.toggle('err', err); }
-function setGps(msg, err = false) { const s = $('gpsStatus'); s.textContent = msg; s.title = msg; s.classList.toggle('err', err); }
+function setGps(msg, err = false) { if (!tripView) { if (err || !pos) setStatus(msg, err); return; } const s = $('gpsStatus'); s.textContent = msg; s.title = msg; s.classList.toggle('err', err); }
 
 async function mapLimit(items, n, fn) {
   let i = 0;
@@ -404,7 +424,7 @@ async function fetchAll(lat, lon) {
   return { lat, lon, yr: yearId(), t: Date.now(), latest: {}, byGroup: Object.fromEntries(ids.map((id, i) => [id, res[i]])) };
 }
 
-// Resan: hämtar vid GPS-positionen och sparar en punkt.
+// Din position: hämtar där du är. Pågår en resa sparas också en punkt.
 async function update() {
   if (!pos) return;
   const my = ++tripSeq;
@@ -416,12 +436,14 @@ async function update() {
     if (my !== tripSeq) return;
     r.acc = acc;
     tripRes = r;
-    track.push({ t: r.t, lat, lon, acc: Math.round(acc), yr: r.yr,
-                 n: Object.fromEntries(Object.entries(r.byGroup).map(([k, v]) => [k, v.counts.length])),
-                 obs: Object.fromEntries(Object.entries(r.byGroup).map(([k, v]) => [k, v.total])) });
-    save(TRACK_KEY, track);
-    collectTrip(r);
-    drawChart(); drawTrack(); renderTrip();
+    if (tripOn) { // utan resa sparas inga punkter
+      track.push({ t: r.t, lat, lon, acc: Math.round(acc), yr: r.yr,
+                   n: Object.fromEntries(Object.entries(r.byGroup).map(([k, v]) => [k, v.counts.length])),
+                   obs: Object.fromEntries(Object.entries(r.byGroup).map(([k, v]) => [k, v.total])) });
+      save(TRACK_KEY, track);
+      collectTrip(r);
+      drawChart(); drawTrack(); renderTrip();
+    }
     showProgress();
     if (mode === 'gps') renderCurrent();
   } catch (e) {
@@ -576,7 +598,7 @@ async function renderCurrent() {
     $('count').textContent = '–';
     const msg = mode === 'explore'
       ? (exploreAt ? 'Hämtar…' : 'Tryck på kartan för att utforska en plats.')
-      : pos ? 'Hämtar…' : 'Starta resan längst ner, eller välj Utforska på kartan.';
+      : pos ? 'Hämtar…' : watchId != null ? 'Söker din position…' : 'Ingen position. Tillåt platstjänster, eller välj Utforska på kartan.';
     $('list').innerHTML = `<p class="empty">${esc(msg)}</p>`;
     setStatus(msg);
     return;
@@ -792,7 +814,7 @@ function collectTrip(r) {
   lastNew = { yr: r.yr, t: r.t, byGroup };
   save(TRIP_KEY, tripSpecies);
 }
-const isNewOnTrip = key => mode === 'gps' && tripRes && lastNew?.t === tripRes.t && lastNew.yr === yearId()
+const isNewOnTrip = key => tripOn && mode === 'gps' && tripRes && lastNew?.t === tripRes.t && lastNew.yr === yearId()
   && lastNew.byGroup[filter.group]?.has(String(key));
 
 const SHORT = { mammals: 'däggdjur', birds: 'fåglar', herps: 'grod- & kräldjur' };
@@ -1175,12 +1197,12 @@ function maybeUpdate() {
   if (!pos) return;
   if (!lastFetch) { update(); return; }
   const since = Date.now() - lastFetch.t;
-  const needed = Math.max(MOVE_M, pos.coords.accuracy || 0);
-  if ((movedSinceFetch() >= needed && since >= MIN_GAP_MS) || since >= IDLE_MS) update();
+  const needed = Math.max(tripOn ? MOVE_M : HOME_MOVE_M, pos.coords.accuracy || 0);
+  if ((movedSinceFetch() >= needed && since >= MIN_GAP_MS) || since >= (tripOn ? IDLE_MS : HOME_IDLE_MS)) update();
   else showProgress();
 }
 function showProgress() {
-  if (!pos || !lastFetch) return;
+  if (!pos || !lastFetch || !tripOn) return;
   const needed = Math.max(MOVE_M, pos.coords.accuracy || 0);
   const left = Math.max(0, Math.round(needed - movedSinceFetch()));
   const idle = Math.max(0, Math.ceil((IDLE_MS - (Date.now() - lastFetch.t)) / 60_000));
@@ -1220,7 +1242,7 @@ function onFix(p) {
   recentFixes.push({ lat: p.coords.latitude, lon: p.coords.longitude, t: p.timestamp });
   recentFixes = recentFixes.filter(f => p.timestamp - f.t <= 60_000);
   showPosition(p);
-  if (first) { first = false; timer = setInterval(maybeUpdate, 5_000); update(); }
+  if (first) { first = false; timer ??= setInterval(maybeUpdate, 5_000); update(); }
   else maybeUpdate();
   if (datesPaused && mode === 'gps' && !isFast()) renderCurrent(); // saktat in: visa datumen igen
 }
@@ -1230,7 +1252,7 @@ let wakeLock = null;
 async function keepAwake() {
   try { if ('wakeLock' in navigator && document.visibilityState === 'visible') wakeLock = await navigator.wakeLock.request('screen'); } catch {}
 }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && watchId != null) keepAwake(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && tripOn) keepAwake(); });
 
 function setTripButton(running) {
   const b = $('startBtn');
@@ -1239,30 +1261,51 @@ function setTripButton(running) {
   b.classList.toggle('stop', running);
 }
 
-function start() {
-  if (!('geolocation' in navigator)) { setGps('Webbläsaren saknar GPS-stöd. Du kan utforska kartan i stället.', true); return; }
-  keepAwake();
-  setTripButton(true);
-  setGps('Söker din position… (första gången frågar webbläsaren om lov)');
-  if (mode === 'gps') renderCurrent();
+function setTripView(on) {
+  tripView = on; save(TRIPVIEW_KEY, on);
+  document.body.classList.toggle('tripview', on);
+  document.body.classList.toggle('triprun', tripOn);
+  $('tripShow').hidden = on || !track.length;
+  requestAnimationFrame(() => { map.invalidateSize(); drawChart(); });
+}
+
+// Följ positionen (alltid, även utan resa). Webbläsaren frågar om lov första gången.
+function locate() {
+  if (watchId != null) return;
+  if (!('geolocation' in navigator)) { setGps('Webbläsaren saknar platsstöd. Du kan utforska kartan i stället.', true); return; }
+  if (!pos) setStatus('Söker din position…');
   watchId = navigator.geolocation.watchPosition(onFix, err => {
     const why = err.code === 1 ? 'webbläsaren fick inte använda platstjänster' : err.message;
-    stop();
-    setGps(`Positionsfel: ${why}.\nTryck Starta resa för att försöka igen.`, true);
+    if (watchId != null) navigator.geolocation.clearWatch(watchId);
+    watchId = null; first = true;
+    if (tripOn) stop();
+    setGps(`Positionsfel: ${why}.`, true);
+    if (!pos) renderCurrent();
   }, { enableHighAccuracy: true, maximumAge: 5_000, timeout: 60_000 });
 }
 
-// Avsluta resan: sluta följa GPS och hämta. Resan och kurvan sparas tills man rensar.
+function start() {
+  tripOn = true;
+  setTripView(true);
+  keepAwake();
+  setTripButton(true);
+  setGps(pos ? 'Resan har startat.' : 'Söker din position… (första gången frågar webbläsaren om lov)');
+  locate();
+  if (pos) { if (mode !== 'gps') setMode('gps'); update(); }
+}
+
+// Avsluta resan: positionen följs vidare som vanligt, men inga fler punkter sparas.
+// Resan och kurvan finns kvar tills man rensar.
 function stop() {
-  if (watchId != null) navigator.geolocation.clearWatch(watchId);
-  watchId = null;
-  clearInterval(timer); timer = null;
-  first = true; lastFetch = null; candidates = []; recentFixes = [];
+  tripOn = false;
+  candidates = [];
   wakeLock?.release().catch(() => {}); wakeLock = null;
   setTripButton(false);
+  document.body.classList.remove('triprun');
   let km = 0; for (let i = 1; i < track.length; i++) km += distKm(track[i - 1], track[i]);
   setGps(track.length ? `Resan avslutad · ${track.length} mätningar · ${km.toFixed(1)} km\nStarta igen för att fortsätta, eller rensa för att börja om.`
                       : 'Resan avslutad.');
+  renderCurrent(); // ta bort NY-märkningen
 }
 
 // ---- Filter: djurgrupp och år ----
@@ -1321,12 +1364,15 @@ $('yearChips').onclick = e => {
 };
 $('yearFrom').onchange = e => { filter.from = e.target.value ? +e.target.value : null; applyFilter(); };
 $('yearTo').onchange = e => { filter.to = e.target.value ? +e.target.value : null; applyFilter(); };
-$('startBtn').onclick = () => (watchId != null || timer != null) ? stop() : start();
+$('startBtn').onclick = () => tripOn ? stop() : start();
+$('tripHide').onclick = () => setTripView(false);
+$('tripShow').onclick = () => setTripView(true);
 $('clearBtn').onclick = () => {
   if (track.length && !confirm('Rensa hela resan, kurvan och topplistan?')) return;
   track = []; save(TRACK_KEY, track);
   tripSpecies = {}; save(TRIP_KEY, tripSpecies); lastNew = null;
   drawChart(); drawTrack(); renderTrip();
+  if (!tripOn) setTripView(false);
 };
 $('topSeg').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
@@ -1334,17 +1380,18 @@ $('topSeg').onclick = e => {
 };
 
 fillYears();
+setTripView(tripView && track.length > 0);
 syncControls();
 renderCurrent();
 drawChart();
 drawTrack();
 renderTrip();
-if (track.length) map.fitBounds(trackLine.getBounds().pad(0.3), { maxZoom: 12 }); // en kort resa ska inte ge maxzoom
+if (tripView && track.length) map.fitBounds(trackLine.getBounds().pad(0.3), { maxZoom: 12 }); // en kort resa ska inte ge maxzoom
 new ResizeObserver(() => map.invalidateSize()).observe($('map'));
 new ResizeObserver(() => drawChart()).observe($('chart'));
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(e => console.warn('Service worker:', e));
-// Har webbläsaren redan gett lov att använda platsen startar resan direkt.
-navigator.permissions?.query({ name: 'geolocation' }).then(st => { if (st.state === 'granted' && watchId == null) start(); }).catch(() => {});
+// Appen visar arterna där du är direkt – resan startar man själv.
+locate();
 </script>
 </body>
 </html>
