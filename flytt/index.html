@@ -18,7 +18,6 @@
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
   #map { position: absolute; inset: 0; background: var(--bg); }
-  .leaflet-tile-pane { filter: grayscale(1) invert(1) brightness(0.55) contrast(1.2); }
   .leaflet-container { background: var(--bg); }
   .leaflet-control-attribution { background: rgba(0,0,0,0.5) !important; color: var(--muted) !important; font-size: 10px; }
   .leaflet-control-attribution a { color: var(--muted) !important; }
@@ -56,6 +55,13 @@
   .note { margin-top: 8px; font-size: 11px; color: var(--muted); line-height: 1.4; }
   .loading { position: absolute; inset: 0; background: rgba(5,7,13,0.5); display: grid; place-items: center; z-index: 600; color: var(--muted); font-size: 14px; }
 
+  /* Lugnt läge: reglagen tonas bort, kvar blir rubrik, datum och prickar */
+  .panel, #art, .head .hint, .back, .tap { transition: opacity .6s ease; }
+  body.calm .panel, body.calm #art, body.calm .head .hint, body.calm .back { opacity: 0; pointer-events: none; }
+  .tap { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(max(16px, env(safe-area-inset-bottom)) + 18px); white-space: nowrap;
+    z-index: 500; color: var(--muted); font-size: 12px; opacity: 0; pointer-events: none; }
+  body.calm .tap { opacity: 0.55; }
+
   @media (max-width: 600px) {
     .head h1 { font-size: 18px; }
     .head { max-width: 58vw; }
@@ -84,6 +90,7 @@
   <div class="live" id="live"></div>
 </div>
 
+<div class="tap">Tryck på kartan för att visa reglagen</div>
 <div class="panel">
   <div class="row">
     <button id="play" aria-label="Spela">❚❚</button>
@@ -133,9 +140,12 @@ function fitSweden() {
   map.fitBounds([[55.3, 11.0], [69.1, 24.2]], { paddingTopLeft: [0, 60], paddingBottomRight: [0, panel] });
 }
 fitSweden();
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · Data: GBIF.org / Artportalen'
-}).addTo(map);
+// Bara Sveriges gräns, inga ortsnamn eller vägar (Natural Earth, public domain).
+map.attributionControl.addAttribution('Gräns: Natural Earth · Data: GBIF.org / Artportalen');
+fetch('../data/sverige.json').then(r => r.json()).then(g => L.geoJSON(g, {
+  interactive: false,
+  style: { color: '#8fa6c8', weight: 1.1, opacity: 0.6, fillColor: '#9fb6d8', fillOpacity: 0.045 }
+}).addTo(map));
 
 // ---- WebGL: alla prickar ritas av grafikkortet i ett enda anrop ----
 const glow = document.getElementById('glow');
@@ -345,6 +355,27 @@ function chips(attr, fn) {
 chips('speed', v => state.speed = +v);
 chips('fade', v => state.fade = +v);
 chips('years', v => { state.years = v; applyYears(); });
+
+// ---- reglagen tonas bort ----
+// Klick på kartan döljer eller visar reglagen. Efter 5 sekunder utan rörelse tonas de bort av sig själva.
+let calm = false, manual = false, calmTimer = 0;
+function setCalm(c) { calm = c; document.body.classList.toggle('calm', c); }
+function poke(e) {
+  if (manual) return;
+  if (e && e.type === 'pointerdown' && e.target.closest && e.target.closest('#map')) return; // kartklick sköts nedan
+  setCalm(false);
+  clearTimeout(calmTimer);
+  calmTimer = setTimeout(() => {
+    if (scrubbing || document.activeElement === document.getElementById('art')) return poke();
+    setCalm(true);
+  }, 5000);
+}
+map.on('click', () => {
+  if (calm) { manual = false; poke(); }
+  else { manual = true; clearTimeout(calmTimer); setCalm(true); }
+});
+['pointermove', 'pointerdown', 'keydown', 'wheel'].forEach(t => addEventListener(t, poke, { passive: true }));
+poke();
 
 const sel = document.getElementById('art');
 sel.onchange = () => {
