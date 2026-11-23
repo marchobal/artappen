@@ -151,7 +151,8 @@ let rows = 0, minP = 0, gain = 1;
 
 // ---- karta ----
 const map = L.map('map', { zoomControl: false, zoomAnimation: false, attributionControl: true,
-  zoomSnap: 0.05, zoomDelta: 0.5, minZoom: 3, maxZoom: 12 });
+  zoomSnap: 0.05, zoomDelta: 0.5, minZoom: 3, maxZoom: 12,
+  bounceAtZoomLimits: false });   // ingen studs: kartan står still i startläget när man försöker zooma ut
 map.attributionControl.setPosition('bottomleft');
 // Sverige centrerat och så stort som fönstret tillåter. Panelen ligger ovanpå och tonas bort.
 function fitSweden() {
