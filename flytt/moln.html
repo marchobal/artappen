@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#05070d">
+<title>Blåhake · Flyttmolnet</title>
+<style>
+  :root { --bg: #05070d; --text: #e8ecf5; --muted: #8d97ad; --border: #8fa6c8; --accent: #5ab4ff;
+    --panel: rgba(8, 12, 22, 0.78); }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  #scene { position: absolute; inset: 0; touch-action: none; }
+  .head { position: absolute; top: max(14px, env(safe-area-inset-top)); left: 16px; z-index: 5; }
+  .back { color: var(--muted); font-size: 13px; text-decoration: none; display: inline-block; margin-bottom: 4px; }
+  .head h1 { margin: 0; font-size: 15px; font-weight: 500; letter-spacing: 0.3px; color: var(--border); }
+  .head .sub { color: var(--muted); font-size: 11px; margin-top: 2px; max-width: 320px; line-height: 1.4; }
+  #art { margin-top: 8px; font: inherit; font-size: 14px; color: var(--text); background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.18); border-radius: 8px; padding: 5px 8px; }
+  #art option { color: #000; }
+  .bar { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(14px, env(safe-area-inset-bottom));
+    z-index: 5; display: flex; gap: 8px; align-items: center; background: var(--panel); backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.08); border-radius: 999px; padding: 6px; }
+  button { font: inherit; color: var(--text); background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px; padding: 6px 12px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+  button.on { background: var(--accent); border-color: var(--accent); color: #031021; font-weight: 600; }
+  /* datumet sitter vid glasgolvets hörn och följer det uppåt */
+  .date { position: absolute; z-index: 5; pointer-events: none; transform: translate(10px, -50%); white-space: nowrap;
+    color: var(--border); font-size: 18px; letter-spacing: 0.5px; font-variant-numeric: tabular-nums; }
+  .caption { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); z-index: 6; width: min(520px, calc(100% - 40px));
+    text-align: center; color: var(--text); font-size: 17px; line-height: 1.45; pointer-events: none;
+    opacity: 0; transition: opacity 1s ease; text-shadow: 0 1px 12px #000; }
+  .caption.on { opacity: 0.92; }
+  .caption small { display: block; color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .label { position: absolute; z-index: 4; color: var(--muted); font-size: 11px; pointer-events: none;
+    transform: translate(8px, -50%); white-space: nowrap; }
+  .label.month { opacity: 0.6; }
+  .label.now { color: var(--text); opacity: 1; }
+  .label.place { transform: translate(-3px, -50%); color: var(--border); }
+  .help { position: absolute; left: 16px; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 58px); z-index: 5;
+    color: var(--muted); font-size: 11px; max-width: 260px; line-height: 1.4; }
+  .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); z-index: 10;
+    background: rgba(5,7,13,0.5); }
+  @media (max-width: 600px) { .help { display: none; } .bar button { padding: 6px 9px; font-size: 12px; } .date { font-size: 15px; } .caption { font-size: 15px; top: 18%; } }
+</style>
+</head>
+<body>
+<div id="scene"></div>
+<div class="loading" id="loading">Hämtar fynd …</div>
+<div class="head">
+  <a class="back" href="./">← Flyttfåglar på kartan</a>
+  <h1 id="title">Blåhake</h1>
+  <div class="sub">Fynden ligger på kartan och är upplyfta efter dag: januari nederst, december överst.</div>
+  <select id="art" aria-label="Välj art"></select>
+</div>
+<div class="caption" id="caption"></div>
+<div class="help">Dra för att vrida, nyp eller skrolla för att zooma. Glasgolvet visar dagens datum, och fynden kring det lyser.</div>
+<div class="bar">
+  <button id="play">❚❚ Pausa</button>
+  <button id="spin" class="on">Snurra</button>
+  <button id="home">Startvy</button>
+  <button id="lift">Visa lyftet</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const MONTHS = ['jan','feb','mar','apr','maj','jun','jul','aug','sep','okt','nov','dec'];
+const MONTH_START = [1,32,60,91,121,152,182,213,244,274,305,335,366];
+const SPECIES = new URLSearchParams(location.search).get('art') || '4408732';
+
+// Web Mercator (0–1), samma som kartan. Sverige centreras och skalas till ungefär 10 enheter på höjden.
+const merc = (lat, lon) => {
+  const la = lat * Math.PI / 180;
+  return [(lon + 180) / 360, (1 - Math.log(Math.tan(la) + 1 / Math.cos(la)) / Math.PI) / 2];
+};
+const [x0, y0] = merc(69.06, 10.95), [x1, y1] = merc(55.33, 24.17);
+const CX = (x0 + x1) / 2, CY = (y0 + y1) / 2, S = 10 / (y1 - y0);
+const HEIGHT = 9;                                   // ett år på höjden
+const toXZ = (lat, lon) => { const [x, y] = merc(lat, lon); return [(x - CX) * S, (y - CY) * S]; };
+const doyY = d => (d - 1) / 365 * HEIGHT;
+
+// ---- scen ----
+const el = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setClearColor(0x05070d);
+el.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 200);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.target.set(0, HEIGHT / 2, 0);
+controls.enableDamping = true;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.6;
+controls.minDistance = 4;
+// Startvyn snett uppifrån. På smala (stående) skärmar backar kameran så att hela molnet får plats.
+function startView() {
+  const k = el.clientWidth < el.clientHeight ? 1.7 : 1;
+  camera.position.set(10 * k, HEIGHT / 2 + HEIGHT * k, 13 * k); controls.target.set(0, HEIGHT / 2, 0);
+  // man kan zooma ut bara en bit förbi startvyn
+  controls.maxDistance = camera.position.distanceTo(controls.target) * 1.25;
+}
+
+function resize() {
+  const w = el.clientWidth, h = el.clientHeight;
+  renderer.setSize(w, h); camera.aspect = w / h;
+  // smal skärm: backa kameran så att hela molnet syns
+  camera.fov = 40;
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+startView();
+
+// Sveriges gräns ligger bara på golvet.
+const outline = new THREE.Group(); scene.add(outline);
+let border = null;
+fetch('../data/sverige.json').then(r => r.json()).then(g => {
+  const pts = [];
+  for (const poly of g.geometry.coordinates) for (const ring of poly) {
+    for (let i = 1; i < ring.length; i++) {
+      const [ax, az] = toXZ(ring[i - 1][1], ring[i - 1][0]), [bx, bz] = toXZ(ring[i][1], ring[i][0]);
+      pts.push(ax, 0, az, bx, 0, bz);
+    }
+  }
+  border = new THREE.BufferGeometry();
+  border.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  const mk = (op, y) => {
+    const l = new THREE.LineSegments(border, new THREE.LineBasicMaterial({ color: 0x8fa6c8, transparent: true, opacity: op }));
+    l.position.y = y; outline.add(l); return l;
+  };
+  mk(0.75, 0);
+});
+
+// Svag månadsaxel i Sveriges nordvästra hörn (bakom molnet i startvyn), med var tredje månad utskriven
+const [axX, axZ] = toXZ(69.1, 10.9);
+const axis = new THREE.Group(); scene.add(axis);
+{
+  const pts = [axX, 0, axZ, axX, HEIGHT, axZ];
+  for (let m = 0; m < 12; m++) { const y = doyY(MONTH_START[m]); pts.push(axX, y, axZ, axX - 0.2, y, axZ); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  axis.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0x8fa6c8, transparent: true, opacity: 0.2 })));
+}
+const labels = [0, 3, 6, 9].map(i => {
+  const d = document.createElement('div'); d.className = 'label month'; d.textContent = MONTHS[i]; document.body.appendChild(d);
+  return { el: d, pos: new THREE.Vector3(axX + 0.2, doyY(MONTH_START[i]), axZ), month: i };
+});
+
+// Glasgolvet: ett svagt genomskinligt plan som åker uppåt genom molnet med dagens datum
+const glass = new THREE.Group(); scene.add(glass);
+const GX = (x1 - x0) / 2 * S + 0.5, GZ = 5.5;
+{
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(GX * 2, GZ * 2),
+    new THREE.MeshBasicMaterial({ color: 0x8fa6c8, transparent: true, opacity: 0.05, depthWrite: false, side: THREE.DoubleSide }));
+  plane.rotation.x = -Math.PI / 2; glass.add(plane);
+  const e = [-GX, 0, -GZ, GX, 0, -GZ, GX, 0, -GZ, GX, 0, GZ, GX, 0, GZ, -GX, 0, GZ, -GX, 0, GZ, -GX, 0, -GZ];
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(e, 3));
+  glass.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0x8fa6c8, transparent: true, opacity: 0.3 })));
+}
+
+// Lyftet: fynden börjar platt på kartan och lyfts upp efter dag. lift går från 0 till 1.
+let lift = 0, liftStart = -1;
+const caption = document.getElementById('caption');
+function startLift() {
+  liftStart = performance.now();
+  caption.innerHTML = 'Varje prick är ett fynd, på sin plats på kartan.';
+  caption.dataset.step = '1';
+  caption.classList.add('on');
+}
+function updateLift(now) {
+  if (liftStart < 0) return;
+  const e = (now - liftStart) / 1000;      // sekunder sedan start
+  const ease = x => x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+  lift = e < 2.5 ? 0 : Math.min(1, ease(Math.min(1, (e - 2.5) / 4)));
+  const second = 'Nu lyfts varje fynd upp efter vilken dag det gjordes.<small>Januari längst ner, december högst upp.</small>';
+  if (e > 2.5 && caption.dataset.step !== '2') { caption.innerHTML = second; caption.dataset.step = '2'; }
+  if (e > 10) caption.classList.remove('on');
+  if (e > 11) liftStart = -1;
+}
+
+// ---- prickarna ----
+const VS = `
+attribute float aDoy; attribute float aW;
+uniform float uT; uniform float uFade; uniform float uGain; uniform float uScale; uniform float uLift;
+varying vec3 vCol; varying float vA;
+vec3 season(float d) {           // vinter blå, vår grön, sommar gul, höst orange
+  float t = d / 365.0 * 4.0;
+  vec3 c0 = vec3(0.35, 0.55, 1.0), c1 = vec3(0.35, 1.0, 0.6), c2 = vec3(1.0, 0.85, 0.35), c3 = vec3(1.0, 0.5, 0.3);
+  if (t < 1.0) return mix(c0, c1, t);
+  if (t < 2.0) return mix(c1, c2, t - 1.0);
+  if (t < 3.0) return mix(c2, c3, t - 2.0);
+  return mix(c3, c0, t - 3.0);
+}
+void main() {
+  float dd = abs(aDoy - uT); dd = min(dd, 365.0 - dd);
+  float now = exp(-dd * dd / (uFade * uFade));
+  // inaktiva prickar tonas till textens grå (#8d97ad); vågen lyser i årstidens färg
+  vCol = mix(vec3(0.553, 0.592, 0.678) * 0.55, season(aDoy) * 0.8 + 0.2, now);
+  vA = (0.34 + 0.45 * now) * aW * uGain;
+  vec3 p = position; p.y *= uLift;
+  vec4 mv = modelViewMatrix * vec4(p, 1.0);
+  gl_PointSize = max(1.2, (0.07 + 0.1 * now) * uScale / -mv.z);
+  gl_Position = projectionMatrix * mv;
+}`;
+const FS = `
+varying vec3 vCol; varying float vA;
+void main() {
+  vec2 c = gl_PointCoord - 0.5; float d2 = dot(c, c) * 4.0;
+  if (d2 > 1.0) discard;
+  float a = (exp(-d2 * 6.0)) * min(vA, 1.0);
+  gl_FragColor = vec4(vCol * a, a);
+}`;
+const mat = new THREE.ShaderMaterial({
+  vertexShader: VS, fragmentShader: FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  uniforms: { uT: { value: 90 }, uFade: { value: 7 }, uGain: { value: 1 }, uScale: { value: 800 }, uLift: { value: 0 } },
+});
+let points = null;
+
+async function load(key) {
+  const ld = document.getElementById('loading'); ld.style.display = 'grid';
+  const list = (await (await fetch('../data/flock/arter.json')).json()).arter.filter(a => a.data);
+  const sel = document.getElementById('art');
+  if (!sel.options.length) {
+    list.forEach(a => sel.add(new Option(a.namn, a.key)));
+    sel.onchange = () => { history.replaceState(null, '', `?art=${sel.value}`); load(sel.value); };
+  }
+  const sp = list.find(a => a.key === key) || list[0];
+  sel.value = sp.key;
+  const data = await (await fetch(`../data/flock/${sp.key}.json`)).json();
+  const n = data.lat.length;
+  const pos = new Float32Array(n * 3), doy = new Float32Array(n), w = new Float32Array(n);
+  let total = 0;
+  for (let i = 0; i < n; i++) {
+    const [x, z] = toXZ(data.lat[i], data.lon[i]);
+    // lite slumpmässig spridning inom dagen, så att dagarna inte blir skivor
+    pos[3 * i] = x; pos[3 * i + 1] = doyY(data.doy[i] + Math.random() - 0.5); pos[3 * i + 2] = z;
+    doy[i] = data.doy[i];
+    w[i] = Math.min(1 + Math.log2(data.w[i]) * 0.5, 3);
+    total += data.w[i];
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('aDoy', new THREE.BufferAttribute(doy, 1));
+  g.setAttribute('aW', new THREE.BufferAttribute(w, 1));
+  if (points) { scene.remove(points); points.geometry.dispose(); }
+  points = new THREE.Points(g, mat); scene.add(points);
+  // många fynd → svagare prickar, så att molnet inte blir helt vitt
+  mat.uniforms.uGain.value = Math.max(0.08, Math.min(1, Math.sqrt(300 / (total / 365)) * 0.8));
+  document.getElementById('title').textContent = sp.namn;
+  document.title = `${sp.namn} · Flyttmolnet`;
+  ld.style.display = 'none';
+}
+
+// ---- reglage ----
+let playing = true, t = 90, last = 0;
+const playBtn = document.getElementById('play');
+playBtn.onclick = () => { playing = !playing; playBtn.textContent = playing ? '❚❚ Pausa' : '▶ Spela'; };
+const spinBtn = document.getElementById('spin');
+spinBtn.onclick = () => { controls.autoRotate = !controls.autoRotate; spinBtn.classList.toggle('on', controls.autoRotate); };
+// tillbaka till vyn snett uppifrån
+document.getElementById('home').onclick = () => startView();
+document.getElementById('lift').onclick = startLift;
+const v = new THREE.Vector3(), v2 = new THREE.Vector3();
+function frame(now) {
+  const dt = last ? Math.min((now - last) / 1000, 0.1) : 0; last = now;
+  if (playing) { t += dt * 9; if (t >= 366) t -= 365; }
+  updateLift(now);
+  mat.uniforms.uT.value = t;
+  mat.uniforms.uLift.value = lift;
+  glass.position.y = doyY(t) * lift;
+  axis.scale.y = Math.max(lift, 0.001);
+  mat.uniforms.uScale.value = renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));
+  controls.update();
+  renderer.render(scene, camera);
+  // månadsetiketter följer axeln
+  const W = el.clientWidth, H = el.clientHeight, cur = Math.floor(t);
+  let m = 0; while (MONTH_START[m + 1] <= cur) m++;
+  const place = (elm, vec) => {
+    v.copy(vec).project(camera);
+    elm.style.left = ((v.x + 1) / 2 * W) + 'px'; elm.style.top = ((1 - v.y) / 2 * H) + 'px';
+    elm.style.display = v.z < 1 ? '' : 'none';
+  };
+  labels.forEach(l => {
+    place(l.el, v2.set(l.pos.x, l.pos.y * lift, l.pos.z));
+    l.el.style.opacity = lift > 0.95 ? '' : 0;
+  });
+
+  requestAnimationFrame(frame);
+}
+load(SPECIES).then(() => { startLift(); requestAnimationFrame(frame); })
+  .catch(err => { document.getElementById('loading').textContent = err.message; });
+</script>
+</body>
+</html>
