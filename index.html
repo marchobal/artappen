@@ -63,22 +63,40 @@
   .seg button.on { background: var(--accent); color: #fff; }
   .yr { font-size: .9rem; color: var(--muted); }
 
-  /* Statusrad med antal arter – fast höjd, ändrar inte storlek när texten ändras */
-  .statbar { display: flex; align-items: center; gap: 14px; height: 74px; padding: 8px 14px; }
-  .stattext { min-width: 0; flex: 1; align-self: stretch; position: relative; display: flex; flex-direction: column; justify-content: center; }
-  .count { font-size: 2.4rem; font-weight: 700; line-height: 1; color: var(--accent);
-           font-variant-numeric: tabular-nums; width: 3ch; flex: none; text-align: right; } /* fast bredd upp till 999 – texten och djuret står still */
-  .statline { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #countLabel { font-weight: 600; font-size: .95rem; white-space: nowrap; }
-  .labelrow { display: flex; align-items: center; gap: 8px; transform: translateY(-6px); } /* djuret står direkt efter texten, oberoende av meddelandet under */
-  .groupicon { width: 44px; height: 32px; object-fit: contain; object-position: left center; flex: none; } /* samma ruta för alla djur */
-  #status { font-size: .8rem; color: var(--muted); position: absolute; left: 0; right: 0; bottom: 0; line-height: 1.2; } /* påverkar inte raden ovanför */
-  #status:empty { display: none; } /* bara meddelanden som "Hämtar…" eller fel visas här */
+  /* Rubrik för artlistan med antal och statusrad */
+  .listhead { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 10px; margin: 0 0 8px 2px; }
+  .listhead h2 { margin: 0; font-size: 1rem; text-transform: none; letter-spacing: 0; color: var(--text); }
+  #count { color: var(--accent); font-variant-numeric: tabular-nums; }
+  #count:not(:empty)::before { content: '('; color: var(--muted); font-weight: 400; }
+  #count:not(:empty)::after { content: ')'; color: var(--muted); font-weight: 400; }
+  #obsCount { font-size: .82rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  #obsCount:empty { display: none; }
+  #status { font-size: .8rem; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #status:empty { display: none; }
+
+  /* Resknappen i toppraden */
+  .brandrow { display: flex; align-items: center; gap: 10px; }
+  .tripbtn { padding: 6px 12px; font-size: .88rem; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+  .tripbtn.stop::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: pulse 1.6s infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
+  #tripShow { padding: 6px 10px; font-size: .85rem; color: var(--muted); }
+
+  /* Djurgrupper med sin figur. Raden kan skrollas i sidled om fler grupper läggs till. */
+  #groupSeg { overflow-x: auto; scrollbar-width: none; }
+  #groupSeg button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+  #groupSeg img { width: 26px; height: 20px; object-fit: contain; flex: none; }
+  @media (max-width: 480px) {
+    #groupSeg button { flex-direction: column; gap: 1px; font-size: .8rem; padding-top: 5px; padding-bottom: 5px; min-width: 76px; }
+  }
 
   /* Karta */
   .mapcard { padding: 0; overflow: hidden; }
   #map { height: 46vh; min-height: 260px; z-index: 0; background: var(--line); }
   #map.exploring { cursor: crosshair; }
+  body.triprun .myring { animation: radar 3s ease-in-out infinite; }
+  @keyframes radar { 50% { stroke-opacity: .15; } }
+  .myring.scanned { animation: scan 1.2s ease-out !important; }
+  @keyframes scan { 0% { stroke-width: 7px; stroke-opacity: 1; } 100% { stroke-width: 1.5px; stroke-opacity: .5; } }
   #map.twofinger { touch-action: pan-x pan-y; } /* ett finger skrollar sidan */
   .twofinger-tip { position: absolute; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center;
                    padding: 20px; text-align: center; color: #fff; font-weight: 600; background: rgba(0,0,0,.45);
@@ -188,10 +206,7 @@
   .small { font-size: .8rem; color: var(--muted); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tripbtns { display: flex; gap: 8px; }
   /* Stationärt läge (ingen resa): bara en liten ruta som erbjuder resan */
-  .tripintro { font-size: .88rem; color: var(--muted); margin: 0 0 10px; line-height: 1.4; }
-  body:not(.tripview) .chartcard, body:not(.tripview) .topcard,
-  body:not(.tripview) #tripSummary, body:not(.tripview) #clearBtn, body:not(.tripview) #gpsStatus { display: none; }
-  body.tripview .tripintro, body.tripview #tripShow { display: none; }
+  body:not(.tripview) .chartcard, body:not(.tripview) .topcard, body:not(.tripview) .tripcard { display: none; }
   .tripcard h2 { display: flex; justify-content: space-between; align-items: center; }
   #tripHide { border: 0; background: transparent; color: var(--muted); font-size: .8rem; padding: 2px 4px; text-transform: none; letter-spacing: 0; }
   body:not(.tripview) #tripHide, body.triprun #tripHide { display: none; }
@@ -199,16 +214,19 @@
   #gpsStatus { font-size: .85rem; color: var(--muted); margin-top: 10px; min-height: 2.6em; line-height: 1.3; white-space: pre-line;
                display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
-  /* Mobil: siffran och statusen stannar överst när man skrollar */
+  /* Mobil: allt i en kolumn – listan, kartan och sedan resan */
   @media (max-width: 899px) {
-    .statbar { position: sticky; top: 0; z-index: 5; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
     .layout, .left, .bottomrow, .right { display: contents; }
     .layout { display: flex; flex-direction: column; }
-    .statbar { order: 1; } .listcard { order: 2; } .mapcard { order: 3; } .chartcard { order: 4; } .tripcard { order: 5; } .topcard { order: 6; }
+    .listcard { order: 2; } .mapcard { order: 3; } .chartcard { order: 4; } .tripcard { order: 5; } .topcard { order: 6; }
     .controls { width: 100%; }
     .yearpick { left: 0; right: 0; }
     .seg button { padding: 8px 10px; }
+    .brandrow { width: 100%; }
+    .brandrow .tripbtn { margin-left: auto; }
+    #tripShow + .tripbtn, .tripbtn + #tripShow:not([hidden]) { margin-left: 0; }
   }
+  @media (max-width: 480px) { .brand small { display: none; } }
 
   /* Dator: allt på en skärm */
   @media (min-width: 900px) and (min-height: 560px) {
@@ -222,11 +240,8 @@
     #map { flex: 1; height: auto; min-height: 200px; }
     .bottomrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
     .chartcard, .tripcard { height: 206px; }
-    body:not(.tripview) .bottomrow { grid-template-columns: 1fr; }
-    body:not(.tripview) .tripcard { height: auto; display: flex; align-items: center; gap: 16px; }
-    body:not(.tripview) .tripcard h2 { margin: 0; }
-    body:not(.tripview) .tripintro { margin: 0; flex: 1; }
-    body:not(.tripview) .tripbtns { flex: none; }
+    body:not(.tripview) .bottomrow { display: none; }
+    .listhead { position: sticky; top: -14px; background: var(--card); margin: -14px -14px 8px; padding: 12px 16px 8px; z-index: 2; }
     .tripcard { overflow-y: auto; }
     #chart { height: 130px; }
     .right { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
@@ -242,12 +257,16 @@
 <body>
 <main>
   <header class="topbar">
-    <div class="brand"><img src="icon-192.png" alt="">Artappen <small>Artportalen via GBIF</small></div>
+    <div class="brandrow">
+      <div class="brand"><img src="icon-192.png" alt="">Artappen <small>Artportalen via GBIF</small></div>
+      <button class="primary tripbtn" id="startBtn" title="Följ dig längs vägen och samla arter, med kurva och topplista">Starta resa</button>
+      <button id="tripShow" hidden title="Visa den sparade resan">Visa resa</button>
+    </div>
     <div class="controls">
       <div class="seg" id="groupSeg" role="group" aria-label="Djurgrupp">
-        <button data-group="mammals">Däggdjur</button>
-        <button data-group="birds">Fåglar</button>
-        <button data-group="herps">Grod- & kräldjur</button>
+        <button data-group="mammals"><img src="img/mammals.png" alt="">Däggdjur</button>
+        <button data-group="birds"><img src="img/birds.png" alt="">Fåglar</button>
+        <button data-group="herps"><img src="img/herps.png" alt="">Grod- & kräldjur</button>
       </div>
       <div class="yearwrap">
         <div class="seg" id="yearChips" role="group" aria-label="Vilka år">
@@ -268,17 +287,6 @@
 
   <div class="layout">
     <div class="left">
-      <section class="card statbar">
-        <div class="count" id="count">–</div>
-        <div class="stattext">
-          <div class="labelrow">
-            <span id="countLabel">arter inom 5 km.</span>
-            <img class="groupicon" id="groupIcon" src="img/mammals.png" alt="">
-          </div>
-          <div class="statline" id="status">Söker din position…</div>
-        </div>
-      </section>
-
       <section class="card mapcard"><div id="map"></div></section>
 
       <div class="bottomrow">
@@ -289,12 +297,9 @@
         </section>
         <section class="card tripcard">
           <h2>Resa <button id="tripHide" title="Dölj resan (den sparas tills du rensar)">Dölj</button></h2>
-          <p class="tripintro">Ska du ut och åka eller gå? Starta en resa så följer appen dig och samlar arter längs vägen, med kurva och topplista.</p>
           <div id="tripSummary" class="tripsum"></div>
           <div class="tripbtns">
-            <button class="primary" id="startBtn">Starta resa</button>
             <button id="clearBtn">Rensa resan</button>
-            <button id="tripShow" hidden>Visa sparad resa</button>
           </div>
           <div id="gpsStatus">Resan följer din position och hämtar nya arter var 300:e meter.</div>
         </section>
@@ -303,6 +308,7 @@
 
     <div class="right">
     <section class="card listcard">
+      <div class="listhead"><h2><span id="countLabel">Arter i närheten</span> <span id="count"></span></h2><span id="obsCount"></span><span id="status">Söker din position…</span></div>
       <div id="list"><p class="empty">Inga data ännu.</p></div>
     </section>
       <section class="card topcard">
@@ -342,8 +348,10 @@ const FIRST_YEAR = 1970;
 const RADIUS_KM = 5;
 const MOVE_M = 300;         // resan hämtar igen när du flyttat dig minst så här långt …
 const MIN_GAP_MS = 10_000;  // … men inte oftare än så här
-const IDLE_MS = 5 * 60_000; // och annars var femte minut även om du står still
-const HOME_MOVE_M = 500, HOME_IDLE_MS = 15 * 60_000; // utan resa: hämta om vid 500 m eller var 15:e minut
+const HOME_MOVE_M = 500;    // utan resa räcker det att hämta om när du flyttat dig 500 m
+// GBIF tar emot Artportalens data ungefär en gång i veckan. I stället för att hämta allt med jämna
+// mellanrum frågar appen en gång i timmen (ett litet anrop) om det kommit nytt, och hämtar bara då.
+const FRESH_CHECK_MS = 60 * 60_000;
 const FILTER_KEY = 'artappen.filter', TRACK_KEY = 'artappen.track', NAME_KEY = 'artappen.names.v2';
 const MON = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
 
@@ -443,6 +451,7 @@ async function update() {
       save(TRACK_KEY, track);
       collectTrip(r);
       drawChart(); drawTrack(); renderTrip();
+      scanFlash();
     }
     showProgress();
     if (mode === 'gps') renderCurrent();
@@ -455,7 +464,7 @@ async function update() {
 async function exploreFetch() {
   if (!exploreAt) return;
   const my = ++exploreSeq;
-  if (mode === 'explore') { setStatus('Hämtar observationer för vald punkt…'); $('count').textContent = '–'; }
+  if (mode === 'explore') { setStatus('Hämtar observationer för vald punkt…'); $('count').textContent = ''; $('obsCount').textContent = ''; }
   try {
     const r = await fetchAll(exploreAt.lat, exploreAt.lon);
     if (my !== exploreSeq) return;
@@ -582,11 +591,8 @@ async function findLatest(e, r, gid, keys) {
 // ---- Visa vald plats och djurgrupp ----
 function syncLabels() {
   const g = grp();
-  $('countLabel').textContent = 'arter inom 5 km.';
-  // Ikon för vald djurgrupp: vildsvin, kungsfågel eller padda
-  const icon = $('groupIcon');
-  if (!icon.src.endsWith(`img/${filter.group}.png`)) icon.src = `img/${filter.group}.png`;
-  icon.alt = g.label;
+  $('countLabel').textContent = mode === 'explore' ? 'Arter vid vald punkt' : 'Arter i närheten';
+  $('countLabel').parentNode.title = 'Inom 5 km';
   document.title = `Artappen · ${g.label}`;
 }
 
@@ -595,7 +601,7 @@ async function renderCurrent() {
   syncLabels();
   const r = viewRes();
   if (!r || r.yr !== yearId()) {
-    $('count').textContent = '–';
+    $('count').textContent = ''; $('obsCount').textContent = '';
     const msg = mode === 'explore'
       ? (exploreAt ? 'Hämtar…' : 'Tryck på kartan för att utforska en plats.')
       : pos ? 'Hämtar…' : watchId != null ? 'Söker din position…' : 'Ingen position. Tillåt platstjänster, eller välj Utforska på kartan.';
@@ -604,8 +610,9 @@ async function renderCurrent() {
     return;
   }
   const gid = filter.group, g = grp();
-  const { counts } = r.byGroup[gid];
+  const { counts, total } = r.byGroup[gid];
   $('count').textContent = counts.length;
+  $('obsCount').textContent = `${fmtN(total)} observationer`;
   const done = () => setStatus(datesPaused ? 'Datum pausade i fart' : '');
   await Promise.all(g.red.map(([n, k]) => loadRedlist(n, k).catch(e => console.warn('Rödlistan:', e))));
   if (my !== renderSeq) return;
@@ -1007,7 +1014,7 @@ const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).
 // På pekskärm: ett finger skrollar sidan, två fingrar flyttar och zoomar kartan
 // (Leaflets nypzoom flyttar också kartan när fingrarna rör sig). Mus och styrplatta som vanligt.
 const touchOnly = matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches;
-const map = L.map('map', { zoomControl: true, attributionControl: true, dragging: !touchOnly }).setView([62.5, 16], 4);
+const map = L.map('map', { zoomControl: true, attributionControl: true, dragging: !touchOnly, zoomSnap: 0.25, zoomDelta: 0.5 }).setView([62.5, 16], 4);
 if (touchOnly) {
   const box = $('map');
   box.classList.add('twofinger');
@@ -1031,7 +1038,7 @@ const obsUrl = () => `https://api.gbif.org/v2/map/occurrence/adhoc/{z}/{x}/{y}@1
 const OBS_OPACITY = 0.35;
 const obsLayer = L.tileLayer(obsUrl(), { maxZoom: 19, opacity: OBS_OPACITY }).addTo(map);
 const trackLine = L.polyline([], { color: css('--trip'), weight: 3, opacity: 0.8 }).addTo(map);
-const radiusCircle = L.circle([0, 0], { radius: RADIUS_KM * 1000, color: css('--me'), weight: 1.5, opacity: 0.5, fill: false, interactive: false });
+const radiusCircle = L.circle([0, 0], { radius: RADIUS_KM * 1000, color: css('--me'), weight: 1.5, opacity: 0.5, fill: false, interactive: false, className: 'myring' });
 const accCircle = L.circle([0, 0], { radius: 1, stroke: false, fillColor: css('--me'), fillOpacity: 0.12, interactive: false });
 const me = L.circleMarker([0, 0], { radius: 7, color: '#fff', weight: 2.5, fillColor: css('--me'), fillOpacity: 1, interactive: false });
 const exploreCircle = L.circle([0, 0], { radius: RADIUS_KM * 1000, color: css('--explore'), weight: 1.5, dashArray: '6 6', fill: false, interactive: false });
@@ -1072,10 +1079,14 @@ function showHint(html) {
 
 // Kartan zoomas aldrig om automatiskt (cirkeln är alltid 5 km) – den flyttas bara.
 // Zoomen styr man själv. Enda undantaget: första gången en position visas från Sverige-översikten.
-const START_ZOOM = 12;
+// Kartan zoomas så att hela 5 km-ringen precis syns: när en position visas första gången,
+// när man byter läge, väljer en punkt att utforska eller trycker på ◎. Annars flyttas den bara.
+function fitRing(lat, lon) {
+  map.fitBounds(L.latLng(lat, lon).toBounds(RADIUS_KM * 2000), { padding: [10, 10] });
+}
 function fitView() {
-  if (mode === 'explore' && exploreAt) { map.panTo([exploreAt.lat, exploreAt.lon]); return; }
-  if (mode === 'gps' && pos) { follow = true; map.panTo([pos.coords.latitude, pos.coords.longitude]); }
+  if (mode === 'explore' && exploreAt) { fitRing(exploreAt.lat, exploreAt.lon); return; }
+  if (mode === 'gps' && pos) { follow = true; fitRing(pos.coords.latitude, pos.coords.longitude); }
 }
 
 function setMode(m) {
@@ -1086,11 +1097,12 @@ function setMode(m) {
   if (selected) clearSelection(false);
   if (mode === 'explore') {
     follow = false;
-    if (exploreAt) map.panTo([exploreAt.lat, exploreAt.lon]);
+    if (exploreAt) { exploreDot.addTo(map); exploreCircle.addTo(map); fitRing(exploreAt.lat, exploreAt.lon); }
     showHint(exploreAt ? null : 'Tryck på kartan där du vill utforska.');
   } else {
     showHint(null);
-    if (pos) { follow = true; map.panTo([pos.coords.latitude, pos.coords.longitude]); }
+    exploreDot.remove(); exploreCircle.remove();
+    if (pos) { follow = true; fitRing(pos.coords.latitude, pos.coords.longitude); }
   }
   renderCurrent();
 }
@@ -1100,6 +1112,7 @@ map.on('click', e => {
   exploreAt = { lat: e.latlng.lat, lon: e.latlng.lng };
   exploreDot.setLatLng(e.latlng).addTo(map);
   exploreCircle.setLatLng(e.latlng).addTo(map);
+  fitRing(e.latlng.lat, e.latlng.lng);
   showHint(null);
   if (selected) clearSelection(false);
   exploreFetch();
@@ -1113,7 +1126,7 @@ function showPosition(p) {
   accCircle.setLatLng(ll).setRadius(p.coords.accuracy).addTo(map);
   radiusCircle.setLatLng(ll).addTo(map);
   if (mode !== 'gps') return;
-  if (!centered) { map.setView(ll, map.getZoom() < 8 ? START_ZOOM : map.getZoom()); centered = true; }
+  if (!centered) { fitRing(...ll); centered = true; }
   else if (follow) map.panTo(ll);
 }
 
@@ -1140,11 +1153,11 @@ function selectSpecies(it) {
   scrollToMap();
 }
 
-// I mobilen ligger kartan under listan: skrolla ner så att kartan syns under den fasta rutan överst.
+// I mobilen ligger kartan under listan: skrolla ner till kartan.
 function scrollToMap() {
   if (!matchMedia('(max-width: 899px)').matches) return;
   const top = document.querySelector('.mapcard').getBoundingClientRect().top + scrollY
-            - document.querySelector('.statbar').offsetHeight - 8;
+            - 8;
   scrollTo({ top, behavior: 'smooth' });
 }
 
@@ -1198,15 +1211,39 @@ function maybeUpdate() {
   if (!lastFetch) { update(); return; }
   const since = Date.now() - lastFetch.t;
   const needed = Math.max(tripOn ? MOVE_M : HOME_MOVE_M, pos.coords.accuracy || 0);
-  if ((movedSinceFetch() >= needed && since >= MIN_GAP_MS) || since >= (tripOn ? IDLE_MS : HOME_IDLE_MS)) update();
+  if (movedSinceFetch() >= needed && since >= MIN_GAP_MS) update();
   else showProgress();
 }
 function showProgress() {
   if (!pos || !lastFetch || !tripOn) return;
   const needed = Math.max(MOVE_M, pos.coords.accuracy || 0);
   const left = Math.max(0, Math.round(needed - movedSinceFetch()));
-  const idle = Math.max(0, Math.ceil((IDLE_MS - (Date.now() - lastFetch.t)) / 60_000));
-  setGps(`Resan pågår · GPS ±${Math.round(pos.coords.accuracy)} m\nNästa hämtning om ${left} m eller ${idle} min`);
+  setGps(`Skannar längs vägen · GPS ±${Math.round(pos.coords.accuracy)} m\nNästa skanning om ${left} m`);
+}
+
+// Har GBIF fått in ny data från Artportalen sedan vi hämtade? Då hämtas allt om, annars inget.
+let gbifStamp = load('artappen.gbifStamp', null);
+async function checkFresh() {
+  if (document.visibilityState !== 'visible') return;
+  try {
+    const d = await fetch(`https://api.gbif.org/v1/dataset/${DATASET}/process?limit=5`).then(r => r.json());
+    const stamp = d.results.find(x => x.finishReason === 'NORMAL')?.finishedCrawling;
+    if (!stamp || stamp === gbifStamp) return;
+    const changed = gbifStamp !== null;
+    gbifStamp = stamp; save('artappen.gbifStamp', stamp);
+    if (!changed) return;
+    if (pos) { lastFetch = null; maybeUpdate(); }
+    if (exploreAt) exploreFetch();
+  } catch {}
+}
+setInterval(checkFresh, FRESH_CHECK_MS);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkFresh(); });
+checkFresh();
+
+// Radarkänsla i resläget: ringen pulserar svagt och blinkar till vid varje skanning.
+function scanFlash() {
+  const el = radiusCircle.getElement?.(); if (!el) return;
+  el.classList.remove('scanned'); void el.getBoundingClientRect(); el.classList.add('scanned');
 }
 
 // 1) För osäkra positioner (t.ex. IP-baserad gissning) används inte.
