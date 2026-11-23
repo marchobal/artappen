@@ -19,6 +19,8 @@
   #art { margin-top: 8px; font: inherit; font-size: 14px; color: var(--text); background: rgba(255,255,255,0.1);
     border: 1px solid rgba(255,255,255,0.18); border-radius: 8px; padding: 5px 8px; max-width: 100%; }
   #art option { color: #000; }
+  .credit { color: var(--muted); font-size: 10px; margin-top: 6px; opacity: 0.8; }
+  .credit[hidden] { display: none; }
   .year { position: absolute; right: 18px; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 62px); z-index: 5;
     color: var(--border); font-size: 22px; letter-spacing: 0.5px; font-variant-numeric: tabular-nums; }
   .bar { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(14px, env(safe-area-inset-bottom));
@@ -43,10 +45,12 @@
   <h1 id="title"></h1>
   <div class="sub">Arten ligger som en lysande hinna över Sveriges terräng. Ju fler fåglar som räknas på Fågeltaxeringens rutter i trakten, desto starkare lyser den.</div>
   <select id="art" aria-label="Välj art"></select>
+  <div class="credit" id="credit">Grönt: skog år 2000. Rost: skog som försvunnit sedan dess, mest hyggen. Hansen m.fl., Global Forest Watch (CC BY 4.0)</div>
 </div>
 <div class="year" id="year"></div>
 <div class="bar">
   <button id="play">❚❚ Pausa</button>
+  <button id="skog" class="on">Skogen</button>
   <button id="spin" class="on">Snurra</button>
   <button id="home">Startvy</button>
 </div>
@@ -178,10 +182,60 @@ const ready = fetch('../data/sverige.json').then(r => r.json()).then(async g => 
     tColors[i * 3] = (l * 0.9) * a + 0.0196 * (1 - a); tColors[i * 3 + 1] = l * a + 0.0275 * (1 - a); tColors[i * 3 + 2] = (l * 1.25) * a + 0.051 * (1 - a);
   }
   terrainGeo.computeVertexNormals();
-  border = new THREE.BufferGeometry(); border.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  terrainGeo.setAttribute('aIn', new THREE.BufferAttribute(inside, 1));
+  loadLoss();
+  border =new THREE.BufferGeometry(); border.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
   const bl = new THREE.LineSegments(border, new THREE.LineBasicMaterial({ color: 0x8fa6c8, transparent: true, opacity: 0.35, depthTest: false }));
   bl.renderOrder = 2; scene.add(bl);
 });
+
+// ---- skogsförlust (Hansen m.fl.) som ett lager på marken ----
+// data/skog/forlust.png (tools/skog_forlust.swift): röd = år efter 2000, grön = hur mycket skog som försvann, blå = skog år 2000.
+// Skogen ligger grön tills den huggs; då glöder pixeln en stund och lägger sig sedan som mörk rost.
+const loss = new THREE.Mesh(terrainGeo, new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false,
+  vertexShader: `attribute float aIn; varying vec2 vUv; varying float vIn;
+    void main() { vUv = vec2((position.x + ${HALF_X.toFixed(5)}) / ${(2 * HALF_X).toFixed(5)}, (position.z + ${HALF_Z.toFixed(5)}) / ${(2 * HALF_Z).toFixed(5)});
+      vIn = aIn; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  uniforms: { uLoss: { value: null }, uSize: { value: new THREE.Vector2(1, 1) }, uYear: { value: 0 }, uOn: { value: 1 } },
+  fragmentShader: `uniform sampler2D uLoss; uniform vec2 uSize; uniform float uYear, uOn; varying vec2 vUv; varying float vIn;
+    float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    void main() {
+      vec4 t = texture2D(uLoss, vUv);
+      float y = floor(t.r * 255.0 + 0.5);
+      // En pixel är ungefär 0,6 km bred och oftast bara delvis avverkad. Den blir därför rost med en sannolikhet
+      // som motsvarar hur mycket som försvann, så att ungefär en femtedel av skogen är borta 2025, som i Hansens siffror.
+      float n = hash(floor(vUv * uSize)), n2 = hash(floor(vUv * uSize) + vec2(17.3, 5.1));
+      bool forest = t.b > 0.5, cut = y > 0.5 && uYear >= y - 1.0 && n2 < clamp((t.g + 0.03) * 1.5, 0.0, 1.0);
+      if (!forest && !cut) discard;
+      // frodig skog: varje pixel får en egen nyans mellan mörk gran och ljust lövgrönt
+      vec3 green = mix(vec3(0.05, 0.24, 0.10), vec3(0.20, 0.52, 0.18), n * n);
+      float aGreen = forest ? 0.62 + 0.25 * n : 0.0;
+      // hygget: tänds under sitt år, glöder och svalnar till mörk rost under åren efter
+      float show = cut ? smoothstep(y - 1.0, y, uYear) : 0.0;
+      float glow = exp(-max(uYear - y, 0.0) * 1.3);
+      vec3 rust = mix(vec3(0.42, 0.17, 0.08), vec3(1.0, 0.66, 0.34), glow);
+      float aRust = (0.45 + 0.55 * t.g) * mix(0.8, 1.0, glow);
+      vec3 col = mix(green, rust, show);
+      float a = mix(aGreen, aRust, show) * smoothstep(0.2, 0.6, vIn) * uOn;
+      if (a < 0.01) discard;
+      gl_FragColor = vec4(col, a);
+    }`,
+}));
+loss.renderOrder = 0.5; loss.visible = false;
+scene.add(loss);
+function loadLoss() {
+  const img = new Image();
+  img.onload = () => {
+    // via canvas och DataTexture, så att värdena kommer fram exakt och inget blandas mellan åren
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+    const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+    const tex = new THREE.DataTexture(g.getImageData(0, 0, c.width, c.height).data, c.width, c.height, THREE.RGBAFormat);
+    tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false; tex.needsUpdate = true;
+    loss.material.uniforms.uLoss.value = tex; loss.material.uniforms.uSize.value.set(c.width, c.height); loss.visible = true;
+  };
+  img.src = '../data/skog/forlust.png';
+}
 
 // ---- data ----
 let rutter = null, list = null, years = [], heights = [], t = 0;
@@ -253,6 +307,7 @@ function shape() {
     aV[i] = v;
   }
   P.needsUpdate = true; geo.attributes.aV.needsUpdate = true;
+  loss.material.uniforms.uYear.value = years[0] + tt - 2000;
   document.getElementById('year').textContent = years[Math.round(tt)];
 }
 
@@ -263,6 +318,12 @@ playBtn.onclick = () => { playing = !playing; playBtn.textContent = playing ? '�
 const spinBtn = document.getElementById('spin');
 spinBtn.onclick = () => { controls.autoRotate = !controls.autoRotate; spinBtn.classList.toggle('on', controls.autoRotate); };
 document.getElementById('home').onclick = startView;
+const skogBtn = document.getElementById('skog');
+skogBtn.onclick = () => {
+  const on = !skogBtn.classList.contains('on');
+  skogBtn.classList.toggle('on', on); loss.material.uniforms.uOn.value = on ? 1 : 0;
+  document.getElementById('credit').hidden = !on;
+};
 // Uppspelningen: spela åren, stanna en stund på sista året, tona ut hinnan,
 // börja om och låt hinnan tändas med en puls så att man ser att det börjar om.
 let phase = 'play', phaseT = 0, bright = 1;
