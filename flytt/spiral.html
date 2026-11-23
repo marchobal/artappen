@@ -6,15 +6,16 @@
 <meta name="theme-color" content="#05070d">
 <title>Årsspiralen · Artappen</title>
 <style>
-  :root { --bg: #05070d; --text: #e8ecf5; --muted: #8d97ad; --border: #8fa6c8; --accent: #5ab4ff; --arrive: #ffb86b;
+  :root { --bg: #05070d; --text: #e8ecf5; --muted: #8d97ad; --border: #8fa6c8; --accent: #5ab4ff; --arrive: #ffffff;
     --panel: rgba(8, 12, 22, 0.78); }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
   #scene { position: absolute; inset: 0; touch-action: none; }
   /* Uppe till vänster: tillbaka och artväljaren som rubrik. Uppe till höger: resultatet. */
-  .head { position: absolute; top: max(14px, env(safe-area-inset-top)); left: 16px; z-index: 5; max-width: 46vw; }
-  .back { color: var(--muted); font-size: 13px; text-decoration: none; display: inline-block; margin-bottom: 6px; }
+  .head { position: absolute; top: max(14px, env(safe-area-inset-top)); left: 16px; right: 16px; z-index: 5; }
+  .head #art { max-width: 320px; }
+  .back { color: var(--muted); font-size: 13px; text-decoration: none; display: block; width: max-content; margin-bottom: 6px; }
   .head h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   #art { font: inherit; font-size: 17px; font-weight: 500; color: var(--border); background: transparent; border: 0;
     border-bottom: 1px solid rgba(143,166,200,0.35); border-radius: 0; padding: 2px 18px 3px 0; max-width: 100%;
@@ -22,9 +23,8 @@
     background-image: linear-gradient(45deg, transparent 50%, #8fa6c8 50%), linear-gradient(135deg, #8fa6c8 50%, transparent 50%);
     background-position: right 6px top 55%, right 1px top 55%; background-size: 5px 5px; background-repeat: no-repeat; }
   #art option, #art optgroup { color: #000; }
-  .trend { position: absolute; top: max(14px, env(safe-area-inset-top)); right: 16px; z-index: 5; text-align: right;
-    font-size: 20px; font-weight: 600; color: var(--arrive); max-width: 46vw; }
-  .trend small { display: block; font-size: 11px; font-weight: 400; color: var(--muted); margin-top: 2px; line-height: 1.35; }
+  .trend { margin-top: 8px; font-size: 13px; line-height: 1.45; color: var(--muted); max-width: 320px; }
+  .trend b { color: var(--text); font-weight: 600; }
   .key { display: none; }
   .label { position: absolute; z-index: 4; color: var(--muted); font-size: 11px; pointer-events: none;
     transform: translate(-50%, -50%); white-space: nowrap; }
@@ -41,7 +41,7 @@
   .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); z-index: 10;
     background: rgba(5,7,13,0.5); }
   @media (max-width: 600px) {
-    .note { display: none; } .trend { font-size: 16px; } #art { font-size: 15px; }
+    .note { display: none; } .trend { font-size: 12px; } #art { font-size: 15px; }
     .bar button { padding: 6px 9px; font-size: 12px; }
     /* i mobilen bara en kort nyckel ovanför knapparna */
     .key { display: block; position: absolute; left: 0; right: 0; text-align: center; z-index: 5; color: var(--muted); font-size: 11px;
@@ -57,13 +57,13 @@
   <a class="back" href="../">← Artappen</a>
   <h1 id="title"></h1>
   <select id="art" aria-label="Välj art"></select>
+  <div class="trend" id="trend"></div>
 </div>
-<div class="trend" id="trend"></div>
 <div class="note"><b>Varje varv är ett år</b>, från 1990 i mitten till 2025 längst ut, och runt varvet går årets dagar.
-  Spiralen är hög där det rapporterades mycket. <b>Den orange linjen</b> visar när arten kom på våren: dagen då en tiondel
+  Spiralen är hög där det rapporterades mycket. <b>Den vita linjen</b> visar när arten kom på våren: dagen då en tiondel
   av vårens fynd hade rapporterats, efter att vinterns nivå räknats bort. Hos kortflyttare som delvis stannar
   över vintern är ankomsten svårare att mäta. Källa: GBIF.org, Artportalen (SLU Artdatabanken).</div>
-<div class="key">Ett varv per år · 1990 i mitten · <b>orange</b> = ankomst</div>
+<div class="key">Ett varv per år · 1990 i mitten · <b>vit linje</b> = ankomst</div>
 <div class="bar">
   <button id="grow">Bygg spiralen</button>
   <button id="spin" class="on">Snurra</button>
@@ -112,13 +112,27 @@ let monthLabels = null, yearLabels = [];
 // ---- spiralen: ett band per dag, bredare och ljusare där det rapporterades mycket ----
 const groupSp = new THREE.Group(); scene.add(groupSp);
 let years = [], vals = [], arrival = [], built = 0;
-const ramp = (v, d) => {           // årstidsfärg (vinter blå, vår grön, sommar gul, höst orange), svag där v är låg
-  const t = (d - 1) / 366 * 4, c = [[0.35, 0.55, 1.0], [0.35, 1.0, 0.6], [1.0, 0.85, 0.35], [1.0, 0.5, 0.3], [0.35, 0.55, 1.0]];
-  const i = Math.floor(t), f = t - i, a = c[i], b = c[i + 1];
-  const k = 0.12 + 0.88 * Math.pow(v, 0.8);
-  return [(a[0] + (b[0] - a[0]) * f) * k, (a[1] + (b[1] - a[1]) * f) * k, (a[2] + (b[2] - a[2]) * f) * k];
+// Ett löv genom året: vinterbrunt, skir ljusgrönska, mörkare sommargrönt, gult, orange och rött, sedan brunt igen.
+// [dag, r, g, b]
+const LEAF = [[1, .40, .35, .31], [70, .42, .37, .31], [105, .78, .90, .46], [150, .45, .70, .30], [195, .27, .50, .21],
+  [230, .86, .76, .28], [262, .90, .52, .17], [292, .74, .22, .14], [325, .45, .30, .24], [367, .40, .35, .31]];
+const ramp = (v, d) => {           // färg efter dag, svag där det rapporterades lite
+  let i = 0; while (LEAF[i + 1][0] <= d) i++;
+  const a = LEAF[i], b = LEAF[i + 1], f = (d - a[0]) / (b[0] - a[0]);
+  const k = 0.14 + 1.06 * Math.pow(v, 0.8);          // lite extra ljus, så att lövfärgerna lyser mot det mörka
+  return [1, 2, 3].map(j => Math.min(1, (a[j] + (b[j] - a[j]) * f) * k));
 };
 let ribbon = null, arrLine = null, arrDots = null;
+
+// Artnamnet i bestämd form: blåhake → blåhaken, svartvit flugsnappare → svartvita flugsnapparen
+function definite(name) {
+  const w = name.toLowerCase().split(' ');
+  const n = w.pop();
+  const noun = /[aeiouyåäö]$/.test(n) ? n + 'n' : n + 'en';
+  const adj = w.map(a => /[aå]$/.test(a) ? a : a + 'a');
+  const out = [...adj, noun].join(' ');
+  return out[0].toUpperCase() + out.slice(1);
+}
 
 async function load(key) {
   document.getElementById('loading').style.display = 'grid';
@@ -147,15 +161,16 @@ async function load(key) {
   if (arrLine) { groupSp.remove(arrLine, arrDots); }
   const pts = [], dots = [];
   years.forEach((y, i) => { if (arrival[i] != null) { const p = at(arrival[i], i, HMAX + 0.15); pts.push(new THREE.Vector3(...p)); dots.push(...p); } });
-  arrLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xffb86b, transparent: true, opacity: 0.9 }));
+  arrLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 }));
   const dg = new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.Float32BufferAttribute(dots, 3));
-  arrDots = new THREE.Points(dg, new THREE.PointsMaterial({ color: 0xffb86b, size: 0.12 }));
+  arrDots = new THREE.Points(dg, new THREE.PointsMaterial({ color: 0xffffff, size: 0.12 }));
   groupSp.add(arrLine, arrDots);
   // trenden i klartext
   const tr = d.trend, te = document.getElementById('trend');
+  const span = `(${years[0]}–${years.at(-1)})`, who = definite(sp.namn);
   if (tr == null) te.innerHTML = '';
-  else if (Math.abs(tr) < 0.5) te.innerHTML = `Kommer ungefär som förut<small>ingen tydlig förändring i när ${sp.namn.toLowerCase()} kommer på våren, ${years[0]}–${years.at(-1)}</small>`;
-  else te.innerHTML = `Kommer ${Math.abs(tr).toLocaleString('sv-SE')} dagar ${tr < 0 ? 'tidigare' : 'senare'}<small>per tio år, ${years[0]}–${years.at(-1)}</small>`;
+  else if (Math.abs(tr) < 0.5) te.innerHTML = `${who} återvänder till Sverige ungefär samma tid som förr ${span}.`;
+  else te.innerHTML = `${who} återvänder till Sverige i snitt <b>${Math.abs(tr).toLocaleString('sv-SE')} dagar</b> ${tr < 0 ? 'tidigare' : 'senare'} för varje tioårsperiod ${span}.`;
   // etiketter
   if (!monthLabels) monthLabels = MONTHS.map((m, i) => ({ el: label(m), d: MONTH_START[i] + 14 }));
   yearLabels.forEach(l => l.el.remove());
