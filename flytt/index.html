@@ -13,6 +13,7 @@
     --muted: #8d97ad;
     --accent: #5ab4ff;
     --accent2: #ff8a5c;
+    --border: #8fa6c8;   /* samma som Sveriges gräns */
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
@@ -25,18 +26,24 @@
 
   .head { position: absolute; top: max(14px, env(safe-area-inset-top)); left: 16px; z-index: 500;
     pointer-events: none; text-shadow: 0 1px 8px #000; }
-  .head h1 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: 0.2px; }
-  .head .sub { color: var(--muted); font-size: 13px; margin-top: 3px; }
+  .head h1 { margin: 0; font-size: 15px; font-weight: 500; letter-spacing: 0.3px; color: var(--border); }
+  .head .sub { color: var(--muted); font-size: 11px; margin-top: 2px; }
   #art { pointer-events: auto; margin-top: 8px; font: inherit; font-size: 14px; color: var(--text);
     background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.18); border-radius: 8px; padding: 5px 8px; }
   #art option { color: #000; }
   .head .hint { color: var(--text); opacity: 0.8; font-size: 12px; margin-top: 6px; max-width: 320px; line-height: 1.35; }
   .back { pointer-events: auto; display: inline-block; color: var(--muted); font-size: 13px; text-decoration: none; margin-bottom: 4px; }
   .back:hover { color: var(--text); }
-  .date { position: absolute; top: max(14px, env(safe-area-inset-top)); right: 16px; z-index: 500; text-align: right;
-    pointer-events: none; text-shadow: 0 1px 10px #000; }
-  .date .day { font-size: 40px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
-  .date .live { color: var(--muted); font-size: 13px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  /* Datumet ligger nere till höger i gränsens färg, ovanför panelen när den syns */
+  .date { position: absolute; right: 18px; bottom: calc(var(--panelH, 0px) + max(18px, env(safe-area-inset-bottom)));
+    z-index: 500; text-align: right; pointer-events: none; color: var(--border);
+    transition: bottom .6s ease; }
+  body.calm .date { bottom: max(18px, env(safe-area-inset-bottom)); }
+  .date .day { font-size: 22px; font-weight: 400; line-height: 1; letter-spacing: 0.5px; font-variant-numeric: tabular-nums; opacity: 0.85; }
+  .date .live { color: var(--muted); font-size: 11px; margin-top: 4px; font-variant-numeric: tabular-nums; transition: opacity .6s ease; }
+  body.calm .date .live { opacity: 0; }
+  .leaflet-control-attribution { transition: opacity .6s ease; }
+  body.calm .leaflet-control-attribution { opacity: 0.3; }
 
   .panel { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(14px, env(safe-area-inset-bottom));
     width: min(760px, calc(100% - 32px)); z-index: 500; background: var(--panel); backdrop-filter: blur(8px);
@@ -56,18 +63,19 @@
   .loading { position: absolute; inset: 0; background: rgba(5,7,13,0.5); display: grid; place-items: center; z-index: 600; color: var(--muted); font-size: 14px; }
 
   /* Lugnt läge: reglagen tonas bort, kvar blir rubrik, datum och prickar */
-  .panel, #art, .head .hint, .back, .tap { transition: opacity .6s ease; }
-  body.calm .panel, body.calm #art, body.calm .head .hint, body.calm .back { opacity: 0; pointer-events: none; }
+  .panel, #art, .head .hint, .head .sub, .head h1, .back, .tap { transition: opacity .6s ease; }
+  body.calm .panel, body.calm #art, body.calm .head .hint, body.calm .head .sub, body.calm .back { opacity: 0; pointer-events: none; }
+  body.calm .head h1 { opacity: 0.6; }
   .tap { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(max(16px, env(safe-area-inset-bottom)) + 18px); white-space: nowrap;
     z-index: 500; color: var(--muted); font-size: 12px; opacity: 0; pointer-events: none; }
-  body.calm .tap { opacity: 0.55; }
+  /* tipset syns en stund när reglagen har tonats bort och försvinner sedan */
+  body.calm .tap { animation: tapHint 6s ease forwards; }
+  @keyframes tapHint { 0% { opacity: 0; } 15% { opacity: 0.55; } 65% { opacity: 0.55; } 100% { opacity: 0; } }
 
   @media (max-width: 600px) {
-    .head h1 { font-size: 18px; }
-    .head { max-width: 58vw; }
-    .head .sub { font-size: 11px; }
-    .date .day { font-size: 28px; }
-    .date .live { font-size: 11px; max-width: 34vw; margin-left: auto; }
+    .head { max-width: 62vw; }
+    .date .day { font-size: 18px; }
+    .date .live { font-size: 10px; }
     .opts { gap: 6px 10px; }
     .note { display: none; }
   }
@@ -134,12 +142,20 @@ let rows = 0, minP = 0, gain = 1;
 
 // ---- karta ----
 const map = L.map('map', { zoomControl: false, zoomAnimation: false, attributionControl: true,
-  zoomSnap: 0.25, minZoom: 3, maxZoom: 12 });
+  zoomSnap: 0.05, zoomDelta: 0.5, minZoom: 3, maxZoom: 12 });
+map.attributionControl.setPosition('bottomleft');
+// Sverige centrerat och så stort som fönstret tillåter. Panelen ligger ovanpå och tonas bort.
 function fitSweden() {
-  const panel = document.querySelector('.panel').offsetHeight + 20;
-  map.fitBounds([[55.3, 11.0], [69.1, 24.2]], { paddingTopLeft: [0, 60], paddingBottomRight: [0, panel] });
+  map.invalidateSize();
+  map.fitBounds([[55.33, 10.95], [69.06, 24.17]], { padding: [14, 14] });
 }
 fitSweden();
+let fitTimer = 0;
+window.addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(fitSweden, 150); });
+function panelHeight() {
+  document.documentElement.style.setProperty('--panelH', document.querySelector('.panel').offsetHeight + 12 + 'px');
+}
+window.addEventListener('resize', panelHeight);
 // Bara Sveriges gräns, inga ortsnamn eller vägar (Natural Earth, public domain).
 map.attributionControl.addAttribution('Gräns: Natural Earth · Data: GBIF.org / Artportalen');
 fetch('../data/sverige.json').then(r => r.json()).then(g => L.geoJSON(g, {
@@ -250,6 +266,7 @@ async function load(key) {
   applyYears();
   document.getElementById('loading').style.display = 'none';
   resize();
+  panelHeight();
   if (!started) { started = true; requestAnimationFrame(frame); }
 }
 

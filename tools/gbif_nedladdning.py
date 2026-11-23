@@ -22,6 +22,7 @@ import base64
 import csv
 import io
 import json
+import os
 import re
 import subprocess
 import sys
@@ -31,6 +32,9 @@ import zipfile
 from collections import Counter, defaultdict
 from datetime import date
 from pathlib import Path
+
+# Kör alltid från Artappen-mappen, oavsett var kommandot startas.
+os.chdir(Path(__file__).resolve().parent.parent)
 
 DATASET = "38b4c89f-584c-41bb-bd8f-cd1def33e92f"
 API = "https://api.gbif.org/v1/occurrence/download"

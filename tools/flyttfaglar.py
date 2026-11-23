@@ -10,8 +10,12 @@ artfilerna med fältet "flytt" (kortflytt, långflytt eller vinterfågel) och
 saknar flyttstatus listas, så att man ser vad som återstår att fylla i.
 """
 import json
+import os
 import sys
 from pathlib import Path
+
+# Kör alltid från Artappen-mappen, oavsett var kommandot startas.
+os.chdir(Path(__file__).resolve().parent.parent)
 
 src = Path(sys.argv[1] if len(sys.argv) > 1 else Path.home() / "Svenska djur" / "data")
 out = Path(sys.argv[2] if len(sys.argv) > 2 else "data/flock/arter.json")
