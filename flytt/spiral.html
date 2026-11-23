@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#05070d">
+<title>Årsspiralen · Artappen</title>
+<style>
+  :root { --bg: #05070d; --text: #e8ecf5; --muted: #8d97ad; --border: #8fa6c8; --accent: #5ab4ff; --arrive: #ffb86b;
+    --panel: rgba(8, 12, 22, 0.78); }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  #scene { position: absolute; inset: 0; touch-action: none; }
+  /* Uppe till vänster: tillbaka och artväljaren som rubrik. Uppe till höger: resultatet. */
+  .head { position: absolute; top: max(14px, env(safe-area-inset-top)); left: 16px; z-index: 5; max-width: 46vw; }
+  .back { color: var(--muted); font-size: 13px; text-decoration: none; display: inline-block; margin-bottom: 6px; }
+  .head h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  #art { font: inherit; font-size: 17px; font-weight: 500; color: var(--border); background: transparent; border: 0;
+    border-bottom: 1px solid rgba(143,166,200,0.35); border-radius: 0; padding: 2px 18px 3px 0; max-width: 100%;
+    -webkit-appearance: none; appearance: none; cursor: pointer;
+    background-image: linear-gradient(45deg, transparent 50%, #8fa6c8 50%), linear-gradient(135deg, #8fa6c8 50%, transparent 50%);
+    background-position: right 6px top 55%, right 1px top 55%; background-size: 5px 5px; background-repeat: no-repeat; }
+  #art option, #art optgroup { color: #000; }
+  .trend { position: absolute; top: max(14px, env(safe-area-inset-top)); right: 16px; z-index: 5; text-align: right;
+    font-size: 20px; font-weight: 600; color: var(--arrive); max-width: 46vw; }
+  .trend small { display: block; font-size: 11px; font-weight: 400; color: var(--muted); margin-top: 2px; line-height: 1.35; }
+  .key { display: none; }
+  .label { position: absolute; z-index: 4; color: var(--muted); font-size: 11px; pointer-events: none;
+    transform: translate(-50%, -50%); white-space: nowrap; }
+  .label.year { color: var(--border); }
+  .bar { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(14px, env(safe-area-inset-bottom));
+    z-index: 5; display: flex; gap: 8px; align-items: center; background: var(--panel); backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.08); border-radius: 999px; padding: 6px; }
+  button { font: inherit; color: var(--text); background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px; padding: 6px 12px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+  button.on { background: var(--accent); border-color: var(--accent); color: #031021; font-weight: 600; }
+  .note { position: absolute; left: 16px; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 62px); z-index: 5;
+    color: var(--muted); font-size: 11px; max-width: 270px; line-height: 1.45; }
+  .note b { color: var(--border); font-weight: 500; }
+  .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); z-index: 10;
+    background: rgba(5,7,13,0.5); }
+  @media (max-width: 600px) {
+    .note { display: none; } .trend { font-size: 16px; } #art { font-size: 15px; }
+    .bar button { padding: 6px 9px; font-size: 12px; }
+    /* i mobilen bara en kort nyckel ovanför knapparna */
+    .key { display: block; position: absolute; left: 0; right: 0; text-align: center; z-index: 5; color: var(--muted); font-size: 11px;
+      bottom: calc(max(14px, env(safe-area-inset-bottom)) + 58px); }
+    .key b { color: var(--arrive); font-weight: 500; }
+  }
+</style>
+</head>
+<body>
+<div id="scene"></div>
+<div class="loading" id="loading">Hämtar fynd …</div>
+<div class="head">
+  <a class="back" href="../">← Artappen</a>
+  <h1 id="title"></h1>
+  <select id="art" aria-label="Välj art"></select>
+</div>
+<div class="trend" id="trend"></div>
+<div class="note"><b>Varje varv är ett år</b>, från 1990 i mitten till 2025 längst ut, och runt varvet går årets dagar.
+  Spiralen är hög där det rapporterades mycket. <b>Den orange linjen</b> visar när arten kom på våren: dagen då en tiondel
+  av vårens fynd hade rapporterats, efter att vinterns nivå räknats bort. Hos kortflyttare som delvis stannar
+  över vintern är ankomsten svårare att mäta. Källa: GBIF.org, Artportalen (SLU Artdatabanken).</div>
+<div class="key">Ett varv per år · 1990 i mitten · <b>orange</b> = ankomst</div>
+<div class="bar">
+  <button id="grow">Bygg spiralen</button>
+  <button id="spin" class="on">Snurra</button>
+  <button id="home">Startvy</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const MONTHS = ['jan','feb','mar','apr','maj','jun','jul','aug','sep','okt','nov','dec'];
+const MONTH_START = [1,32,60,91,121,152,182,213,244,274,305,335];
+const SPECIES = new URLSearchParams(location.search).get('art');
+// En platt spiral som växer utåt: första året i mitten, sista längst ut. Runt varvet går årets dagar,
+// med januari uppåt (bort från kameran) och året medurs sett ovanifrån. Mängden fynd blir höjd.
+const R0 = 1.4;           // första årets radie
+const DR = 0.165;         // hur mycket radien växer per år
+const HMAX = 1.3;         // högsta höjd
+const ang = d => (d - 1) / 366 * Math.PI * 2 - Math.PI / 2;
+const rad = (d, y) => R0 + (y + (d - 1) / 366) * DR;
+const at = (d, y, h = 0, dr = 0) => { const a = ang(d), r = rad(d, y) + dr; return [Math.cos(a) * r, h, Math.sin(a) * r]; };
+
+// ---- scen ----
+const el = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setClearColor(0x05070d);
+el.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 200);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.enablePan = false; controls.autoRotate = true; controls.autoRotateSpeed = 0.4;
+controls.minDistance = 5;
+function resize() { const w = el.clientWidth, h = el.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+function startView() {
+  const k = el.clientWidth < el.clientHeight ? Math.min(2.8, 1.32 * el.clientHeight / el.clientWidth) : 1.4;
+  camera.position.set(0, 15.5 * k, 11.5 * k); controls.target.set(0, 0, 0.6);
+  controls.maxDistance = camera.position.distanceTo(controls.target) * 1.25;
+}
+addEventListener('resize', resize); resize(); startView();
+
+// Etiketter för månaderna runt toppen och för första och sista året
+const labels = [];
+function label(text, cls) { const d = document.createElement('div'); d.className = 'label ' + (cls || ''); d.textContent = text; document.body.appendChild(d); return d; }
+let monthLabels = null, yearLabels = [];
+
+// ---- spiralen: ett band per dag, bredare och ljusare där det rapporterades mycket ----
+const groupSp = new THREE.Group(); scene.add(groupSp);
+let years = [], vals = [], arrival = [], built = 0;
+const ramp = (v, d) => {           // årstidsfärg (vinter blå, vår grön, sommar gul, höst orange), svag där v är låg
+  const t = (d - 1) / 366 * 4, c = [[0.35, 0.55, 1.0], [0.35, 1.0, 0.6], [1.0, 0.85, 0.35], [1.0, 0.5, 0.3], [0.35, 0.55, 1.0]];
+  const i = Math.floor(t), f = t - i, a = c[i], b = c[i + 1];
+  const k = 0.12 + 0.88 * Math.pow(v, 0.8);
+  return [(a[0] + (b[0] - a[0]) * f) * k, (a[1] + (b[1] - a[1]) * f) * k, (a[2] + (b[2] - a[2]) * f) * k];
+};
+let ribbon = null, arrLine = null, arrDots = null;
+
+async function load(key) {
+  document.getElementById('loading').style.display = 'grid';
+  const list = (await (await fetch('../data/spiral/arter.json')).json()).arter;
+  const sel = document.getElementById('art');
+  if (!sel.options.length) {
+    for (const [flytt, label] of [['långflytt', 'Långflyttare'], ['kortflytt', 'Kortflyttare']]) {
+      const g = document.createElement('optgroup'); g.label = label;
+      list.filter(a => a.flytt === flytt).forEach(a => g.appendChild(new Option(a.namn, a.key)));
+      sel.appendChild(g);
+    }
+    sel.onchange = () => { history.replaceState(null, '', `?art=${sel.value}`); load(sel.value); };
+  }
+  const sp = list.find(a => String(a.key) === String(key)) || list.find(a => a.namn === 'Blåhake') || list[0];
+  sel.value = sp.key;
+  const d = await (await fetch(`../data/spiral/${sp.key}.json`)).json();
+  years = d.years; arrival = d.arrival;
+  // Utjämnat över en vecka och skalat mot årets största värde, eftersom antalet rapporter har vuxit kraftigt
+  vals = d.counts.map(c => {
+    const sm = c.map((_, i) => { let s = 0; for (let j = -3; j <= 3; j++) s += c[(i + j + 366) % 366]; return s / 7; });
+    const max = Math.max(...sm) || 1;
+    return sm.map(v => Math.sqrt(v / max));
+  });
+  buildRibbon();
+  // ankomstlinjen
+  if (arrLine) { groupSp.remove(arrLine, arrDots); }
+  const pts = [], dots = [];
+  years.forEach((y, i) => { if (arrival[i] != null) { const p = at(arrival[i], i, HMAX + 0.15); pts.push(new THREE.Vector3(...p)); dots.push(...p); } });
+  arrLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xffb86b, transparent: true, opacity: 0.9 }));
+  const dg = new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.Float32BufferAttribute(dots, 3));
+  arrDots = new THREE.Points(dg, new THREE.PointsMaterial({ color: 0xffb86b, size: 0.12 }));
+  groupSp.add(arrLine, arrDots);
+  // trenden i klartext
+  const tr = d.trend, te = document.getElementById('trend');
+  if (tr == null) te.innerHTML = '';
+  else if (Math.abs(tr) < 0.5) te.innerHTML = `Kommer ungefär som förut<small>ingen tydlig förändring i när ${sp.namn.toLowerCase()} kommer på våren, ${years[0]}–${years.at(-1)}</small>`;
+  else te.innerHTML = `Kommer ${Math.abs(tr).toLocaleString('sv-SE')} dagar ${tr < 0 ? 'tidigare' : 'senare'}<small>per tio år, ${years[0]}–${years.at(-1)}</small>`;
+  // etiketter
+  if (!monthLabels) monthLabels = MONTHS.map((m, i) => ({ el: label(m), d: MONTH_START[i] + 14 }));
+  yearLabels.forEach(l => l.el.remove());
+  yearLabels = [{ el: label(years[0], 'year'), i: 0 }, { el: label(years.at(-1), 'year'), i: years.length - 1 }];
+  document.getElementById('title').textContent = sp.namn;
+  document.title = `${sp.namn} · Årsspiralen`;
+  document.getElementById('loading').style.display = 'none';
+  built = years.length;
+}
+
+function buildRibbon() {
+  if (ribbon) { groupSp.remove(ribbon); ribbon.geometry.dispose(); }
+  const Y = years.length, D = 366, pos = [], col = [], idx = [];
+  for (let y = 0; y < Y; y++) for (let d = 1; d <= D; d++) {
+    const v = vals[y][d - 1];
+    const low = at(d, y, 0), high = at(d, y, 0.02 + v * HMAX);   // en vägg som är hög där det rapporterades mycket
+    pos.push(...low, ...high);
+    const c = ramp(v, d); col.push(c[0] * 0.5, c[1] * 0.5, c[2] * 0.5, ...c);
+  }
+  for (let k = 0; k < Y * D - 1; k++) { const a = k * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx);
+  ribbon = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, transparent: true, opacity: 0.92 }));
+  groupSp.add(ribbon);
+}
+
+// "Bygg spiralen": visar åren ett i taget nerifrån och upp
+let growing = false, growT = 0;
+document.getElementById('grow').onclick = () => { growing = true; growT = 0; };
+function applyGrow() {
+  if (!ribbon) return;
+  const n = growing ? Math.min(years.length, growT) : years.length;
+  const tris = Math.max(0, Math.floor(n * 366) - 1) * 6;
+  ribbon.geometry.setDrawRange(0, tris);
+  const k = Math.floor(n);
+  arrLine.geometry.setDrawRange(0, arrival.slice(0, k).filter(a => a != null).length);
+  arrDots.geometry.setDrawRange(0, arrival.slice(0, k).filter(a => a != null).length);
+  if (growing && growT > years.length + 0.5) growing = false;
+}
+
+const spinBtn = document.getElementById('spin');
+spinBtn.onclick = () => { controls.autoRotate = !controls.autoRotate; spinBtn.classList.toggle('on', controls.autoRotate); };
+document.getElementById('home').onclick = startView;
+
+const v = new THREE.Vector3();
+let last = 0;
+function frame(now) {
+  const dt = last ? Math.min((now - last) / 1000, 0.1) : 0; last = now;
+  if (growing) growT += dt * 4;          // fyra år per sekund
+  applyGrow();
+  controls.update(); renderer.render(scene, camera);
+  const W = el.clientWidth, H = el.clientHeight;
+  const place = (elm, p) => { v.set(...p).project(camera); elm.style.left = (v.x + 1) / 2 * W + 'px'; elm.style.top = (1 - v.y) / 2 * H + 'px'; elm.style.display = v.z < 1 ? '' : 'none'; };
+  if (monthLabels && years.length) monthLabels.forEach(l => place(l.el, at(l.d, years.length - 1, 0, 0.7)));
+  yearLabels.forEach(l => place(l.el, at(1, l.i, 0, l.i ? 0.45 : -0.45)));
+  requestAnimationFrame(frame);
+}
+load(SPECIES).then(() => { growing = true; growT = 0; requestAnimationFrame(frame); })
+  .catch(err => { document.getElementById('loading').textContent = err.message; });
+</script>
+</body>
+</html>

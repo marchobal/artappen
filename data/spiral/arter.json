@@ -1,0 +1,178 @@
+{
+ "arter": [
+  {
+   "key": 2480420,
+   "namn": "Bivråk",
+   "flytt": "långflytt",
+   "trend": -1.0
+  },
+  {
+   "key": 4408732,
+   "namn": "Blåhake",
+   "flytt": "långflytt",
+   "trend": -6.9
+  },
+  {
+   "key": 5229167,
+   "namn": "Brun glada",
+   "flytt": "långflytt",
+   "trend": -3.4
+  },
+  {
+   "key": 2480482,
+   "namn": "Brun kärrhök",
+   "flytt": "långflytt",
+   "trend": -1.1
+  },
+  {
+   "key": 2480726,
+   "namn": "Fiskgjuse",
+   "flytt": "långflytt",
+   "trend": -0.1
+  },
+  {
+   "key": 9701857,
+   "namn": "Gulärla",
+   "flytt": "långflytt",
+   "trend": -1.1
+  },
+  {
+   "key": 8012314,
+   "namn": "Göktyta",
+   "flytt": "långflytt",
+   "trend": -1.9
+  },
+  {
+   "key": 2481035,
+   "namn": "Lärkfalk",
+   "flytt": "långflytt",
+   "trend": -0.8
+  },
+  {
+   "key": 5739317,
+   "namn": "Rödstjärt",
+   "flytt": "långflytt",
+   "trend": -2.2
+  },
+  {
+   "key": 2492606,
+   "namn": "Svartvit flugsnappare",
+   "flytt": "långflytt",
+   "trend": -0.3
+  },
+  {
+   "key": 9687165,
+   "namn": "Sädesärla",
+   "flytt": "långflytt",
+   "trend": -0.4
+  },
+  {
+   "key": 2480495,
+   "namn": "Ängshök",
+   "flytt": "långflytt",
+   "trend": -1.0
+  },
+  {
+   "key": 2480487,
+   "namn": "Blå kärrhök",
+   "flytt": "kortflytt",
+   "trend": 4.8
+  },
+  {
+   "key": 2494422,
+   "namn": "Bofink",
+   "flytt": "kortflytt",
+   "trend": 0.4
+  },
+  {
+   "key": 2480524,
+   "namn": "Fjällvråk",
+   "flytt": "kortflytt",
+   "trend": -0.7
+  },
+  {
+   "key": 2490310,
+   "namn": "Forsärla",
+   "flytt": "kortflytt",
+   "trend": -2.0
+  },
+  {
+   "key": 9761484,
+   "namn": "Gräsand",
+   "flytt": "kortflytt",
+   "trend": 0.5
+  },
+  {
+   "key": 2497306,
+   "namn": "Hornuggla",
+   "flytt": "kortflytt",
+   "trend": -3.9
+  },
+  {
+   "key": 2497295,
+   "namn": "Jorduggla",
+   "flytt": "kortflytt",
+   "trend": -1.2
+  },
+  {
+   "key": 2498326,
+   "namn": "Knipa",
+   "flytt": "kortflytt",
+   "trend": -1.3
+  },
+  {
+   "key": 2498343,
+   "namn": "Knölsvan",
+   "flytt": "kortflytt",
+   "trend": -3.1
+  },
+  {
+   "key": 2480537,
+   "namn": "Ormvråk",
+   "flytt": "kortflytt",
+   "trend": -3.5
+  },
+  {
+   "key": 2490781,
+   "namn": "Rödvingetrast",
+   "flytt": "kortflytt",
+   "trend": 0.6
+  },
+  {
+   "key": 2495471,
+   "namn": "Skogsduva",
+   "flytt": "kortflytt",
+   "trend": 0.1
+  },
+  {
+   "key": 2480637,
+   "namn": "Sparvhök",
+   "flytt": "kortflytt",
+   "trend": 2.1
+  },
+  {
+   "key": 9813242,
+   "namn": "Stenfalk",
+   "flytt": "kortflytt",
+   "trend": 0.2
+  },
+  {
+   "key": 7901064,
+   "namn": "Taltrast",
+   "flytt": "kortflytt",
+   "trend": 0.0
+  },
+  {
+   "key": 9616058,
+   "namn": "Tornfalk",
+   "flytt": "kortflytt",
+   "trend": 4.3
+  },
+  {
+   "key": 2490266,
+   "namn": "Ängspiplärka",
+   "flytt": "kortflytt",
+   "trend": 1.3
+  }
+ ]
+}
