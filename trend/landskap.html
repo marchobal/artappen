@@ -29,6 +29,9 @@
   button.on { background: var(--accent); border-color: var(--accent); color: #031021; font-weight: 600; }
   .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); z-index: 10;
     background: rgba(5,7,13,0.5); }
+  .year.pulse { animation: yearPulse 0.8s ease-out; }
+  @keyframes yearPulse { 0% { color: #fff; transform: scale(1.35); opacity: 0; } 25% { opacity: 1; } 100% { color: var(--border); transform: scale(1); } }
+  .year { transform-origin: right bottom; }
   @media (max-width: 600px) { .year { font-size: 18px; } .bar button { padding: 6px 9px; font-size: 12px; } }
 </style>
 </head>
@@ -38,7 +41,7 @@
 <div class="head">
   <a class="back" href="./">← Fågelstammar på kartan</a>
   <h1 id="title"></h1>
-  <div class="sub">Arten ligger som en lysande hinna över Sveriges terräng. Ju fler fåglar som räknas på Fågeltaxeringens rutter i trakten, desto starkare lyser den och desto högre lyfter den.</div>
+  <div class="sub">Arten ligger som en lysande hinna över Sveriges terräng. Ju fler fåglar som räknas på Fågeltaxeringens rutter i trakten, desto starkare lyser den.</div>
   <select id="art" aria-label="Välj art"></select>
 </div>
 <div class="year" id="year"></div>
@@ -61,8 +64,8 @@ const [x0, y0] = merc(69.06, 10.95), [x1, y1] = merc(55.33, 24.17);
 const CX = (x0 + x1) / 2, CY = (y0 + y1) / 2, S = 10 / (y1 - y0);
 const toXZ = (lat, lon) => { const [x, y] = merc(lat, lon); return [(x - CX) * S, (y - CY) * S]; };
 const HALF_X = (x1 - x0) / 2 * S, HALF_Z = 5;
-const LIFT = 0.55;                // hur högt hinnan lyfter där arten är som vanligast
-const TERRAIN = 0.45 / 1700;      // terrängens höjd: 1700 m blir 0,45 enheter (överdrivet, så att fjällen syns)
+const LIFT = 0.16;                // hinnan lyfter bara lite där arten är vanlig; det är ljuset som visar mängden
+const TERRAIN = 0.2 / 1700;       // terrängens höjd: 1700 m blir 0,2 enheter (lätt överdrivet, så att fjällen anas)
 const RADIUS = 0.55;              // hur långt en rutt "når" (ungefär 60 km)
 
 // ---- scen ----
@@ -78,8 +81,10 @@ controls.enableDamping = true; controls.autoRotate = true; controls.autoRotateSp
 controls.minDistance = 4; controls.maxPolarAngle = Math.PI * 0.47;   // inte under marken
 function resize() { const w = el.clientWidth, h = el.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
 function startView() {
-  const k = el.clientWidth < el.clientHeight ? 2.1 : 1;
-  camera.position.set(4.5 * k, 6 * k, 8 * k); controls.target.set(0, 0.3, 0.6);
+  // snett ovanifrån: då syns både hinnans ljus och höjderna.
+  // Stående skärm: kameran står i söder och tittar norrut, så att Sverige ligger på höjden i bilden.
+  if (el.clientWidth < el.clientHeight) { camera.position.set(0.4, 11, 9.5); controls.target.set(0, 0.1, -0.3); }
+  else { camera.position.set(2.4, 6.2, 5.2); controls.target.set(0, 0.1, 0.5); }
   controls.maxDistance = camera.position.distanceTo(controls.target) * 1.25;
 }
 addEventListener('resize', resize); resize(); startView();
@@ -108,13 +113,14 @@ const film = new THREE.Mesh(geo, new THREE.ShaderMaterial({
   transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
   vertexShader: `attribute float aV; varying float vV;
     void main() { vV = aV; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-  fragmentShader: `varying float vV;
+  uniforms: { uBright: { value: 1 } },
+  fragmentShader: `varying float vV; uniform float uBright;
     void main() {
       float v = clamp(vV, 0.0, 1.0);
       vec3 col = mix(vec3(0.16, 0.38, 0.95), vec3(0.88, 0.96, 1.0), v);
       float c = abs(fract(vV * 7.0) - 0.5);
       float line = (1.0 - smoothstep(0.0, 0.06, c)) * smoothstep(0.03, 0.12, vV);
-      float a = smoothstep(0.0, 0.05, vV) * (0.16 + 0.55 * v) + line * 0.22;
+      float a = (smoothstep(0.0, 0.05, vV) * (0.16 + 0.55 * v) + line * 0.22) * uBright;
       gl_FragColor = vec4(col * a, a);
     }`,
 }));
@@ -257,9 +263,34 @@ playBtn.onclick = () => { playing = !playing; playBtn.textContent = playing ? '�
 const spinBtn = document.getElementById('spin');
 spinBtn.onclick = () => { controls.autoRotate = !controls.autoRotate; spinBtn.classList.toggle('on', controls.autoRotate); };
 document.getElementById('home').onclick = startView;
+// Uppspelningen: spela åren, stanna en stund på sista året, tona ut hinnan,
+// börja om och låt hinnan tändas med en puls så att man ser att det börjar om.
+let phase = 'play', phaseT = 0, bright = 1;
+const yearEl = document.getElementById('year');
+function step(dt) {
+  phaseT += dt;
+  const last = years.length - 1;
+  if (phase === 'play') {
+    t = Math.min(last, t + dt * 0.8); bright = 1;
+    if (t >= last) { phase = 'hold'; phaseT = 0; }
+  } else if (phase === 'hold') {
+    if (phaseT > 1.4) { phase = 'out'; phaseT = 0; }
+  } else if (phase === 'out') {
+    bright = Math.max(0, 1 - phaseT / 0.9);
+    if (phaseT > 0.9) {
+      phase = 'pulse'; phaseT = 0; t = 0;
+      yearEl.classList.remove('pulse'); void yearEl.offsetWidth; yearEl.classList.add('pulse');
+    }
+  } else if (phase === 'pulse') {
+    t = Math.min(last, t + dt * 0.8);
+    bright = phaseT < 0.18 ? phaseT / 0.18 * 1.8 : 1 + 0.8 * Math.exp(-(phaseT - 0.18) * 6);
+    if (phaseT > 1.0) { phase = 'play'; phaseT = 0; }
+  }
+}
 function frame(now) {
   const dt = last ? Math.min((now - last) / 1000, 0.1) : 0; last = now;
-  if (playing && years.length) { t += dt * 0.8; if (t > years.length - 1 + 1.5) t = 0; }
+  if (playing && years.length) step(dt);
+  film.material.uniforms.uBright.value = bright;
   shape(); controls.update(); renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
