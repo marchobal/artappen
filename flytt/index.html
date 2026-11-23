@@ -65,7 +65,8 @@
   .opts { margin-top: 10px; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
   .group { display: flex; align-items: center; gap: 6px; }
   .group button { padding: 4px 10px; font-size: 12px; }
-  .moln { color: var(--accent); font-size: 12px; text-decoration: none; margin-left: auto; white-space: nowrap; }
+  .links { margin-left: auto; display: flex; gap: 14px; }
+  .moln { color: var(--accent); font-size: 12px; text-decoration: none; white-space: nowrap; }
   .note { margin-top: 8px; font-size: 11px; color: var(--muted); line-height: 1.4; }
   .loading { position: absolute; inset: 0; background: rgba(5,7,13,0.5); display: grid; place-items: center; z-index: 600; color: var(--muted); font-size: 14px; }
 
@@ -123,7 +124,7 @@
     <div class="group">År
       <button data-years="all" class="on">alla</button><button data-years="2000">från 2000</button><button data-years="10">senaste 10</button>
     </div>
-    <a class="moln" id="moln" href="moln.html">Se som 3D-moln →</a>
+    <span class="links"><a class="moln" id="moln" href="moln.html">3D-moln →</a><a class="moln" id="glob" href="glob.html">Jordgloben →</a></span>
   </div>
   <div class="note">Varje prick är ett fynd i Artportalen. Alla år läggs i samma år, och fynden tänds på sin dag och bleknar sedan.
     Prickarna visar var folk har <em>rapporterat</em> arten, så det blir många nära orter och fågelstationer och få i glest befolkade fjäll.
@@ -278,6 +279,7 @@ async function load(key) {
   document.getElementById('hint').textContent = HINTS[sp.key] || `${FLYTT[sp.flytt]}.`;
   document.getElementById('art').value = sp.key;
   document.getElementById('moln').href = `moln.html?art=${sp.key}`;
+  document.getElementById('glob').href = `glob.html?art=${sp.key}`;
   const src = document.getElementById('source');
   src.textContent = 'Data: GBIF.org, Artportalen (SLU Artdatabanken), CC0';
   if (data.doi) {

@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#05070d">
+<title>Flytten över jorden · Artappen</title>
+<style>
+  :root { --bg: #05070d; --text: #e8ecf5; --muted: #8d97ad; --border: #8fa6c8; --accent: #5ab4ff;
+    --panel: rgba(8, 12, 22, 0.78); }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  #scene { position: absolute; inset: 0; touch-action: none; }
+  .head { position: absolute; top: max(14px, env(safe-area-inset-top)); left: 16px; z-index: 5; max-width: 320px; }
+  .back { color: var(--muted); font-size: 13px; text-decoration: none; display: inline-block; margin-bottom: 4px; }
+  .head h1 { margin: 0; font-size: 15px; font-weight: 500; letter-spacing: 0.3px; color: var(--border); }
+  .head .sub { color: var(--muted); font-size: 11px; margin-top: 3px; line-height: 1.4; }
+  #art { margin-top: 8px; font: inherit; font-size: 14px; color: var(--text); background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.18); border-radius: 8px; padding: 5px 8px; max-width: 100%; }
+  #art option { color: #000; }
+  .month { position: absolute; right: 18px; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 62px); z-index: 5;
+    color: var(--border); font-size: 22px; letter-spacing: 0.5px; }
+  .bar { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(14px, env(safe-area-inset-bottom));
+    z-index: 5; display: flex; gap: 8px; align-items: center; background: var(--panel); backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.08); border-radius: 999px; padding: 6px; }
+  button { font: inherit; color: var(--text); background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px; padding: 6px 12px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+  button.on { background: var(--accent); border-color: var(--accent); color: #031021; font-weight: 600; }
+  .note { position: absolute; left: 16px; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 62px); z-index: 5;
+    color: var(--muted); font-size: 11px; max-width: 280px; line-height: 1.4; }
+  .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); z-index: 10;
+    background: rgba(5,7,13,0.5); }
+  @media (max-width: 600px) { .note { display: none; } .month { font-size: 18px; } .bar button { padding: 6px 9px; font-size: 12px; } }
+</style>
+</head>
+<body>
+<div id="scene"></div>
+<div class="loading" id="loading">Hämtar fynd …</div>
+<div class="head">
+  <a class="back" href="./">← Flyttfåglar på kartan</a>
+  <h1 id="title"></h1>
+  <div class="sub">Fynd från hela världen, månad för månad. Där det lyser starkast fanns flest fynd den månaden.</div>
+  <select id="art" aria-label="Välj art"></select>
+</div>
+<div class="month" id="month"></div>
+<div class="note">Det rapporteras mycket mer i Europa än i Afrika, så vinterkvarteren lyser svagare än fåglarna är många.
+  Källa: GBIF.org (många dataset). <span id="credit">Kust: Natural Earth.</span></div>
+<div class="bar">
+  <button id="play">❚❚ Pausa</button>
+  <button id="follow" class="on">Följ flytten</button>
+  <button id="home">Startvy</button>
+  <button id="mode">Satellit</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const MONTHS = ['januari','februari','mars','april','maj','juni','juli','augusti','september','oktober','november','december'];
+const SPECIES = new URLSearchParams(location.search).get('art');
+const R = 5;
+// lat/lon → punkt på klotet (samma riktning som three.js använder för kameran)
+function xyz(lat, lon, r = R) {
+  const phi = (90 - lat) * Math.PI / 180, th = (lon + 180) * Math.PI / 180;
+  return [-r * Math.sin(phi) * Math.cos(th), r * Math.cos(phi), r * Math.sin(phi) * Math.sin(th)];
+}
+
+// ---- scen ----
+const el = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setClearColor(0x05070d);
+el.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.enablePan = false; controls.minDistance = 7;
+function resize() { const w = el.clientWidth, h = el.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+const startDist = () => el.clientWidth < el.clientHeight ? 15.5 * Math.min(2.4, el.clientHeight / el.clientWidth) : 15.5;
+function look(lat, lon, dist) { camera.position.set(...xyz(lat, lon, dist)); controls.target.set(0, 0, 0); }
+function startView() { look(28, 15, startDist()); controls.maxDistance = startDist() * 1.2; }
+addEventListener('resize', () => { resize(); controls.maxDistance = startDist() * 1.2; }); resize(); startView();
+
+// Klotet: mörkt, med en svag kant av ljus
+const globe = new THREE.Mesh(new THREE.SphereGeometry(R, 128, 96), new THREE.MeshBasicMaterial({ color: 0x0a0f1c }));
+scene.add(globe);
+// Satellitläget: NASA:s molnfria Blue Marble, dämpad och lite avfärgad så att fåglarna syns
+const darkMat = globe.material;
+let satMat = null;
+function satelliteMaterial() {
+  if (satMat) return satMat;
+  const tex = new THREE.TextureLoader().load('../img/jorden.jpg');
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  satMat = new THREE.ShaderMaterial({
+    uniforms: { uTex: { value: tex } },
+    vertexShader: `varying vec2 vUv; varying vec3 vN;
+      void main() { vUv = uv; vN = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `uniform sampler2D uTex; varying vec2 vUv; varying vec3 vN;
+      void main() {
+        vec3 c = texture2D(uTex, vUv).rgb;
+        float g = dot(c, vec3(0.3, 0.59, 0.11));
+        c = mix(vec3(g), c, 0.6) * 0.5;                       // matta färger
+        c *= 0.55 + 0.45 * pow(max(dot(vN, vec3(0.0, 0.0, 1.0)), 0.0), 0.6);   // mörkare mot kanten
+        gl_FragColor = vec4(c, 1.0);
+      }`,
+  });
+  return satMat;
+}
+const halo = new THREE.Mesh(new THREE.SphereGeometry(R * 1.04, 64, 48), new THREE.ShaderMaterial({
+  transparent: true, side: THREE.BackSide, depthWrite: false, blending: THREE.AdditiveBlending,
+  vertexShader: `varying vec3 vN; void main() { vN = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `varying vec3 vN; void main() { float a = pow(0.75 - dot(vN, vec3(0.0, 0.0, 1.0)), 3.0); gl_FragColor = vec4(vec3(0.35, 0.5, 0.8) * a * 0.5, a * 0.5); }`,
+}));
+scene.add(halo);
+
+// Kustlinjer (bara i mörkt läge)
+let coast = null, mode = 'dark';
+fetch('../data/varlden.json').then(r => r.json()).then(w => {
+  const pts = [];
+  for (const line of w.lines) for (let i = 1; i < line.length; i++) {
+    pts.push(...xyz(line[i - 1][1], line[i - 1][0], R * 1.001), ...xyz(line[i][1], line[i][0], R * 1.001));
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  coast = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0x8fa6c8, transparent: true, opacity: 0.4 }));
+  coast.visible = mode === 'dark'; scene.add(coast);
+});
+
+// ---- prickarna: tolv månadsvärden per ruta i tre vec4, mjukt mellan månaderna ----
+const VS = `
+attribute vec4 aA; attribute vec4 aB; attribute vec4 aC;
+uniform float uM; uniform float uScale;
+varying float vV;
+float val(float m) {
+  m = mod(m, 12.0);
+  if (m < 4.0) return m < 1.0 ? aA.x : m < 2.0 ? aA.y : m < 3.0 ? aA.z : aA.w;
+  if (m < 8.0) return m < 5.0 ? aB.x : m < 6.0 ? aB.y : m < 7.0 ? aB.z : aB.w;
+  return m < 9.0 ? aC.x : m < 10.0 ? aC.y : m < 11.0 ? aC.z : aC.w;
+}
+void main() {
+  // Jämn kurva (Catmull–Rom) genom fyra månader, så att rörelsen inte stannar vid varje månadsskifte.
+  // Där fåglarna flyttar sig blandas kvadraterna, så att det inte blir svagare mitt emellan två månader.
+  float m0 = floor(uM), f = uM - m0;
+  float p0 = val(m0 + 11.0), p1 = val(m0), p2 = val(m0 + 1.0), p3 = val(m0 + 2.0);
+  float f2 = f * f, f3 = f2 * f;
+  float cr = 0.5 * (2.0 * p1 + (-p0 + p2) * f + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * f2 + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * f3);
+  float rms = sqrt(mix(p1 * p1, p2 * p2, f));
+  vV = clamp(max(cr, rms * 0.9), 0.0, 1.0);
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  // prickar på baksidan av klotet syns inte
+  vec3 n = normalize((modelViewMatrix * vec4(position, 0.0)).xyz);
+  float front = step(0.0, dot(n, normalize(-mv.xyz)));
+  gl_PointSize = front * (0.17 + 0.22 * vV) * uScale / -mv.z;
+  gl_Position = projectionMatrix * mv;
+}`;
+const FS = `
+varying float vV; uniform float uSat;
+void main() {
+  vec2 c = gl_PointCoord - 0.5; float d2 = dot(c, c) * 4.0;
+  if (d2 > 1.0 || vV < 0.02) discard;
+  // mörkt läge: blått som blir vitt; satellitläge: glödande orange som blir gulvitt
+  vec3 dark = mix(vec3(0.2, 0.45, 1.0), vec3(1.0, 0.97, 0.9), vV);
+  vec3 sat = mix(vec3(1.0, 0.42, 0.08), vec3(1.0, 0.93, 0.6), vV);
+  vec3 col = mix(dark, sat, uSat);
+  float a = exp(-d2 * 3.0) * mix(0.2 + 0.6 * vV, 0.35 + 0.75 * vV, uSat);
+  gl_FragColor = vec4(col * a, a);
+}`;
+const mat = new THREE.ShaderMaterial({ vertexShader: VS, fragmentShader: FS, transparent: true, depthWrite: false,
+  blending: THREE.AdditiveBlending, uniforms: { uM: { value: 0 }, uScale: { value: 800 }, uSat: { value: 0 } } });
+let points = null, centers = [];
+
+async function load(key) {
+  document.getElementById('loading').style.display = 'grid';
+  const list = (await (await fetch('../data/glob/arter.json')).json()).arter;
+  const sel = document.getElementById('art');
+  if (!sel.options.length) {
+    list.forEach(a => sel.add(new Option(a.namn, a.key)));
+    sel.onchange = () => { history.replaceState(null, '', `?art=${sel.value}`); load(sel.value); };
+  }
+  const sp = list.find(a => String(a.key) === String(key)) || list.find(a => a.namn === 'Svartvit flugsnappare') || list[0];
+  sel.value = sp.key;
+  const d = await (await fetch(`../data/glob/${sp.key}.json`)).json();
+  const n = d.cells.length;
+  const pos = new Float32Array(n * 3), A = new Float32Array(n * 4), B = new Float32Array(n * 4), C = new Float32Array(n * 4);
+  // Logaritmisk skala mot månadens största ruta: varje månad visar var fåglarna finns just då,
+  // så att vinterkvarteren i Afrika syns trots att det rapporteras mycket mindre där.
+  const monthMax = Array.from({ length: 12 }, (_, k) => Math.max(1, ...d.cells.map(c => c[2][k])));
+  const Lm = (v, k) => v < 2 ? 0 : Math.min(1, Math.log1p(v) / Math.log1p(monthMax[k]));
+  centers = Array.from({ length: 12 }, () => [0, 0, 0, 0]);
+  d.cells.forEach(([lat, lon, m], i) => {
+    pos.set(xyz(lat, lon, R * 1.002), i * 3);
+    for (let k = 0; k < 4; k++) { A[i * 4 + k] = Lm(m[k], k); B[i * 4 + k] = Lm(m[k + 4], k + 4); C[i * 4 + k] = Lm(m[k + 8], k + 8); }
+    // var tyngdpunkten ligger varje månad (viktat med logaritmen, så att Afrika räknas)
+    m.forEach((v, k) => { const w = Lm(v, k) ** 2; const c = centers[k]; c[0] += lat * w; c[1] += lon * w; c[2] += w; });
+  });
+  centers = centers.map(c => c[2] ? [c[0] / c[2], c[1] / c[2]] : [28, 15]);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('aA', new THREE.BufferAttribute(A, 4));
+  g.setAttribute('aB', new THREE.BufferAttribute(B, 4));
+  g.setAttribute('aC', new THREE.BufferAttribute(C, 4));
+  if (points) { scene.remove(points); points.geometry.dispose(); }
+  points = new THREE.Points(g, mat); scene.add(points);
+  document.getElementById('title').textContent = sp.namn;
+  document.title = `${sp.namn} · Flytten över jorden`;
+  document.getElementById('loading').style.display = 'none';
+}
+
+// ---- reglage ----
+let playing = true, follow = true, m = 0, last = 0;
+const playBtn = document.getElementById('play');
+playBtn.onclick = () => { playing = !playing; playBtn.textContent = playing ? '❚❚ Pausa' : '▶ Spela'; };
+const followBtn = document.getElementById('follow');
+followBtn.onclick = () => { follow = !follow; followBtn.classList.toggle('on', follow); };
+document.getElementById('home').onclick = startView;
+// Växla mellan mörkt läge och satellitbild
+const modeBtn = document.getElementById('mode');
+modeBtn.onclick = () => {
+  mode = mode === 'dark' ? 'sat' : 'dark';
+  globe.material = mode === 'sat' ? satelliteMaterial() : darkMat;
+  if (coast) coast.visible = mode === 'dark';
+  mat.uniforms.uSat.value = mode === 'sat' ? 1 : 0;
+  modeBtn.classList.toggle('on', mode === 'sat');
+  document.getElementById('credit').textContent = mode === 'sat' ? 'Jordbild: NASA Blue Marble.' : 'Kust: Natural Earth.';
+};
+controls.addEventListener('start', () => { follow = false; followBtn.classList.remove('on'); });
+
+// Kameran följer flyttens tyngdpunkt mjukt, så att klotet vrider sig med fåglarna
+const camTarget = new THREE.Vector3(), tmp = new THREE.Vector3();
+function frame(now) {
+  const dt = last ? Math.min((now - last) / 1000, 0.1) : 0; last = now;
+  if (playing) m = (m + dt * 0.55) % 12;            // ungefär 22 sekunder per år
+  mat.uniforms.uM.value = m;
+  mat.uniforms.uScale.value = renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));
+  if (follow && centers.length) {
+    const m0 = Math.floor(m), f = m - m0, a = centers[m0], b = centers[(m0 + 1) % 12];
+    const lat = a[0] + (b[0] - a[0]) * f, lon = a[1] + (b[1] - a[1]) * f;
+    // titta lite norr om tyngdpunkten, så att Europa och Afrika syns samtidigt
+    camTarget.set(...xyz(Math.max(-10, Math.min(45, lat * 0.6 + 12)), lon * 0.6 + 6, camera.position.length()));
+    camera.position.lerp(camTarget, Math.min(1, dt * 0.8));
+  }
+  controls.update(); renderer.render(scene, camera);
+  document.getElementById('month').textContent = MONTHS[Math.floor(m)];
+  requestAnimationFrame(frame);
+}
+load(SPECIES).then(() => requestAnimationFrame(frame))
+  .catch(err => { document.getElementById('loading').textContent = err.message; });
+</script>
+</body>
+</html>
