@@ -76,6 +76,8 @@
 
   /* Resknappen i toppraden */
   .brandrow { display: flex; align-items: center; gap: 10px; }
+  .flyttbtn { padding: 6px 12px; font-size: .88rem; white-space: nowrap; border-radius: 10px; border: 1px solid var(--line);
+              background: var(--card); color: var(--text); text-decoration: none; }
   .tripbtn { padding: 6px 12px; font-size: .88rem; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
   .tripbtn.stop::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: pulse 1.6s infinite; }
   @keyframes pulse { 50% { opacity: .25; } }
@@ -261,6 +263,7 @@
       <div class="brand"><img src="icon-192.png" alt="">Artappen <small>Artportalen via GBIF</small></div>
       <button class="primary tripbtn" id="startBtn" title="Följ dig längs vägen och samla arter, med kurva och topplista">Starta resa</button>
       <button id="tripShow" hidden title="Visa den sparade resan">Visa resa</button>
+      <a class="flyttbtn" href="flytt/" title="Se flyttfåglarnas fynd röra sig över Sverige genom året">Flyttfåglar</a>
     </div>
     <div class="controls">
       <div class="seg" id="groupSeg" role="group" aria-label="Djurgrupp">

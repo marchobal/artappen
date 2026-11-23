@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Blåhake genom året</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root {
+    --bg: #05070d;
+    --panel: rgba(8, 12, 22, 0.78);
+    --text: #e8ecf5;
+    --muted: #8d97ad;
+    --accent: #5ab4ff;
+    --accent2: #ff8a5c;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+  #map { position: absolute; inset: 0; background: var(--bg); }
+  .leaflet-tile-pane { filter: grayscale(1) invert(1) brightness(0.55) contrast(1.2); }
+  .leaflet-container { background: var(--bg); }
+  .leaflet-control-attribution { background: rgba(0,0,0,0.5) !important; color: var(--muted) !important; font-size: 10px; }
+  .leaflet-control-attribution a { color: var(--muted) !important; }
+  #glow { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 450; }
+
+  .head { position: absolute; top: max(14px, env(safe-area-inset-top)); left: 16px; z-index: 500;
+    pointer-events: none; text-shadow: 0 1px 8px #000; }
+  .head h1 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: 0.2px; }
+  .head .sub { color: var(--muted); font-size: 13px; margin-top: 3px; }
+  #art { pointer-events: auto; margin-top: 8px; font: inherit; font-size: 14px; color: var(--text);
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.18); border-radius: 8px; padding: 5px 8px; }
+  #art option { color: #000; }
+  .head .hint { color: var(--text); opacity: 0.8; font-size: 12px; margin-top: 6px; max-width: 320px; line-height: 1.35; }
+  .back { pointer-events: auto; display: inline-block; color: var(--muted); font-size: 13px; text-decoration: none; margin-bottom: 4px; }
+  .back:hover { color: var(--text); }
+  .date { position: absolute; top: max(14px, env(safe-area-inset-top)); right: 16px; z-index: 500; text-align: right;
+    pointer-events: none; text-shadow: 0 1px 10px #000; }
+  .date .day { font-size: 40px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+  .date .live { color: var(--muted); font-size: 13px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+
+  .panel { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(14px, env(safe-area-inset-bottom));
+    width: min(760px, calc(100% - 32px)); z-index: 500; background: var(--panel); backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 12px 14px 10px; }
+  .row { display: flex; align-items: center; gap: 10px; }
+  button { font: inherit; color: var(--text); background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px; padding: 6px 12px; cursor: pointer; font-size: 13px; }
+  button.on { background: var(--accent); border-color: var(--accent); color: #031021; font-weight: 600; }
+  #play { width: 44px; height: 44px; padding: 0; font-size: 18px; flex: none; }
+  .timeline { position: relative; flex: 1; height: 44px; cursor: pointer; touch-action: none; }
+  #hist { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .months { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; margin: 2px 0 0 54px; }
+  .opts { margin-top: 10px; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
+  .group { display: flex; align-items: center; gap: 6px; }
+  .group button { padding: 4px 10px; font-size: 12px; }
+  .note { margin-top: 8px; font-size: 11px; color: var(--muted); line-height: 1.4; }
+  .loading { position: absolute; inset: 0; background: rgba(5,7,13,0.5); display: grid; place-items: center; z-index: 600; color: var(--muted); font-size: 14px; }
+
+  @media (max-width: 600px) {
+    .head h1 { font-size: 18px; }
+    .head { max-width: 58vw; }
+    .head .sub { font-size: 11px; }
+    .date .day { font-size: 28px; }
+    .date .live { font-size: 11px; max-width: 34vw; margin-left: auto; }
+    .opts { gap: 6px 10px; }
+    .note { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<canvas id="glow"></canvas>
+<div class="loading" id="loading">Hämtar fynd …</div>
+
+<div class="head">
+  <a class="back" href="../">← Artappen</a>
+  <h1 id="title">Blåhake genom året</h1>
+  <div class="sub" id="sub"></div>
+  <select id="art" aria-label="Välj art"></select>
+  <div class="hint" id="hint"></div>
+</div>
+<div class="date">
+  <div class="day" id="day">1 jan</div>
+  <div class="live" id="live"></div>
+</div>
+
+<div class="panel">
+  <div class="row">
+    <button id="play" aria-label="Spela">❚❚</button>
+    <div class="timeline" id="timeline"><canvas id="hist"></canvas></div>
+  </div>
+  <div class="months"><span>jan</span><span>feb</span><span>mar</span><span>apr</span><span>maj</span><span>jun</span><span>jul</span><span>aug</span><span>sep</span><span>okt</span><span>nov</span><span>dec</span></div>
+  <div class="row opts">
+    <div class="group">Fart
+      <button data-speed="4">långsam</button><button data-speed="9" class="on">normal</button><button data-speed="20">snabb</button>
+    </div>
+    <div class="group">Efterglöd
+      <button data-fade="3">3 d</button><button data-fade="10" class="on">10 d</button><button data-fade="25">25 d</button>
+    </div>
+    <div class="group">År
+      <button data-years="all" class="on">alla</button><button data-years="2000">från 2000</button><button data-years="10">senaste 10</button>
+    </div>
+  </div>
+  <div class="note">Varje prick är ett fynd i Artportalen. Alla år läggs i samma år, och fynden tänds på sin dag och bleknar sedan.
+    Prickarna visar var folk har <em>rapporterat</em> arten, så det blir många nära orter och fågelstationer och få i glest befolkade fjäll.
+    <span id="source">Data: GBIF.org, Artportalen (SLU Artdatabanken), CC0.</span></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+// Artlistan byggs ur Svenska djur med tools/flyttfaglar.py. Egna texter per art kan läggas här.
+const HINTS = {
+  '4408732': 'Sträcker genom södra Sverige i maj, häckar i fjällen och drar söderut i augusti–september.',
+  '2480524': 'Omvänt mönster: häckar i fjällen på sommaren och övervintrar i södra Sverige.',
+  '2480420': 'Kommer sent, i maj, och lämnar tidigt. Höststräcket samlas mot Skånes sydspets.',
+};
+const FLYTT = { 'långflytt': 'Långflyttare', 'kortflytt': 'Kortflyttare' };
+let SPECIES_LIST = [];
+const SPECIES = new URLSearchParams(location.search).get('art') || '4408732';
+const MONTHS = ['jan','feb','mar','apr','maj','jun','jul','aug','sep','okt','nov','dec'];
+const MONTH_START = [1,32,60,91,121,152,182,213,244,274,305,335,366];
+
+const state = { t: 90, playing: true, speed: 9, fade: 10, years: 'all' };
+let data = null;          // artens data (kolumner)
+let dayCount = null;      // antal fynd per dag i valt årsintervall
+let rows = 0, minP = 0, gain = 1;
+
+// ---- karta ----
+const map = L.map('map', { zoomControl: false, zoomAnimation: false, attributionControl: true,
+  zoomSnap: 0.25, minZoom: 3, maxZoom: 12 });
+function fitSweden() {
+  const panel = document.querySelector('.panel').offsetHeight + 20;
+  map.fitBounds([[55.3, 11.0], [69.1, 24.2]], { paddingTopLeft: [0, 60], paddingBottomRight: [0, panel] });
+}
+fitSweden();
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · Data: GBIF.org / Artportalen'
+}).addTo(map);
+
+// ---- WebGL: alla prickar ritas av grafikkortet i ett enda anrop ----
+const glow = document.getElementById('glow');
+const gl = glow.getContext('webgl', { premultipliedAlpha: true, antialias: false });
+let dpr = 1, W = 0, H = 0;
+function resize() {
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = glow.clientWidth; H = glow.clientHeight;
+  glow.width = W * dpr; glow.height = H * dpr;
+  gl.viewport(0, 0, glow.width, glow.height);
+  drawHist();
+}
+window.addEventListener('resize', resize);
+
+const VS = `
+attribute vec2 aPos; attribute float aDoy; attribute float aW; attribute float aP;
+uniform vec2 uOrigin; uniform float uScale; uniform vec2 uView; uniform float uT; uniform float uFade;
+uniform float uSize; uniform float uDpr; uniform float uMinP; uniform float uGain;
+varying float vAlpha; varying float vFlash;
+void main() {
+  float age = mod(uT - aDoy + 365.0, 365.0);   // dagar sedan fyndet, med omslag över nyår
+  if (aP < uMinP || age > uFade) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; }
+  vec2 px = (aPos - uOrigin) * uScale;
+  gl_Position = vec4(px.x / uView.x * 2.0 - 1.0, 1.0 - px.y / uView.y * 2.0, 0.0, 1.0);
+  float a = 1.0 - age / uFade;
+  vFlash = 1.0 - smoothstep(0.6, 1.6, age);
+  gl_PointSize = uSize * mix(0.7 + 0.3 * a, 1.3, vFlash) * uDpr;
+  vAlpha = mix(a * a * 0.4, 0.45, vFlash) * aW * uGain;
+}`;
+const FS = `
+precision mediump float;
+varying float vAlpha; varying float vFlash;
+void main() {
+  vec2 c = gl_PointCoord - 0.5;
+  float d2 = dot(c, c) * 4.0;
+  if (d2 > 1.0) discard;
+  float core = exp(-d2 * 22.0), halo = exp(-d2 * 5.0) * (1.0 - d2);
+  vec3 glowCol = vec3(0.59, 0.82, 1.0) * core + vec3(0.2, 0.42, 1.0) * halo * 0.45;
+  vec3 flashCol = vec3(1.0, 0.96, 0.9) * core + vec3(1.0, 0.5, 0.25) * halo * 0.6;
+  vec3 col = mix(glowCol, flashCol, vFlash) * min(vAlpha, 1.0);
+  gl_FragColor = vec4(col, max(col.r, max(col.g, col.b)));
+}`;
+function shader(type, src) {
+  const sh = gl.createShader(type); gl.shaderSource(sh, src); gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh));
+  return sh;
+}
+const prog = gl.createProgram();
+gl.attachShader(prog, shader(gl.VERTEX_SHADER, VS));
+gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(prog); gl.useProgram(prog);
+const U = {}; ['uOrigin','uScale','uView','uT','uFade','uSize','uDpr','uMinP','uGain']
+  .forEach(n => U[n] = gl.getUniformLocation(prog, n));
+const buffers = {};
+function attrib(name, arr, size) {
+  const loc = gl.getAttribLocation(prog, name);
+  buffers[name] = buffers[name] || gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffers[name]);
+  gl.bufferData(gl.ARRAY_BUFFER, arr, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
+}
+gl.enable(gl.BLEND);
+gl.blendFunc(gl.ONE, gl.ONE);   // additivt: täta moln blir vita
+gl.clearColor(0, 0, 0, 0);
+
+// ---- data ----
+let started = false;
+async function load(key) {
+  const withData = SPECIES_LIST.filter(x => x.data);
+  const sp = withData.find(x => x.key === key) || withData.find(x => x.key === '4408732') || withData[0];
+  const ld = document.getElementById('loading'); ld.textContent = 'Hämtar fynd …'; ld.style.display = 'grid';
+  const res = await fetch(`../data/flock/${sp.key}.json`);
+  if (!res.ok) throw new Error('Hittar ingen data för arten');
+  data = await res.json();
+  rows = data.lat.length;
+  // Web Mercator i världskoordinater 0–1, samma som Leaflet
+  const pos = new Float32Array(rows * 2), doy = new Float32Array(rows), w = new Float32Array(rows), per = new Float32Array(rows);
+  for (let i = 0; i < rows; i++) {
+    const la = data.lat[i] * Math.PI / 180;
+    pos[2 * i] = (data.lon[i] + 180) / 360;
+    pos[2 * i + 1] = (1 - Math.log(Math.tan(la) + 1 / Math.cos(la)) / Math.PI) / 2;
+    doy[i] = data.doy[i];
+    // vikt → ljusstyrka: fler fynd ger starkare prick, men med avtagande effekt
+    w[i] = Math.min(1 + Math.log2(data.w[i]) * 0.5, 3);
+    per[i] = data.p[i];
+  }
+  attrib('aPos', pos, 2); attrib('aDoy', doy, 1); attrib('aW', w, 1); attrib('aP', per, 1);
+
+  document.getElementById('title').textContent = `${sp.namn} genom året`;
+  document.title = `${sp.namn} genom året`;
+  document.getElementById('hint').textContent = HINTS[sp.key] || `${FLYTT[sp.flytt]}.`;
+  document.getElementById('art').value = sp.key;
+  const src = document.getElementById('source');
+  src.textContent = 'Data: GBIF.org, Artportalen (SLU Artdatabanken), CC0';
+  if (data.doi) {
+    src.append(', ');
+    const a = document.createElement('a'); a.href = `https://doi.org/${data.doi}`; a.target = '_blank';
+    a.textContent = `doi:${data.doi}`; a.style.color = 'inherit'; src.append(a);
+  }
+  src.append('.');
+  applyYears();
+  document.getElementById('loading').style.display = 'none';
+  resize();
+  if (!started) { started = true; requestAnimationFrame(frame); }
+}
+
+function applyYears() {
+  // p: 0 = före 2000, 1 = 2000 till de senaste tio åren, 2 = de senaste tio åren
+  minP = state.years === 'all' ? 0 : state.years === '2000' ? 1 : 2;
+  let c = 0;
+  dayCount = new Uint32Array(368);
+  for (let i = 0; i < rows; i++) if (data.p[i] >= minP) { c += data.w[i]; dayCount[data.doy[i]] += data.w[i]; }
+  // Arter med många fynd dämpas, så att molnet inte blir helt vitt.
+  gain = Math.max(0.15, Math.min(1, Math.sqrt(300 / (c / 365))));
+  const yrs = state.years === 'all' ? `alla år sedan ${data.minYear}`
+            : state.years === '2000' ? 'år 2000 och senare' : data.periods[2];
+  document.getElementById('sub').textContent = `${c.toLocaleString('sv-SE')} fynd, ${yrs}, lagda i samma år`;
+  drawHist();
+}
+
+// ---- histogram bakom tidslinjen ----
+const hist = document.getElementById('hist');
+function drawHist() {
+  if (!data) return;
+  const w = hist.clientWidth, h = hist.clientHeight;
+  hist.width = w * dpr; hist.height = h * dpr;
+  const g = hist.getContext('2d'); g.scale(dpr, dpr);
+  const counts = dayCount;
+  // utjämna över en vecka
+  const sm = new Float64Array(367);
+  for (let d = 1; d <= 366; d++) { let s = 0; for (let j = -3; j <= 3; j++) s += counts[((d + j - 1 + 366) % 366) + 1]; sm[d] = s / 7; }
+  const max = Math.max(...sm);
+  g.fillStyle = 'rgba(90,180,255,0.35)';
+  g.beginPath(); g.moveTo(0, h);
+  for (let d = 1; d <= 366; d++) g.lineTo((d - 1) / 365 * w, h - 2 - (sm[d] / max) * (h - 6));
+  g.lineTo(w, h); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(255,255,255,0.08)';
+  for (let m = 1; m < 12; m++) { const x = (MONTH_START[m] - 1) / 365 * w; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); }
+  // spelhuvud
+  const x = (state.t - 1) / 365 * w;
+  g.fillStyle = '#fff'; g.fillRect(x - 1, 0, 2, h);
+}
+
+// ---- ritning ----
+let last = 0, lastHist = 0;
+function frame(now) {
+  const dt = last ? Math.min((now - last) / 1000, 0.1) : 0; last = now;
+  if (state.playing) { state.t += dt * state.speed; if (state.t >= 366) state.t -= 365; }
+  draw();
+  if (now - lastHist > 60) { drawHist(); lastHist = now; }
+  requestAnimationFrame(frame);
+}
+
+function draw() {
+  const z = map.getZoom();
+  const scale = 256 * Math.pow(2, z);
+  const o = map.project(map.containerPointToLatLng([0, 0]), z);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.uniform2f(U.uOrigin, o.x / scale, o.y / scale);
+  gl.uniform1f(U.uScale, scale);
+  gl.uniform2f(U.uView, W, H);
+  gl.uniform1f(U.uT, state.t);
+  gl.uniform1f(U.uFade, state.fade);
+  gl.uniform1f(U.uSize, Math.max(8, Math.min(30, 2.2 * z)));
+  gl.uniform1f(U.uDpr, dpr);
+  gl.uniform1f(U.uMinP, minP);
+  gl.uniform1f(U.uGain, gain);
+  gl.drawArrays(gl.POINTS, 0, rows);
+
+  const t = state.t;
+  let shown = 0;
+  for (let k = 0; k < 3; k++) shown += dayCount[((Math.floor(t) - k - 1 + 365) % 365) + 1];
+  const day = Math.floor(t);
+  let m = 0; while (MONTH_START[m + 1] <= day) m++;
+  document.getElementById('day').textContent = `${day - MONTH_START[m] + 1} ${MONTHS[m]}`;
+  document.getElementById('live').textContent = `${shown.toLocaleString('sv-SE')} fynd de senaste tre dagarna`;
+}
+
+// ---- reglage ----
+const playBtn = document.getElementById('play');
+function setPlaying(p) { state.playing = p; playBtn.textContent = p ? '❚❚' : '▶'; playBtn.setAttribute('aria-label', p ? 'Pausa' : 'Spela'); }
+playBtn.onclick = () => setPlaying(!state.playing);
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); setPlaying(!state.playing); }
+  if (e.code === 'ArrowRight') { state.t = Math.min(365.99, state.t + 3); }
+  if (e.code === 'ArrowLeft') { state.t = Math.max(1, state.t - 3); }
+});
+
+const tl = document.getElementById('timeline');
+let scrubbing = false, wasPlaying = true;
+function scrub(e) {
+  const r = tl.getBoundingClientRect();
+  state.t = 1 + Math.max(0, Math.min(0.9999, (e.clientX - r.left) / r.width)) * 365;
+  drawHist();
+}
+tl.addEventListener('pointerdown', e => { scrubbing = true; wasPlaying = state.playing; setPlaying(false); tl.setPointerCapture(e.pointerId); scrub(e); });
+tl.addEventListener('pointermove', e => { if (scrubbing) scrub(e); });
+tl.addEventListener('pointerup', () => { scrubbing = false; setPlaying(wasPlaying); });
+
+function chips(attr, fn) {
+  document.querySelectorAll(`[data-${attr}]`).forEach(b => b.onclick = () => {
+    document.querySelectorAll(`[data-${attr}]`).forEach(x => x.classList.toggle('on', x === b));
+    fn(b.dataset[attr]);
+  });
+}
+chips('speed', v => state.speed = +v);
+chips('fade', v => state.fade = +v);
+chips('years', v => { state.years = v; applyYears(); });
+
+const sel = document.getElementById('art');
+sel.onchange = () => {
+  history.replaceState(null, '', `?art=${sel.value}`);
+  load(sel.value).catch(err => { document.getElementById('loading').textContent = err.message; });
+};
+fetch('../data/flock/arter.json').then(r => r.json()).then(list => {
+  SPECIES_LIST = list.arter;
+  for (const [flytt, label] of Object.entries(FLYTT)) {
+    const g = document.createElement('optgroup'); g.label = label;
+    list.arter.filter(a => a.flytt === flytt).forEach(a => {
+      const o = new Option(a.data ? a.namn : `${a.namn} (data saknas)`, a.key);
+      o.disabled = !a.data; g.appendChild(o);
+    });
+    sel.appendChild(g);
+  }
+  return load(SPECIES);
+}).catch(err => { document.getElementById('loading').textContent = err.message; });
+</script>
+</body>
+</html>

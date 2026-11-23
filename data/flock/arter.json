@@ -1,0 +1,237 @@
+{
+ "källa": "Svenska djur (alla-arter.json och artfilerna)",
+ "arter": [
+  {
+   "key": "2498343",
+   "namn": "Knölsvan",
+   "latin": "Cygnus olor",
+   "nummer": 7,
+   "flytt": "kortflytt",
+   "data": true
+  },
+  {
+   "key": "9761484",
+   "namn": "Gräsand",
+   "latin": "Anas platyrhynchos",
+   "nummer": 14,
+   "flytt": "kortflytt",
+   "data": true
+  },
+  {
+   "key": "2498326",
+   "namn": "Knipa",
+   "latin": "Bucephala clangula",
+   "nummer": 24,
+   "flytt": "kortflytt",
+   "data": true
+  },
+  {
+   "key": "2480726",
+   "namn": "Fiskgjuse",
+   "latin": "Pandion haliaetus",
+   "nummer": 50,
+   "flytt": "långflytt",
+   "data": true
+  },
+  {
+   "key": "2480420",
+   "namn": "Bivråk",
+   "latin": "Pernis apivorus",
+   "nummer": 51,
+   "flytt": "långflytt",
+   "data": true
+  },
+  {
+   "key": "2480637",
+   "namn": "Sparvhök",
+   "latin": "Accipiter nisus",
+   "nummer": 53,
+   "flytt": "kortflytt",
+   "data": true
+  },
+  {
+   "key": "2480482",
+   "namn": "Brun kärrhök",
+   "latin": "Circus aeruginosus",
+   "nummer": 55,
+   "flytt": "långflytt",
+   "data": true
+  },
+  {
+   "key": "2480487",
+   "namn": "Blå kärrhök",
+   "latin": "Circus cyaneus",
+   "nummer": 56,
+   "flytt": "kortflytt",
+   "data": true
+  },
+  {
+   "key": "2480495",
+   "namn": "Ängshök",
+   "latin": "Circus pygargus",
+   "nummer": 57,
+   "flytt": "långflytt",
+   "data": true
+  },
+  {
+   "key": "5229167",
+   "namn": "Brun glada",
+   "latin": "Milvus migrans",
+   "nummer": 59,
+   "flytt": "långflytt",
+   "data": true
+  },
+  {
+   "key": "2480524",
+   "namn": "Fjällvråk",
+   "latin": "Buteo lagopus",
+   "nummer": 61,
+   "flytt": "kortflytt",
+   "data": true
+  },
+  {
+   "key": "2480537",
+   "namn": "Ormvråk",
+   "latin": "Buteo buteo",
+   "nummer": 62,
+   "flytt": "kortflytt",
+   "data": true
+  },
+  {
+   "key": "2495471",
+   "namn": "Skogsduva",
+   "latin": "Columba oenas",
+   "nummer": 116,
+   "flytt": "kortflytt",
+   "data": true
+  },
+  {
+   "key": "2497306",
+   "namn": "Hornuggla",
+   "latin": "Asio otus",
+   "nummer": 129,
+   "flytt": "kortflytt",
+   "data": true
+  },
+  {
+   "key": "2497295",
+   "namn": "Jorduggla",
+   "latin": "Asio flammeus",
+   "nummer": 130,
+   "flytt": "kortflytt",
+   "data": true
+  },
+  {
+   "key": "8012314",
+   "namn": "Göktyta",
+   "latin": "Jynx torquilla",
+   "nummer": 134,
+   "flytt": "långflytt",
+   "data": true
+  },
+  {
+   "key": "9616058",
+   "namn": "Tornfalk",
+   "latin": "Falco tinnunculus",
+   "nummer": 142,
+   "flytt": "kortflytt",
+   "data": true
+  },
+  {
+   "key": "9813242",
+   "namn": "Stenfalk",
+   "latin": "Falco columbarius",
+   "nummer": 143,
+   "flytt": "kortflytt",
+   "data": true
+  },
+  {
+   "key": "2481035",
+   "namn": "Lärkfalk",
+   "latin": "Falco subbuteo",
+   "nummer": 144,
+   "flytt": "långflytt",
+   "data": true
+  },
+  {
+   "key": "2490781",
+   "namn": "Rödvingetrast",
+   "latin": "Turdus iliacus",
+   "nummer": 204,
+   "flytt": "kortflytt",
+   "data": true
+  },
+  {
+   "key": "7901064",
+   "namn": "Taltrast",
+   "latin": "Turdus philomelos",
+   "nummer": 205,
+   "flytt": "kortflytt",
+   "data": true
+  },
+  {
+   "key": "4408732",
+   "namn": "Blåhake",
+   "latin": "Luscinia svecica",
+   "nummer": 209,
+   "flytt": "långflytt",
+   "data": true
+  },
+  {
+   "key": "2492606",
+   "namn": "Svartvit flugsnappare",
+   "latin": "Ficedula hypoleuca",
+   "nummer": 211,
+   "flytt": "långflytt",
+   "data": true
+  },
+  {
+   "key": "5739317",
+   "namn": "Rödstjärt",
+   "latin": "Phoenicurus phoenicurus",
+   "nummer": 215,
+   "flytt": "långflytt",
+   "data": true
+  },
+  {
+   "key": "9701857",
+   "namn": "Gulärla",
+   "latin": "Motacilla flava",
+   "nummer": 223,
+   "flytt": "långflytt",
+   "data": true
+  },
+  {
+   "key": "2490310",
+   "namn": "Forsärla",
+   "latin": "Motacilla cinerea",
+   "nummer": 224,
+   "flytt": "kortflytt",
+   "data": true
+  },
+  {
+   "key": "9687165",
+   "namn": "Sädesärla",
+   "latin": "Motacilla alba",
+   "nummer": 225,
+   "flytt": "långflytt",
+   "data": true
+  },
+  {
+   "key": "2490266",
+   "namn": "Ängspiplärka",
+   "latin": "Anthus pratensis",
+   "nummer": 227,
+   "flytt": "kortflytt",
+   "data": true
+  },
+  {
+   "key": "2494422",
+   "namn": "Bofink",
+   "latin": "Fringilla coelebs",
+   "nummer": 231,
+   "flytt": "kortflytt",
+   "data": true
+  }
+ ]
+}
