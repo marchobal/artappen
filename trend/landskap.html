@@ -46,7 +46,7 @@
 <div id="scene"></div>
 <div class="loading" id="loading">Hämtar data …</div>
 <div class="head">
-  <a class="back" href="./">← Fågelstammar på kartan</a>
+  <a class="back" href="./">← Fågelstammar på kartan</a> <a class="back" href="./skogen.html" style="margin-left:10px">Berättelsen om skogen →</a>
   <h1 id="title"></h1>
   <div class="sub">Arten ligger som en lysande hinna över Sveriges terräng. Ju fler fåglar som räknas på Fågeltaxeringens rutter i trakten, desto starkare lyser den.</div>
   <select id="art" aria-label="Välj art"></select>
@@ -197,34 +197,14 @@ const ready = fetch('../data/sverige.json').then(r => r.json()).then(async g => 
 
 // ---- skogen och hyggena (Hansen m.fl.) som ett lager på marken ----
 // data/skog/forlust.png (tools/skog_forlust.swift): röd = år efter 2000, grön = hur mycket skog som försvann, blå = skog år 2000.
-// Bilden räknas ihop till landskapets eget rutnät och jämnas ut, så att lagret ligger lugnt när kartan snurrar:
-//   aF  = hur stor del av marken som är skog (minus det som huggits hittills)
-//   aC  = hur stor del av skogen som huggits sedan 2001 (ger en svag rostton)
-//   aP  = årets puls: orange där det höggs ovanligt mycket just det året jämfört med traktens vanliga takt
-//         (stormar, granbarkborre, toppår), så att åren skiljer sig åt i stället för att allt lyser jämnt
+// Bilden räknas ihop till landskapets eget rutnät och jämnas ut. Skogen målas direkt i terrängens färger
+// (inte som en egen yta ovanpå), så att inget kan flimra när kartan snurrar:
+//   grönt   = hur stor del av marken som är skog (minus det som huggits hittills)
+//   rostton = hur stor del av skogen som huggits sedan 2001
+//   orange  = årets puls: där det höggs ovanligt mycket just det året jämfört med traktens vanliga takt
+//             (stormar, granbarkborre, toppår), så att åren skiljer sig åt i stället för att allt lyser jämnt
 const NY = 26;                                   // år 2000–2025, index = år − 2000
-let fShare = null, rate = null, cum = null, anom = null, ANOM_REF = 1;
-const aF = new Float32Array(NV), aC = new Float32Array(NV), aP = new Float32Array(NV);
-terrainGeo.setAttribute('aF', new THREE.BufferAttribute(aF, 1));
-terrainGeo.setAttribute('aC', new THREE.BufferAttribute(aC, 1));
-terrainGeo.setAttribute('aP', new THREE.BufferAttribute(aP, 1));
-const loss = new THREE.Mesh(terrainGeo, new THREE.ShaderMaterial({
-  transparent: true, depthWrite: false,
-  uniforms: { uOn: { value: 1 } },
-  vertexShader: `attribute float aIn, aF, aC, aP; varying float vIn, vF, vC, vP;
-    void main() { vIn = aIn; vF = aF; vC = aC; vP = aP; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-  fragmentShader: `uniform float uOn; varying float vIn, vF, vC, vP;
-    void main() {
-      float f = clamp(vF, 0.0, 1.0), p = clamp(vP, 0.0, 1.5);
-      vec3 green = mix(vec3(0.06, 0.22, 0.10), vec3(0.17, 0.50, 0.19), f);         // tät skog är frodigare
-      vec3 col = mix(green, vec3(0.40, 0.20, 0.09), clamp(vC * 1.6, 0.0, 0.7));      // rostton där mycket har huggits
-      col += vec3(1.0, 0.55, 0.20) * p * 0.9;                                         // årets hyggen
-      float a = (0.15 + 0.6 * f + 0.5 * p) * smoothstep(0.2, 0.6, vIn) * uOn;
-      gl_FragColor = vec4(col, clamp(a, 0.0, 0.95));
-    }`,
-}));
-loss.renderOrder = 0.5; loss.visible = false;
-scene.add(loss);
+let fShare = null, rate = null, cum = null, anom = null, ANOM_REF = 1, forestOn = true, baseCol = null;
 function loadLoss() {
   const img = new Image();
   img.onload = () => {
@@ -280,27 +260,37 @@ function loadLoss() {
     }
     pos.sort((a, b) => a - b);
     ANOM_REF = pos[Math.floor(pos.length * 0.98)] || 1;   // full styrka i de 2 % mest ovanliga trakt-åren
-    loss.visible = true;
+    baseCol = tColors.slice();                     // terrängens egna färger, att blanda skogen med
   };
   img.src = '../data/skog/forlust.png';
 }
 // Skogen ett visst år (yf = år − 2000, med decimaler). Pulsen toppar mitt i sitt år.
 function forestAt(yf) {
-  if (!fShare) return;
+  if (!baseCol) return;
   const y0 = Math.floor(yf), fr = yf - y0;
   for (let i = 0; i < NV; i++) {
     const f = fShare[i];
-    if (f <= 0) { aF[i] = aC[i] = aP[i] = 0; continue; }
+    const o = i * 3;
+    if (f <= 0 || !forestOn) { tColors[o] = baseCol[o]; tColors[o + 1] = baseCol[o + 1]; tColors[o + 2] = baseCol[o + 2]; continue; }
     let cut = y0 < 0 ? 0 : cum[i * NY + Math.min(NY - 1, y0)];
     if (y0 + 1 >= 1 && y0 + 1 < NY) cut += rate[i * NY + y0 + 1] * fr;
-    aF[i] = Math.max(0, f - cut); aC[i] = cut / f;
+    const left = Math.max(0, f - cut), rust = Math.min(0.7, cut / f * 1.6);
     let p = 0;
     for (let y = Math.max(1, y0 - 1); y <= Math.min(NY - 1, y0 + 2); y++) {
       const dd = (yf - y) / 0.35; p += anom[i * NY + y] * Math.exp(-dd * dd);
     }
-    aP[i] = p / ANOM_REF;
+    p = Math.min(1.5, p / ANOM_REF);
+    // grönt (tätare skog är frodigare) → rostton där mycket huggits → plus årets orange puls
+    let r = 0.06 + 0.11 * left, g = 0.22 + 0.28 * left, bl = 0.10 + 0.09 * left;
+    r += (0.40 - r) * rust; g += (0.20 - g) * rust; bl += (0.09 - bl) * rust;
+    r += 1.0 * p * 0.9; g += 0.55 * p * 0.9; bl += 0.20 * p * 0.9;
+    const al = Math.min(0.95, (0.15 + 0.6 * left + 0.5 * p) * Math.min(1, Math.max(0, (inside[i] - 0.2) / 0.4)));
+    const k = 1.3;                               // terrängen är belyst, så färgerna lyfts lite
+    tColors[o] = baseCol[o] * (1 - al) + r * k * al;
+    tColors[o + 1] = baseCol[o + 1] * (1 - al) + g * k * al;
+    tColors[o + 2] = baseCol[o + 2] * (1 - al) + bl * k * al;
   }
-  terrainGeo.attributes.aF.needsUpdate = terrainGeo.attributes.aC.needsUpdate = terrainGeo.attributes.aP.needsUpdate = true;
+  terrainGeo.attributes.color.needsUpdate = true;
 }
 
 // ---- skogsfåglarna och avverkningen: en mening per art ----
@@ -409,7 +399,7 @@ document.getElementById('home').onclick = startView;
 const skogBtn = document.getElementById('skog');
 skogBtn.onclick = () => {
   const on = !skogBtn.classList.contains('on');
-  skogBtn.classList.toggle('on', on); loss.material.uniforms.uOn.value = on ? 1 : 0;
+  skogBtn.classList.toggle('on', on); forestOn = on;
   document.getElementById('credit').hidden = !on;
   const st = document.getElementById('skogtext'); st.hidden = !on || !st.dataset.has;
 };

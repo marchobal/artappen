@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#05070d">
+<title>Skogen · Artappen</title>
+<style>
+  :root { --bg: #05070d; --text: #e8ecf5; --muted: #8d97ad; --border: #8fa6c8; --accent: #5ab4ff;
+    --panel: rgba(8, 12, 22, 0.8); --down: #ffb070; --up: #8fdc8f; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  #scene { position: absolute; inset: 0; touch-action: none; }
+  .head { position: absolute; top: max(14px, env(safe-area-inset-top)); left: 16px; z-index: 5; }
+  .back { color: var(--muted); font-size: 13px; text-decoration: none; }
+  .story { position: absolute; left: 16px; top: calc(max(14px, env(safe-area-inset-top)) + 28px); z-index: 5;
+    width: min(340px, calc(100% - 32px)); background: var(--panel); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 12px 14px; transition: opacity 0.5s; }
+  .story.fade { opacity: 0; }
+  .story h1 { margin: 0 0 6px; font-size: 16px; font-weight: 600; color: var(--border); letter-spacing: 0.2px; }
+  .story p { margin: 0 0 6px; font-size: 13px; line-height: 1.5; }
+  .story .birds { margin-top: 8px; display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; font-size: 13px; }
+  .story .birds .down { color: var(--down); font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+  .story .birds .up { color: var(--up); font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+  .story .note { color: var(--muted); font-size: 11px; margin-top: 6px; line-height: 1.4; }
+  .year { position: absolute; right: 18px; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 62px); z-index: 5;
+    color: var(--border); font-size: 26px; letter-spacing: 0.5px; font-variant-numeric: tabular-nums; }
+  .legend { position: absolute; left: 16px; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 62px); z-index: 5;
+    display: flex; gap: 10px; flex-wrap: wrap; font-size: 11px; color: var(--muted); max-width: calc(100% - 120px); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+  .bar { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(14px, env(safe-area-inset-bottom));
+    z-index: 5; display: flex; gap: 8px; align-items: center; background: var(--panel); backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.08); border-radius: 999px; padding: 6px; }
+  button { font: inherit; color: var(--text); background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px; padding: 6px 12px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+  .dots { display: flex; gap: 6px; padding: 0 4px; }
+  .dots span { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.22); cursor: pointer; }
+  .dots span.on { background: var(--accent); }
+  .credit { position: absolute; right: 12px; top: max(10px, env(safe-area-inset-top)); z-index: 5; color: var(--muted);
+    font-size: 9px; opacity: 0.7; text-align: right; max-width: 46%; }
+  .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); z-index: 10; background: var(--bg); }
+  @media (max-width: 600px) {
+    .story { padding: 10px 12px; } .story p { font-size: 12.5px; } .year { font-size: 20px; }
+    .bar button { padding: 6px 10px; font-size: 12px; } .credit { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="scene"></div>
+<div class="loading" id="loading">Hämtar skogen …</div>
+<div class="head"><a class="back" href="./landskap.html">← Landskapet</a></div>
+<div class="story" id="story"></div>
+<div class="legend" id="legend">
+  <span><i style="background:#2f7a3a"></i>skog</span>
+  <span><i style="background:#ffa040"></i>huggs nu</span>
+  <span><i style="background:#7a4a2a"></i>hygge</span>
+  <span><i style="background:#8fb24a"></i>ungskog</span>
+</div>
+<div class="year" id="year"></div>
+<div class="credit">Skog: Hansen m.fl., Global Forest Watch (CC BY 4.0) · Fåglar: Svensk Fågeltaxering (CC0) · Terräng: AWS Terrain Tiles</div>
+<div class="bar">
+  <button id="prev" aria-label="Föregående">◀</button>
+  <button id="play">❚❚ Pausa</button>
+  <div class="dots" id="dots"></div>
+  <button id="next" aria-label="Nästa">▶</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// Berättelsen om skogen: hela Sverige med skog och avverkning (samma data som landskapet), och fem platser
+// i full upplösning (tools/skog_berattelse.py) som kameran flyger ner till.
+
+// ---- koordinater: samma som landskapet, Web Mercator där Sverige är 10 enheter långt ----
+const merc = (lat, lon) => { const la = lat * Math.PI / 180;
+  return [(lon + 180) / 360, (1 - Math.log(Math.tan(la) + 1 / Math.cos(la)) / Math.PI) / 2]; };
+const [x0, y0] = merc(69.06, 10.95), [x1, y1] = merc(55.33, 24.17);
+const CX = (x0 + x1) / 2, CY = (y0 + y1) / 2, S = 10 / (y1 - y0);
+const toXZ = (lat, lon) => { const [x, y] = merc(lat, lon); return [(x - CX) * S, (y - CY) * S]; };
+const HALF_X = (x1 - x0) / 2 * S, HALF_Z = 5;
+const TERRAIN = 0.2 / 1700;
+const NY = 26;                                    // år 2000–2025
+
+// ---- scen ----
+const el = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setClearColor(0x05070d);
+el.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 1, 0.003, 200);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.minDistance = 0.04; controls.maxDistance = 30;
+controls.maxPolarAngle = Math.PI * 0.47; controls.autoRotateSpeed = 0.35;
+const portrait = () => el.clientWidth < el.clientHeight;
+function resize() { const w = el.clientWidth, h = el.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+const sun = new THREE.DirectionalLight(0xffffff, 1.0); sun.position.set(-6, 5, 4); scene.add(sun);
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+// ---- hela Sverige ----
+const NX = 160, NZ = Math.round(NX * HALF_Z / HALF_X);
+const geo = new THREE.PlaneGeometry(HALF_X * 2, HALF_Z * 2, NX - 1, NZ - 1); geo.rotateX(-Math.PI / 2);
+const P = geo.attributes.position, NV = P.count;
+const inside = new Float32Array(NV), ground = new Float32Array(NV), cols = new Float32Array(NV * 3);
+geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+const landMat = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true });
+const land = new THREE.Mesh(geo, landMat);
+scene.add(land);
+let border = null, baseCol = null, hm = null;
+let fShare, rate, cum, anom, ANOM_REF = 1;
+
+async function loadSweden() {
+  const g = await fetch('../data/sverige.json').then(r => r.json());
+  const pts = [];
+  const mask = document.createElement('canvas'); mask.width = 400; mask.height = Math.round(400 * HALF_Z / HALF_X);
+  const mc = mask.getContext('2d'); mc.fillStyle = '#fff';
+  const toMask = (x, z) => [(x + HALF_X) / (2 * HALF_X) * mask.width, (z + HALF_Z) / (2 * HALF_Z) * mask.height];
+  for (const poly of g.geometry.coordinates) for (const ring of poly) {
+    mc.beginPath();
+    ring.forEach(([lon, lat], i) => {
+      const [x, z] = toXZ(lat, lon); const [mx, mz] = toMask(x, z);
+      i ? mc.lineTo(mx, mz) : mc.moveTo(mx, mz);
+      if (i) { const [px, pz] = toXZ(ring[i - 1][1], ring[i - 1][0]); pts.push(px, 0.002, pz, x, 0.002, z); }
+    });
+    mc.closePath(); mc.fill();
+  }
+  const soft = document.createElement('canvas'); soft.width = mask.width; soft.height = mask.height;
+  const sc = soft.getContext('2d'); sc.filter = 'blur(8px)'; sc.drawImage(mask, 0, 0);
+  mc.globalCompositeOperation = 'source-in'; mc.drawImage(soft, 0, 0);
+  const md = mc.getImageData(0, 0, mask.width, mask.height).data;
+  for (let i = 0; i < NV; i++) {
+    const [mx, mz] = toMask(P.getX(i), P.getZ(i));
+    const ix = Math.min(mask.width - 1, Math.max(0, Math.round(mx))), iz = Math.min(mask.height - 1, Math.max(0, Math.round(mz)));
+    inside[i] = Math.pow(md[(iz * mask.width + ix) * 4 + 3] / 255 * md[(iz * mask.width + ix) * 4] / 255, 1.5);
+  }
+  hm = await fetch('../data/sverige_hojd.json').then(r => r.json());
+  for (let i = 0; i < NV; i++) {
+    const m = heightAt(P.getX(i) / S + CX, P.getZ(i) / S + CY);
+    ground[i] = m * TERRAIN * inside[i]; P.setY(i, ground[i]);
+    const a = inside[i], l = 0.07 + Math.min(1, m / 1500) * 0.16;
+    cols[i * 3] = l * 0.9 * a + 0.0196 * (1 - a); cols[i * 3 + 1] = l * a + 0.0275 * (1 - a); cols[i * 3 + 2] = l * 1.25 * a + 0.051 * (1 - a);
+  }
+  geo.computeVertexNormals();
+  baseCol = cols.slice();
+  border = new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)),
+    new THREE.LineBasicMaterial({ color: 0x8fa6c8, transparent: true, opacity: 0.35, depthTest: false }));
+  border.renderOrder = 2; scene.add(border);
+}
+function heightAt(mx, my) {
+  const ix = Math.min(hm.w - 1, Math.max(0, Math.floor((mx - hm.x0) / (hm.x1 - hm.x0) * hm.w)));
+  const iy = Math.min(hm.h - 1, Math.max(0, Math.floor((my - hm.y0) / (hm.y1 - hm.y0) * hm.h)));
+  return hm.m[iy * hm.w + ix];
+}
+const imageData = src => new Promise((ok, fail) => {
+  const img = new Image(); img.onerror = fail;
+  img.onload = () => { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+    const g = c.getContext('2d'); g.drawImage(img, 0, 0); ok({ w: img.width, h: img.height, d: g.getImageData(0, 0, img.width, img.height).data }); };
+  img.src = src;
+});
+// Skogen över hela Sverige, räknad till rutnätet (samma metod som landskapet)
+async function loadForest() {
+  const { w: W, h: H, d } = await imageData('../data/skog/forlust.png');
+  const cnt = new Float32Array(NV), F = new Float32Array(NV), L = new Float32Array(NV * NY);
+  for (let py = 0; py < H; py++) {
+    const r = Math.round(py / (H - 1) * (NZ - 1));
+    for (let px = 0; px < W; px++) {
+      const v = r * NX + Math.round(px / (W - 1) * (NX - 1)), k = (py * W + px) * 4;
+      cnt[v]++; if (d[k + 2] > 127) F[v]++;
+      if (d[k] > 0) L[v * NY + d[k]] += Math.min(1, (d[k + 1] / 255 + 0.03) * 1.5);
+    }
+  }
+  const blur = (arr, stride, off) => { for (let pass = 0; pass < 2; pass++) {
+    const src = new Float32Array(NV); for (let i = 0; i < NV; i++) src[i] = arr[i * stride + off];
+    for (let r = 0; r < NZ; r++) for (let c = 0; c < NX; c++) { let s = 0, k = 0;
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) { const rr = r + dr, cc = c + dc;
+        if (rr >= 0 && rr < NZ && cc >= 0 && cc < NX) { s += src[rr * NX + cc]; k++; } }
+      arr[(r * NX + c) * stride + off] = s / k; } } };
+  blur(cnt, 1, 0); blur(F, 1, 0); for (let y = 1; y < NY; y++) blur(L, NY, y);
+  fShare = new Float32Array(NV); rate = new Float32Array(NV * NY); cum = new Float32Array(NV * NY); anom = new Float32Array(NV * NY);
+  const pos = [];
+  for (let i = 0; i < NV; i++) {
+    if (!cnt[i]) continue;
+    fShare[i] = F[i] / cnt[i];
+    for (let y = 1; y < NY; y++) { rate[i * NY + y] = L[i * NY + y] / cnt[i]; cum[i * NY + y] = cum[i * NY + y - 1] + rate[i * NY + y]; }
+    const mean = cum[i * NY + NY - 1] / (NY - 1);
+    for (let y = 1; y < NY; y++) { const a = Math.max(0, rate[i * NY + y] - mean); anom[i * NY + y] = a;
+      if (a > 0 && inside[i] > 0.5 && fShare[i] > 0.2) pos.push(a); }
+  }
+  pos.sort((a, b) => a - b); ANOM_REF = pos[Math.floor(pos.length * 0.98)] || 1;
+}
+// Sveriges färger ett visst år: grönt där det är skog, rostton där mycket huggits, orange puls ovanliga år
+let lastNat = null;
+function paintSweden(yf, pulse) {
+  if (!fShare || !baseCol) return;
+  const key = Math.round(yf * 20) + (pulse ? 'p' : '');
+  if (key === lastNat) return; lastNat = key;
+  const y0 = Math.floor(yf), fr = yf - y0;
+  for (let i = 0; i < NV; i++) {
+    const o = i * 3, f = fShare[i];
+    if (f <= 0) { cols[o] = baseCol[o]; cols[o + 1] = baseCol[o + 1]; cols[o + 2] = baseCol[o + 2]; continue; }
+    let cut = y0 < 1 ? 0 : cum[i * NY + Math.min(NY - 1, y0)];
+    if (y0 + 1 >= 1 && y0 + 1 < NY) cut += rate[i * NY + y0 + 1] * fr;
+    const left = Math.max(0, f - cut), rust = Math.min(0.7, cut / f * 1.6);
+    let p = 0;
+    if (pulse) for (let y = Math.max(1, y0 - 1); y <= Math.min(NY - 1, y0 + 2); y++) { const dd = (yf - y) / 0.35; p += anom[i * NY + y] * Math.exp(-dd * dd); }
+    p = Math.min(1.5, p / ANOM_REF);
+    let r = 0.06 + 0.11 * left, g = 0.22 + 0.28 * left, b = 0.10 + 0.09 * left;
+    r += (0.40 - r) * rust; g += (0.20 - g) * rust; b += (0.09 - b) * rust;
+    r += 0.9 * p; g += 0.5 * p; b += 0.18 * p;
+    const al = Math.min(0.95, (0.15 + 0.6 * left + 0.5 * p) * Math.min(1, Math.max(0, (inside[i] - 0.2) / 0.4))), k = 1.3;
+    cols[o] = baseCol[o] * (1 - al) + r * k * al; cols[o + 1] = baseCol[o + 1] * (1 - al) + g * k * al; cols[o + 2] = baseCol[o + 2] * (1 - al) + b * k * al;
+  }
+  geo.attributes.color.needsUpdate = true;
+}
+
+// ---- platserna i full upplösning ----
+// Varje plats är en egen yta med terräng (lätt överdriven) och en färgbild som målas om när åren går:
+// skog grön, huggs nu glöder orange, hygget är brunt och grönskar sedan till ungskog under ungefär tio år.
+const places = {};
+async function loadPlace(id, p) {
+  const { w, h, d } = await imageData(`../data/skog/plats_${id}.png`);
+  const [ax, az] = toXZ(p.nord, p.vast), [bx, bz] = toXZ(p.syd, p.ost);
+  const wU = bx - ax, hU = bz - az, cx = (ax + bx) / 2, cz = (az + bz) / 2;
+  const hg = new THREE.PlaneGeometry(wU, hU, p.hojd.w - 1, p.hojd.h - 1); hg.rotateX(-Math.PI / 2);
+  const m = p.hojd.m, mMin = Math.min(...m), k = wU / 20000 * 2.5;          // 2,5 gånger överdriven höjd
+  // lägg ytan strax över hela Sveriges terräng på platsen, så att den aldrig hamnar under
+  const [mx, my] = merc((p.nord + p.syd) / 2, (p.vast + p.ost) / 2), base = heightAt(mx, my) * TERRAIN + 0.004;
+  for (let i = 0; i < hg.attributes.position.count; i++) hg.attributes.position.setY(i, base + (m[i] - mMin) * k);
+  hg.computeVertexNormals();
+  // färgbilden: målas i bildens egen storlek och skalas till en kvadrat med sidan 1024, så att mipmaps fungerar
+  const src = document.createElement('canvas'); src.width = w; src.height = h;
+  const big = document.createElement('canvas'); big.width = big.height = 1024;
+  const tex = new THREE.CanvasTexture(big);
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy(); tex.minFilter = THREE.LinearMipmapLinearFilter;
+  const mat = new THREE.MeshLambertMaterial({ map: tex, transparent: true, opacity: 0 });
+  const mesh = new THREE.Mesh(hg, mat); mesh.position.set(cx, 0, cz); mesh.visible = false; mesh.renderOrder = 1;
+  scene.add(mesh);
+  // varje pixel får en egen nyans, så att skogen ser levande ut
+  const noise = new Uint8Array(w * h); for (let i = 0; i < noise.length; i++) noise[i] = (Math.sin(i * 12.9898) * 43758.5453 % 1 + 1) % 1 * 255;
+  // andelen skog som försvunnit, totalt och per år (för texterna)
+  let forest = 0; const lost = new Array(NY).fill(0);
+  for (let i = 0; i < w * h; i++) { if (d[i * 4 + 2] > 127) { forest++; if (d[i * 4]) lost[d[i * 4]]++; } }
+  places[id] = { mesh, mat, tex, src, big, w, h, d, noise, cx, cz, wU, hU, top: base, last: null,
+    lostShare: lost.reduce((a, b) => a + b, 0) / forest, lostYear: lost.map(v => v / forest) };
+}
+function paintPlace(pl, yf) {
+  const key = Math.round(yf * 12);
+  if (key === pl.last) return; pl.last = key;
+  const { w, h, d, noise } = pl, g = pl.src.getContext('2d'), img = g.createImageData(w, h), o = img.data;
+  for (let i = 0; i < w * h; i++) {
+    const y = d[i * 4], forest = d[i * 4 + 2] > 127, n = noise[i] / 255, q = i * 4;
+    let r, gg, b;
+    if (y && yf >= y - 0.5) {
+      const age = yf - y;
+      if (age < 0.6) {                               // huggs nu: glöder
+        const t = Math.max(0, (age + 0.5) / 1.1); r = 255; gg = 160 + 60 * (1 - t); b = 64 + 60 * (1 - t);
+      } else if (age < 3) {                          // hygge: bar mark
+        r = 122 + 20 * n; gg = 78 + 12 * n; b = 44;
+      } else {                                       // ungskog som grönskar under tio år
+        const t = Math.min(1, (age - 3) / 10);
+        r = 122 + (120 - 122) * t * 1.0 + 10 * n; gg = 78 + (170 - 78) * t + 12 * n; b = 44 + (70 - 44) * t;
+        r = r * (1 - 0.3 * Math.max(0, t - 0.6) / 0.4); gg = gg * (1 - 0.15 * Math.max(0, t - 0.6) / 0.4);
+      }
+    } else if (forest) {                             // skog: mörk gran till ljusare löv
+      r = 30 + 30 * n * n; gg = 92 + 50 * n * n; b = 46 + 16 * n;
+    } else {                                         // öppen mark, sjöar och myr
+      r = 52 + 10 * n; gg = 58 + 10 * n; b = 66 + 8 * n;
+    }
+    o[q] = r; o[q + 1] = gg; o[q + 2] = b; o[q + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  const bg = pl.big.getContext('2d'); bg.imageSmoothingEnabled = true; bg.drawImage(pl.src, 0, 0, 1024, 1024);
+  pl.tex.needsUpdate = true;
+}
+
+// ---- berättelsen ----
+let skog = null;
+const pct = v => Math.round(Math.abs(v) * 100) + ' %';
+const sign = v => (v < 0 ? '−' : '+') + pct(v);
+function birds(names) {
+  const rows = names.map(n => Object.values(skog.arter).find(a => a.namn === n)).filter(Boolean);
+  return `<div class="birds">${rows.map(a => `<span>${a.namn}</span><span class="${a.skillnad < 0 ? 'down' : 'up'}">${sign(a.skillnad)}</span>`).join('')}</div>`
+    + `<div class="note">Förändring på rutter där ${pct(skog.hugget.mycket)} av skogen höggs, jämfört med rutter i samma del av landet där ${pct(skog.hugget.lite)} höggs.</div>`;
+}
+const SCENES = [
+  { place: null, from: 2000, to: 2000, dur: 7, view: 'sverige',
+    html: () => `<h1>Skogslandet</h1><p>År 2000 täcktes ungefär två tredjedelar av Sverige av skog. Den här berättelsen följer vad som hände med den under 25 år, och hur det gick för fåglarna som bor där.</p>` },
+  { place: 'norrbotten', from: 2000, to: 2025, dur: 16,
+    html: pl => `<h1>Norrbottens inland</h1><p>Gammal barrskog mellan Harads och Vuollerim. Hygge läggs till hygge, år efter år. Inom rutan har <b>${pct(pl.lostShare)}</b> av skogen försvunnit sedan 2001.</p>`
+      + `<p>Här bor fåglar som behöver gammal skog med döda träd och hänglav.</p>` + birds(['Lappmes', 'Tretåig hackspett', 'Videsparv', 'Lavskrika']) },
+  { place: 'gudrun', from: 2003, to: 2008, dur: 11,
+    html: pl => `<h1>Stormen Gudrun</h1><p>Den 8 januari 2005 drog Gudrun in över Götaland. Omkring 75 miljoner kubikmeter skog föll, nästan lika mycket som ett helt års avverkning i Sverige.</p>`
+      + `<p>Här i Kronoberg försvann <b>${pct(pl.lostYear[5])}</b> av skogen på ett enda år.</p>` },
+  { place: 'brand', from: 2012, to: 2020, dur: 11,
+    html: pl => `<h1>Branden i Västmanland</h1><p>Sommaren 2014 brann omkring 14 000 hektar skog, den största skogsbranden i Sverige i modern tid. Inom rutan försvann <b>${pct(pl.lostYear[14])}</b> av skogen det året.</p>`
+      + `<p>En del av brandfältet blev naturreservatet Hälleskogsbrännan, där ny skog nu får växa upp av sig själv.</p>` },
+  { place: 'barkborre', from: 2015, to: 2025, dur: 12,
+    html: pl => `<h1>Torkan och granbarkborren</h1><p>Torkan 2018 försvagade granarna. Granbarkborren förökade sig explosionsartat, och åren efter dog och avverkades gran i stora delar av Götaland och Svealand.</p>`
+      + `<p>Här i Sörmland försvann <b>${pct(pl.lostYear[19] + pl.lostYear[20] + pl.lostYear[21] + pl.lostYear[22])}</b> av skogen 2019–2022.</p>` },
+  { place: 'vinnare', from: 2000, to: 2025, dur: 16,
+    html: pl => `<h1>Ungskogens fåglar</h1><p>Västernorrlands inland är ett lapptäcke av hyggen och ungskog i alla åldrar. Inom rutan har <b>${pct(pl.lostShare)}</b> av skogen huggits sedan 2001.</p>`
+      + `<p>Där skogen huggs växer sly och ungskog upp, och några arter har klarat sig bättre.</p>` + birds(['Orre', 'Järnsparv', 'Trädgårdssångare', 'Dubbeltrast']) },
+  { place: null, from: 2001, to: 2025, dur: 14, view: 'sverige', pulse: true,
+    html: () => { const a = Object.values(skog.arter), down = a.filter(x => x.tydlig && x.skillnad < 0).length, up = a.filter(x => x.tydlig && x.skillnad > 0).length;
+      return `<h1>Hela Sverige</h1><p>Orange: år då det höggs ovanligt mycket. Av ${a.length} skogsfåglar gick <b>${down}</b> tydligt sämre och <b>${up}</b> tydligt bättre där mycket skog höggs.</p>`
+        + `<p class="note">Jämförelsen visar samvariation, inte orsak: där det huggs mycket kan också annat skilja sig.</p>`; } },
+];
+
+// ---- kameran ----
+function sweden() {
+  return portrait() ? { pos: new THREE.Vector3(0.4, 11, 9.5), target: new THREE.Vector3(0, 0.1, -0.3) }
+                    : { pos: new THREE.Vector3(2.4, 6.2, 5.2), target: new THREE.Vector3(0, 0.1, 0.5) };
+}
+function closeView(pl) {
+  const d = pl.wU * (portrait() ? 2.4 : 1.35);
+  // på stående skärm ligger textrutan överst: sikta lite norr om platsen, så att den hamnar längre ner i bilden
+  const target = new THREE.Vector3(pl.cx, pl.top, pl.cz - (portrait() ? 0.32 * pl.hU : 0));
+  return { pos: target.clone().add(new THREE.Vector3(0.25 * d, 0.75 * d, 0.85 * d)), target };
+}
+let flight = null;    // {from, to, t, dur, fadeIn, fadeOut}
+function fly(to, dur, onEnd) {
+  flight = { fromPos: camera.position.clone(), fromTarget: controls.target.clone(), to, t: 0, dur, onEnd };
+}
+const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+// ---- uppspelning ----
+let idx = 0, playing = true, yf = 2000, sceneT = 0, phase = 'fly', hold = 0, current = null, natAlpha = 1;
+const storyEl = document.getElementById('story'), yearEl = document.getElementById('year');
+const dotsEl = document.getElementById('dots');
+SCENES.forEach((_, i) => { const s = document.createElement('span'); s.onclick = () => go(i); dotsEl.appendChild(s); });
+function go(i) {
+  idx = (i + SCENES.length) % SCENES.length;
+  const sc = SCENES[idx], pl = sc.place && places[sc.place];
+  [...dotsEl.children].forEach((s, k) => s.classList.toggle('on', k === idx));
+  storyEl.classList.add('fade');
+  setTimeout(() => { storyEl.innerHTML = sc.html(pl); storyEl.classList.remove('fade'); }, 350);
+  yf = sc.from; sceneT = 0; hold = 0; controls.autoRotate = false;
+  const prev = current; current = sc;
+  if (pl) pl.mesh.visible = true;
+  if (prev && prev.place && prev.place !== sc.place && pl) {
+    // från en plats till en annan: först upp till Sverige, sedan ner
+    phase = 'fly';
+    fly(sweden(), 2.2, () => fly(closeView(pl), 3.2, () => { phase = 'play'; controls.autoRotate = true; }));
+  } else {
+    phase = 'fly';
+    fly(pl ? closeView(pl) : sweden(), pl ? 3.6 : 2.6, () => { phase = 'play'; controls.autoRotate = !!pl; });
+  }
+}
+document.getElementById('prev').onclick = () => go(idx - 1);
+document.getElementById('next').onclick = () => go(idx + 1);
+const playBtn = document.getElementById('play');
+playBtn.onclick = () => { playing = !playing; playBtn.textContent = playing ? '❚❚ Pausa' : '▶ Spela'; };
+
+let last = 0;
+function frame(now) {
+  const dt = last ? Math.min((now - last) / 1000, 0.1) : 0; last = now;
+  const sc = current, pl = sc && sc.place && places[sc.place];
+  if (flight) {
+    flight.t = Math.min(1, flight.t + dt / flight.dur);
+    const e = ease(flight.t);
+    camera.position.lerpVectors(flight.fromPos, flight.to.pos, e);
+    controls.target.lerpVectors(flight.fromTarget, flight.to.target, e);
+    if (flight.t >= 1) { const f = flight; flight = null; f.onEnd && f.onEnd(); }
+  }
+  // Sverige syns när kameran är högt upp; platsens yta tonar fram när kameran kommer nära
+  const dist = camera.position.distanceTo(controls.target);
+  const near = pl ? Math.min(1, Math.max(0, (1.6 - dist) / 1.1)) : 0;
+  for (const [id, p] of Object.entries(places)) {
+    const on = pl === p ? near : 0;
+    p.mat.opacity += (on - p.mat.opacity) * Math.min(1, dt * 4);
+    p.mesh.visible = p.mat.opacity > 0.01;
+  }
+  natAlpha = 1 - near * 0.85;
+  landMat.opacity = natAlpha; if (border) border.material.opacity = 0.35 * natAlpha;
+  if (sc && phase === 'play' && playing) {
+    sceneT += dt;
+    if (sceneT < sc.dur) yf = sc.from + (sc.to - sc.from) * Math.min(1, sceneT / (sc.dur - 1.5));
+    else { hold += dt; if (hold > 4) go(idx + 1); }
+  }
+  paintSweden(yf - 2000, sc && sc.pulse);
+  if (pl) paintPlace(pl, yf - 2000);
+  yearEl.textContent = Math.round(Math.min(yf, 2025));
+  controls.update(); renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+
+(async () => {
+  try {
+    const [, , data, sk] = await Promise.all([loadSweden(), Promise.resolve(),
+      fetch('../data/skog/berattelse.json').then(r => r.json()), fetch('../data/trend/skog.json').then(r => r.json())]);
+    skog = sk;
+    await Promise.all([loadForest(), ...Object.entries(data.platser).map(([id, p]) => loadPlace(id, p))]);
+    const s0 = sweden(); camera.position.copy(s0.pos).multiplyScalar(1.15); controls.target.copy(s0.target);
+    document.getElementById('loading').style.display = 'none';
+    go(0);
+    requestAnimationFrame(frame);
+  } catch (err) { document.getElementById('loading').textContent = 'Kunde inte hämta: ' + err.message; }
+})();
+</script>
+</body>
+</html>

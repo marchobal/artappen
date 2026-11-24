@@ -1,5 +1,6 @@
 // Skogsförlust över Sverige år för år, ur Hansen m.fl. Global Forest Change (via Global Forest Watch:s kartrutor).
 // Användning: swift tools/skog_forlust.swift data/skog/forlust.png [cachemapp]
+//         eller swift tools/skog_forlust.swift ut.png cachemapp zoom F nord väst syd öst   (ett utsnitt, t.ex. för berättelsen)
 //
 // GFW:s rutor (tcd_30 = trädtäcke över 30 % år 2000) har förlustens år i blå kanal (1–25 = 2001–2025)
 // och hur mycket skog som försvann i pixeln i röd kanal. Blå 0 är en svag gloria kring hyggena och räknas inte.
@@ -18,13 +19,20 @@ let outPath = args[1]
 let cache = URL(fileURLWithPath: args.count > 2 ? args[2] : NSTemporaryDirectory()).appendingPathComponent("gfw_tcd30")
 try? FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
 
-let VERSION = "v1.13", ZOOM = 7, TILE = 512, F = 2   // zoom 7 med 512-pixlarsrutor ≈ 145 m per pixel i Sverige; F=2 ger ≈ 290 m
+// Standard: hela Sverige, zoom 7 med 512-pixlarsrutor och F = 2 (≈ 0,6 km per pixel).
+// Med fler argument: valfri ruta och zoom; F = 1 ger full upplösning för zoomen (zoom 10 ≈ 30–40 m per pixel).
+let custom = args.count >= 9
+let VERSION = "v1.13", ZOOM = custom ? Int(args[3])! : 7, TILE = 512, F = custom ? Int(args[4])! : 2
+precondition(F == 1 || F == 2, "F måste vara 1 eller 2")
+// trädtäckets rutor är 256 pixlar: på zoom ZOOM + 1 när F = 1, annars på ZOOM, så att de följer utdatats rutnät
+let FZOOM = F == 1 ? ZOOM + 1 : ZOOM
 let UA = "ArtappenTools/1.1 (https://github.com/marchobal/artappen; privat artapp)"
 func merc(_ lat: Double, _ lon: Double) -> (Double, Double) {
     let la = lat * .pi / 180
     return ((lon + 180) / 360, (1 - log(tan(la) + 1 / cos(la)) / .pi) / 2)
 }
-let (x0, y0) = merc(69.06, 10.95), (x1, y1) = merc(55.33, 24.17)
+let (x0, y0) = custom ? merc(Double(args[5])!, Double(args[6])!) : merc(69.06, 10.95)
+let (x1, y1) = custom ? merc(Double(args[7])!, Double(args[8])!) : merc(55.33, 24.17)
 let world = Double((1 << ZOOM) * TILE)
 let sx0 = Int((x0 * world).rounded()), sy0 = Int((y0 * world).rounded())
 let W = Int(((x1 - x0) * world / Double(F)).rounded()), H = Int(((y1 - y0) * world / Double(F)).rounded())
@@ -35,12 +43,13 @@ let LOSS = "umd_tree_cover_loss/\(VERSION)/tcd_30", FOREST = "umd_tree_cover_den
 var tiles: [String: [UInt8]] = [:]
 // size: förlustrutorna är 512 pixlar, trädtäckets 256 (samma rutnät som utdata, eftersom F = 2)
 func fetchTile(_ layer: String, _ size: Int, _ tx: Int, _ ty: Int) -> [UInt8] {
+    let z = layer == LOSS ? ZOOM : FZOOM
     let key = "\(tx)_\(ty)", prefix = layer == LOSS ? "" : "tcd2000_"
-    if let t = tiles[prefix + key] { return t }
-    let file = cache.appendingPathComponent("\(prefix)\(ZOOM)_\(key).png")
+    if let t = tiles[prefix + "\(z)_" + key] { return t }
+    let file = cache.appendingPathComponent("\(prefix)\(z)_\(key).png")
     var data = try? Data(contentsOf: file)
     if data == nil {
-        let url = URL(string: "https://tiles.globalforestwatch.org/\(layer)/\(ZOOM)/\(tx)/\(ty).png")!
+        let url = URL(string: "https://tiles.globalforestwatch.org/\(layer)/\(z)/\(tx)/\(ty).png")!
         for attempt in 0..<5 {
             var req = URLRequest(url: url, timeoutInterval: 60); req.setValue(UA, forHTTPHeaderField: "User-Agent")
             let sem = DispatchSemaphore(value: 0); var got: Data? = nil; var code = 0
@@ -60,7 +69,7 @@ func fetchTile(_ layer: String, _ size: Int, _ tx: Int, _ ty: Int) -> [UInt8] {
                             space: cs, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
         ctx.draw(img, in: CGRect(x: 0, y: 0, width: size, height: size))
     }
-    tiles[prefix + key] = px
+    tiles[prefix + "\(z)_" + key] = px
     return px
 }
 
@@ -82,7 +91,7 @@ for oy in 0..<H {
         } }
         let o = (oy * W + ox) * 3
         // skogen år 2000: en pixel i trädtäckets 256-rutor motsvarar exakt en utdatapixel
-        let fx = sx0 / F + ox, fy = sy0 / F + oy, T2 = TILE / F
+        let fx = sx0 / F + ox, fy = sy0 / F + oy, T2 = 256
         let ft = fetchTile(FOREST, T2, fx / T2, fy / T2)
         if ft[((fy % T2) * T2 + (fx % T2)) * 4 + 3] == 255 { out[o + 2] = 255; forest += 1 }
         if bestYear > 0 {
