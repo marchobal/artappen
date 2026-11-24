@@ -14,16 +14,30 @@
   #scene { position: absolute; inset: 0; touch-action: none; }
   .head { position: absolute; top: max(14px, env(safe-area-inset-top)); left: 16px; z-index: 5; }
   .back { color: var(--muted); font-size: 13px; text-decoration: none; }
-  .story { position: absolute; left: 16px; top: calc(max(14px, env(safe-area-inset-top)) + 28px); z-index: 5;
-    width: min(340px, calc(100% - 32px)); background: var(--panel); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 12px 14px; transition: opacity 0.5s; }
-  .story.fade { opacity: 0; }
-  .story h1 { margin: 0 0 6px; font-size: 16px; font-weight: 600; color: var(--border); letter-spacing: 0.2px; }
-  .story p { margin: 0 0 6px; font-size: 13px; line-height: 1.5; }
-  .story .birds { margin-top: 8px; display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; font-size: 13px; }
-  .story .birds .down { color: var(--down); font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
-  .story .birds .up { color: var(--up); font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
-  .story .note { color: var(--muted); font-size: 11px; margin-top: 6px; line-height: 1.4; }
+  /* allt i bilden: texter och fåglar sitter fast i landskapet och följer med när kameran rör sig */
+  #lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
+  #labels { position: absolute; inset: 0; pointer-events: none; z-index: 4; overflow: hidden; }
+  .lab { position: absolute; left: 0; top: 0; opacity: 0; will-change: transform, opacity; }
+  .lab.title { font-size: 22px; font-weight: 650; color: #fff; white-space: nowrap; letter-spacing: 0.2px;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.95), 0 0 2px #000; }
+  .lab.fact { background: rgba(6,10,18,0.74); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,0.14); border-radius: 10px; padding: 6px 10px; font-size: 13px; line-height: 1.35;
+    width: max-content; max-width: 210px; }
+  .lab.fact b { font-size: 20px; color: #ffc27a; font-variant-numeric: tabular-nums; }
+  .lab .sub { display: block; opacity: 0; max-height: 0; transition: opacity 0.7s, max-height 0.7s; overflow: hidden; }
+  .lab .sub.on { opacity: 1; max-height: 80px; }
+  .flock { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; width: max-content; }
+  .flock .hd { font-size: 11px; color: #cfd6e4; padding-left: 4px; text-shadow: 0 1px 6px #000; }
+  .chip { display: flex; align-items: center; gap: 6px; background: rgba(6,10,18,0.78); border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 999px; padding: 3px 10px 3px 5px; font-size: 12.5px; opacity: 0; transform: translateY(8px) scale(0.9);
+    transition: opacity 0.5s, transform 0.5s; }
+  .chip.on { opacity: 1; transform: none; }
+  .chip svg { width: 22px; height: 22px; color: #e8ecf5; flex: none; }
+  .chip .n { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 3.2em; text-align: right; }
+  .chip.down .n { color: var(--down); } .chip.up .n { color: var(--up); }
+  .flock .ft { font-size: 10.5px; color: #aeb7c8; max-width: 190px; text-shadow: 0 1px 6px #000; padding-left: 4px;
+    opacity: 0; transition: opacity 0.7s; }
+  .flock .ft.on { opacity: 1; }
   .year { position: absolute; right: 18px; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 62px); z-index: 5;
     color: var(--border); font-size: 26px; letter-spacing: 0.5px; font-variant-numeric: tabular-nums; }
   .legend { position: absolute; left: 16px; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 62px); z-index: 5;
@@ -41,7 +55,8 @@
     font-size: 9px; opacity: 0.7; text-align: right; max-width: 46%; }
   .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); z-index: 10; background: var(--bg); }
   @media (max-width: 600px) {
-    .story { padding: 10px 12px; } .story p { font-size: 12.5px; } .year { font-size: 20px; }
+    .lab.title { font-size: 18px; } .lab.fact { font-size: 12px; max-width: 170px; } .lab.fact b { font-size: 17px; }
+    .chip { font-size: 11.5px; } .year { font-size: 20px; }
     .bar button { padding: 6px 10px; font-size: 12px; } .credit { display: none; }
   }
 </style>
@@ -50,7 +65,8 @@
 <div id="scene"></div>
 <div class="loading" id="loading">Hämtar skogen …</div>
 <div class="head"><a class="back" href="./landskap.html">← Landskapet</a></div>
-<div class="story" id="story"></div>
+<svg id="lines"></svg>
+<div id="labels"></div>
 <div class="legend" id="legend">
   <span><i style="background:#2f7a3a"></i>skog</span>
   <span><i style="background:#ffa040"></i>huggs nu</span>
@@ -240,10 +256,13 @@ async function loadPlace(id, p) {
   // varje pixel får en egen nyans, så att skogen ser levande ut
   const noise = new Uint8Array(w * h); for (let i = 0; i < noise.length; i++) noise[i] = (Math.sin(i * 12.9898) * 43758.5453 % 1 + 1) % 1 * 255;
   // andelen skog som försvunnit, totalt och per år (för texterna)
-  let forest = 0; const lost = new Array(NY).fill(0);
-  for (let i = 0; i < w * h; i++) { if (d[i * 4 + 2] > 127) { forest++; if (d[i * 4]) lost[d[i * 4]]++; } }
-  places[id] = { mesh, mat, tex, src, big, w, h, d, noise, cx, cz, wU, hU, top: base, last: null,
-    lostShare: lost.reduce((a, b) => a + b, 0) / forest, lostYear: lost.map(v => v / forest) };
+  // och var förlusten låg varje år (tyngdpunkt), så att fakta kan sitta där det hände
+  let forest = 0; const lost = new Array(NY).fill(0), su = new Array(NY).fill(0), sv = new Array(NY).fill(0);
+  for (let i = 0; i < w * h; i++) {
+    if (d[i * 4 + 2] > 127) { forest++; const y = d[i * 4]; if (y) { lost[y]++; su[y] += (i % w) / w; sv[y] += Math.floor(i / w) / h; } }
+  }
+  places[id] = { mesh, mat, tex, src, big, w, h, d, noise, cx, cz, wU, hU, top: base, last: null, hojd: p.hojd, mMin, k, base,
+    lostShare: lost.reduce((a, b) => a + b, 0) / forest, lostYear: lost.map(v => v / forest), lost, su, sv };
 }
 function paintPlace(pl, yf) {
   const key = Math.round(yf * 12);
@@ -275,37 +294,184 @@ function paintPlace(pl, yf) {
   pl.tex.needsUpdate = true;
 }
 
-// ---- berättelsen ----
+// ---- punkter i landskapet ----
+// En punkt i en plats (u, v = 0–1 från nordväst) på terrängens höjd, och en punkt i Sverige.
+function placePoint(pl, u, v) {
+  const H = pl.hojd, i = Math.round(v * (H.h - 1)) * H.w + Math.round(u * (H.w - 1));
+  return new THREE.Vector3(pl.cx + (u - 0.5) * pl.wU, pl.base + (H.m[i] - pl.mMin) * pl.k, pl.cz + (v - 0.5) * pl.hU);
+}
+function natPoint(lat, lon) {
+  const [x, z] = toXZ(lat, lon), [mx, my] = merc(lat, lon);
+  return new THREE.Vector3(x, heightAt(mx, my) * TERRAIN, z);
+}
+// tyngdpunkten för förlusten under några år
+function centroid(pl, years) {
+  let n = 0, u = 0, v = 0; for (const y of years) { n += pl.lost[y]; u += pl.su[y]; v += pl.sv[y]; }
+  return n ? placePoint(pl, u / n, v / n) : placePoint(pl, 0.5, 0.5);
+}
+// andelen av skogen som försvunnit från år a till och med yf (med decimaler)
+function lostUpTo(pl, yf, a = 1, b = NY - 1) {
+  let s = 0; for (let y = a; y <= Math.min(b, Math.floor(yf)); y++) s += pl.lostYear[y];
+  const nx = Math.floor(yf) + 1; if (nx >= a && nx <= b && nx < NY) s += pl.lostYear[nx] * (yf - Math.floor(yf));
+  return s;
+}
+const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
+
+// ---- fåglarna som små ikoner ----
+const ICON = {
+  mes: 'M3 15c0-3.3 3.6-5.6 8-5 .8-2.6 3.6-3.7 5.6-2.2l3.4.4-2.8 1.3c.3 3.6-2.4 6.5-6.7 6.9L7 17.6 2.5 20z',
+  hackspett: 'M10.6 3c1.8-.7 3.7.3 3.9 2.1l3.8.5-3.6 1.1c.9 3.4.4 7.7-1.6 11.1L12.4 22l-1.3-4.1c-2-3.1-2.3-8.6-.5-11.7z',
+  honsfagel: 'M2.5 16.2c.3-3.7 4.2-6.1 8.5-5.3.6-2.5 3.2-3.5 5.1-2.1l2.6.6-2.3 1c.6 3.7-1.8 6.4-6 6.7H7.2c-1.2 1.6-3.2 2.5-4.9 1.9 1-.5 1.5-1.2 1.6-2.1z',
+};
+const iconFor = n => /hackspett|Spillkråka|Gråspett|Göktyta/.test(n) ? 'hackspett' : /Orre|Tjäder|Järpe/.test(n) ? 'honsfagel' : 'mes';
 let skog = null;
 const pct = v => Math.round(Math.abs(v) * 100) + ' %';
-const sign = v => (v < 0 ? '−' : '+') + pct(v);
-function birds(names) {
-  const rows = names.map(n => Object.values(skog.arter).find(a => a.namn === n)).filter(Boolean);
-  return `<div class="birds">${rows.map(a => `<span>${a.namn}</span><span class="${a.skillnad < 0 ? 'down' : 'up'}">${sign(a.skillnad)}</span>`).join('')}</div>`
-    + `<div class="note">Förändring på rutter där ${pct(skog.hugget.mycket)} av skogen höggs, jämfört med rutter i samma del av landet där ${pct(skog.hugget.lite)} höggs.</div>`;
+const sign = (v, dir = v) => (dir < 0 ? '−' : '+') + pct(v);
+const bird = n => Object.values(skog.arter).find(a => a.namn === n);
+const easeOut = t => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
+
+// ---- etiketterna ----
+// Varje etikett sitter på en punkt i landskapet (ground) och svävar en bit ovanför (lift), med en tunn linje ner.
+// Den tänds vid en viss tid i scenen (at, sekunder) eller ett visst år (year), och kan uppdateras medan den syns (tick).
+const labelsEl = document.getElementById('labels'), linesEl = document.getElementById('lines');
+let labels = [];
+function label(o) {
+  const el = document.createElement('div'); el.className = 'lab ' + (o.kind || 'fact'); el.innerHTML = o.html;
+  labelsEl.appendChild(el);
+  const ns = 'http://www.w3.org/2000/svg';
+  const line = document.createElementNS(ns, 'line'); line.setAttribute('stroke', 'rgba(255,255,255,0.55)'); line.setAttribute('stroke-width', '1');
+  const dot = document.createElementNS(ns, 'circle'); dot.setAttribute('r', '2.6'); dot.setAttribute('fill', '#fff');
+  if (o.kind !== 'title') { linesEl.appendChild(line); linesEl.appendChild(dot); }
+  labels.push({ ...o, el, line, dot, alpha: 0, shown: null, dying: false });
 }
+function flock(o) {
+  // en liten flock: rubrik, fåglarna en i taget med siffran som räknas upp, och en rad om jämförelsen
+  const rows = o.names.map(bird).filter(Boolean);
+  const html = `<div class="flock"><div class="hd">${o.head}</div>` + rows.map(a =>
+    `<div class="chip ${a.skillnad < 0 ? 'down' : 'up'}"><svg viewBox="0 0 24 24"><path fill="currentColor" d="${ICON[iconFor(a.namn)]}"/></svg>`
+    + `<span>${a.namn}</span><span class="n">0 %</span></div>`).join('')
+    + `<div class="ft">${o.foot || `där ${pct(skog.hugget.mycket)} av skogen höggs, mot där ${pct(skog.hugget.lite)} höggs`}</div></div>`;
+  label({ ...o, kind: 'fact flockbox', html, tick: (el, t) => {
+    el.querySelectorAll('.chip').forEach((c, i) => {
+      const ti = t - 0.6 - i * 0.55; c.classList.toggle('on', ti > 0);
+      c.querySelector('.n').textContent = sign(rows[i].skillnad * easeOut(ti / 1.2), rows[i].skillnad);
+    });
+    el.querySelector('.ft').classList.toggle('on', t > 0.8 + rows.length * 0.55);
+  } });
+}
+// ett faktum med rader som tänds efter varandra; {v} i en rad blir ett tal som räknas fram
+function fact(o) {
+  const lines = o.lines.map((l, i) => `<span class="sub" data-i="${i}">${l}</span>`).join('');
+  label({ ...o, html: lines, tick: (el, t) => {
+    el.querySelectorAll('.sub').forEach((sEl, i) => {
+      sEl.classList.toggle('on', t > (o.delays ? o.delays[i] : i * 1.1));
+      const b = sEl.querySelector('b[data-v]');
+      if (b) b.textContent = pct(o.value(t));
+    });
+  } });
+}
+function clearLabels() { labels.forEach(l => l.dying = true); }
+function updateLabels(dt) {
+  const W = el.clientWidth, H = el.clientHeight, v = new THREE.Vector3();
+  const toScreen = p => { v.copy(p).project(camera); return [(v.x + 1) / 2 * W, (1 - v.y) / 2 * H, v.z < 1]; };
+  const placed = [];                      // rutor som redan har en plats i bilden, så att etiketterna inte hamnar på varandra
+  for (const l of labels) {
+    const gone = (l.until != null && sceneT >= l.until) || (l.untilYear != null && yf >= l.untilYear);
+    const due = !l.dying && !gone && phase === 'play' && (l.at != null ? sceneT >= l.at : yf >= l.year);
+    if (due && l.shown == null) l.shown = sceneT;
+    l.alpha += ((due ? 1 : 0) - l.alpha) * Math.min(1, dt * (l.dying ? 6 : 3));
+    const t = l.shown == null ? 0 : sceneT - l.shown;
+    if (l.tick && l.shown != null) l.tick(l.el, t);
+    const top = l.ground.clone(); top.y += l.lift;
+    const [gx, gy, gok] = toScreen(l.ground), [x, yy, ok] = toScreen(top);
+    // håll etiketten inom bilden
+    const w = l.el.offsetWidth, h = l.el.offsetHeight;
+    const cx = Math.min(W - w / 2 - 8, Math.max(w / 2 + 8, x));
+    let ty = Math.max(h + 8, yy);
+    if (l.alpha > 0.02) {
+      // står den på någon som redan har en plats? prova lägena strax ovanför och under varje sådan ruta
+      // och välj det närmaste som är ledigt och ryms i bilden
+      const hits = t => placed.some(b => cx - w / 2 < b[2] + 4 && cx + w / 2 > b[0] - 4 && t - h < b[3] + 4 && t > b[1] - 4);
+      if (hits(ty)) {
+        const fits = t => t - h >= 8 && t <= H - 70 && !hits(t);
+        const cands = placed.flatMap(b => [b[1] - 6, b[3] + h + 6]).filter(fits).sort((a, b) => Math.abs(a - ty) - Math.abs(b - ty));
+        if (cands.length) ty = cands[0];
+      }
+      placed.push([cx - w / 2, ty - h, cx + w / 2, ty]);
+    }
+    l.py = l.py == null ? ty : l.py + (ty - l.py) * Math.min(1, dt * 6);
+    const cy = l.py;
+    const a = ok ? l.alpha : 0;
+    Object.assign(l, { sx: cx, sy: cy, gx, gy, a });
+    l.el.style.opacity = a;
+    l.el.style.transform = `translate(${cx}px, ${cy}px) translate(-50%, -100%) scale(${0.9 + 0.1 * a})`;
+    if (l.kind !== 'title') {
+      const la = gok && ok ? a : 0;
+      l.line.setAttribute('x1', gx); l.line.setAttribute('y1', gy); l.line.setAttribute('x2', cx); l.line.setAttribute('y2', cy);
+      l.line.setAttribute('opacity', la); l.dot.setAttribute('cx', gx); l.dot.setAttribute('cy', gy); l.dot.setAttribute('opacity', la);
+    }
+  }
+  labels = labels.filter(l => {
+    if (l.dying && l.alpha < 0.02) { l.el.remove(); l.line.remove(); l.dot.remove(); return false; }
+    return true;
+  });
+}
+
+// ---- scenerna ----
 const SCENES = [
-  { place: null, from: 2000, to: 2000, dur: 7, view: 'sverige',
-    html: () => `<h1>Skogslandet</h1><p>År 2000 täcktes ungefär två tredjedelar av Sverige av skog. Den här berättelsen följer vad som hände med den under 25 år, och hur det gick för fåglarna som bor där.</p>` },
-  { place: 'norrbotten', from: 2000, to: 2025, dur: 16,
-    html: pl => `<h1>Norrbottens inland</h1><p>Gammal barrskog mellan Harads och Vuollerim. Hygge läggs till hygge, år efter år. Inom rutan har <b>${pct(pl.lostShare)}</b> av skogen försvunnit sedan 2001.</p>`
-      + `<p>Här bor fåglar som behöver gammal skog med döda träd och hänglav.</p>` + birds(['Lappmes', 'Tretåig hackspett', 'Videsparv', 'Lavskrika']) },
-  { place: 'gudrun', from: 2003, to: 2008, dur: 11,
-    html: pl => `<h1>Stormen Gudrun</h1><p>Den 8 januari 2005 drog Gudrun in över Götaland. Omkring 75 miljoner kubikmeter skog föll, nästan lika mycket som ett helt års avverkning i Sverige.</p>`
-      + `<p>Här i Kronoberg försvann <b>${pct(pl.lostYear[5])}</b> av skogen på ett enda år.</p>` },
-  { place: 'brand', from: 2012, to: 2020, dur: 11,
-    html: pl => `<h1>Branden i Västmanland</h1><p>Sommaren 2014 brann omkring 14 000 hektar skog, den största skogsbranden i Sverige i modern tid. Inom rutan försvann <b>${pct(pl.lostYear[14])}</b> av skogen det året.</p>`
-      + `<p>En del av brandfältet blev naturreservatet Hälleskogsbrännan, där ny skog nu får växa upp av sig själv.</p>` },
-  { place: 'barkborre', from: 2015, to: 2025, dur: 12,
-    html: pl => `<h1>Torkan och granbarkborren</h1><p>Torkan 2018 försvagade granarna. Granbarkborren förökade sig explosionsartat, och åren efter dog och avverkades gran i stora delar av Götaland och Svealand.</p>`
-      + `<p>Här i Sörmland försvann <b>${pct(pl.lostYear[19] + pl.lostYear[20] + pl.lostYear[21] + pl.lostYear[22])}</b> av skogen 2019–2022.</p>` },
-  { place: 'vinnare', from: 2000, to: 2025, dur: 16,
-    html: pl => `<h1>Ungskogens fåglar</h1><p>Västernorrlands inland är ett lapptäcke av hyggen och ungskog i alla åldrar. Inom rutan har <b>${pct(pl.lostShare)}</b> av skogen huggits sedan 2001.</p>`
-      + `<p>Där skogen huggs växer sly och ungskog upp, och några arter har klarat sig bättre.</p>` + birds(['Orre', 'Järnsparv', 'Trädgårdssångare', 'Dubbeltrast']) },
-  { place: null, from: 2001, to: 2025, dur: 14, view: 'sverige', pulse: true,
-    html: () => { const a = Object.values(skog.arter), down = a.filter(x => x.tydlig && x.skillnad < 0).length, up = a.filter(x => x.tydlig && x.skillnad > 0).length;
-      return `<h1>Hela Sverige</h1><p>Orange: år då det höggs ovanligt mycket. Av ${a.length} skogsfåglar gick <b>${down}</b> tydligt sämre och <b>${up}</b> tydligt bättre där mycket skog höggs.</p>`
-        + `<p class="note">Jämförelsen visar samvariation, inte orsak: där det huggs mycket kan också annat skilja sig.</p>`; } },
+  { place: null, from: 2000, to: 2000, dur: 9, build: () => {
+    label({ kind: 'title', html: 'Skogslandet', ground: natPoint(64.6, 17.0), lift: 1.0, at: 0.2 });
+    fact({ ground: natPoint(62.3, 15.2), lift: 0.8, at: 1.2, lines: ['År 2000 var <b>två tredjedelar</b>', 'av Sverige skog'], delays: [0, 0.6] });
+    fact({ ground: natPoint(57.6, 14.6), lift: 0.6, at: 3.4, lines: ['25 år av hyggen, stormar', 'och skogens fåglar'], delays: [0, 0.8] });
+  } },
+  { place: 'norrbotten', from: 2000, to: 2025, dur: 20, build: pl => {
+    const L = pl.wU;
+    label({ kind: 'title', html: 'Norrbottens inland', ground: placePoint(pl, 0.5, 0.02), lift: 0.3 * L, at: 0.2 });
+    fact({ ground: placePoint(pl, 0.2, 0.3), lift: 0.17 * L, at: 1.2, lines: ['Gammal barrskog mellan', 'Harads och Vuollerim'], delays: [0, 0.5], until: 7.5 });
+    fact({ ground: centroid(pl, range(1, 25)), lift: 0.12 * L, year: 2003, lines: ['Hygge läggs till hygge', '<b data-v>0 %</b> av skogen borta'],
+      delays: [0, 1], value: () => lostUpTo(pl, yf - 2000) });
+    flock({ ground: placePoint(pl, 0.85, 0.2), lift: 0.22 * L, at: 8, head: 'Gammelskogens fåglar', names: ['Lappmes', 'Tretåig hackspett', 'Videsparv', 'Lavskrika'] });
+  } },
+  { place: 'gudrun', from: 2003, to: 2008, dur: 13, build: pl => {
+    const L = pl.wU, c = centroid(pl, [5]);
+    label({ kind: 'title', html: 'Stormen Gudrun', ground: placePoint(pl, 0.5, 0.02), lift: 0.3 * L, at: 0.2 });
+    fact({ ground: c, lift: 0.2 * L, year: 2004.6, lines: ['8 januari 2005', 'Stormen drar in', '<b data-v>0 %</b> av skogen här föll'],
+      delays: [0, 0.8, 1.8], value: () => lostUpTo(pl, yf - 2000, 5, 5) });
+    fact({ ground: placePoint(pl, 0.18, 0.8), lift: 0.12 * L, year: 2006, lines: ['I hela Götaland föll', '<b>75 miljoner</b> m³ skog', 'nästan ett års avverkning i Sverige'], delays: [0, 0.8, 1.8] });
+  } },
+  { place: 'brand', from: 2012, to: 2020, dur: 14, build: pl => {
+    const L = pl.wU, c = centroid(pl, [14]);
+    label({ kind: 'title', html: 'Branden i Västmanland', ground: placePoint(pl, 0.5, 0.02), lift: 0.3 * L, at: 0.2 });
+    fact({ ground: c, lift: 0.22 * L, year: 2013.6, lines: ['Sommaren 2014', '<b data-v>0 %</b> av skogen i rutan brann'],
+      delays: [0, 1.2], value: () => lostUpTo(pl, yf - 2000, 14, 14) });
+    fact({ ground: placePoint(pl, 0.15, 0.82), lift: 0.12 * L, year: 2015.2, lines: ['<b>14 000</b> hektar', 'Sveriges största skogsbrand i modern tid'], delays: [0, 0.8] });
+    fact({ ground: placePoint(pl, 0.85, 0.78), lift: 0.1 * L, year: 2017.5, lines: ['Naturreservatet Hälleskogsbrännan', 'Ny skog får växa upp fritt'], delays: [0, 0.9] });
+  } },
+  { place: 'barkborre', from: 2015, to: 2025, dur: 14, build: pl => {
+    const L = pl.wU, c = centroid(pl, range(19, 22));
+    label({ kind: 'title', html: 'Torkan och granbarkborren', ground: placePoint(pl, 0.5, 0.02), lift: 0.3 * L, at: 0.2 });
+    fact({ ground: placePoint(pl, 0.2, 0.3), lift: 0.15 * L, year: 2017.7, lines: ['Torkan 2018', 'försvagar granarna'], delays: [0, 0.7], untilYear: 2022.5 });
+    fact({ ground: c, lift: 0.2 * L, year: 2018.8, lines: ['Granbarkborren', '<b data-v>0 %</b> av skogen', 'dog eller höggs 2019–2022'],
+      delays: [0, 1, 1.4], value: () => lostUpTo(pl, yf - 2000, 19, 22) });
+  } },
+  { place: 'vinnare', from: 2000, to: 2025, dur: 20, build: pl => {
+    const L = pl.wU;
+    label({ kind: 'title', html: 'Ungskogens fåglar', ground: placePoint(pl, 0.5, 0.02), lift: 0.3 * L, at: 0.2 });
+    fact({ ground: centroid(pl, range(1, 25)), lift: 0.12 * L, year: 2003, lines: ['Ett lapptäcke av hyggen', '<b data-v>0 %</b> av skogen huggen'],
+      delays: [0, 1], value: () => lostUpTo(pl, yf - 2000) });
+    fact({ ground: placePoint(pl, 0.18, 0.78), lift: 0.1 * L, year: 2011, lines: ['Hyggena blir sly', 'och ung skog'], delays: [0, 0.7], untilYear: 2016.5 });
+    flock({ ground: placePoint(pl, 0.85, 0.22), lift: 0.22 * L, at: 9, head: 'Har gått bättre', names: ['Orre', 'Järnsparv', 'Trädgårdssångare', 'Dubbeltrast'] });
+  } },
+  { place: null, from: 2001, to: 2025, dur: 16, pulse: true, build: () => {
+    const a = Object.values(skog.arter);
+    const down = a.filter(x => x.tydlig && x.skillnad < 0).sort((p, q) => p.skillnad - q.skillnad);
+    const up = a.filter(x => x.tydlig && x.skillnad > 0).sort((p, q) => q.rutter - p.rutter).slice(0, 5);
+    label({ kind: 'title', html: 'Hela Sverige', ground: natPoint(64.6, 17.0), lift: 1.0, at: 0.2 });
+    fact({ ground: natPoint(57.0, 14.8), lift: 0.55, at: 1.0, lines: ['Orange: år då det höggs', 'ovanligt mycket'], delays: [0, 0.5], until: 6 });
+    flock({ ground: natPoint(66.3, 20.0), lift: 0.9, at: 3, head: `${down.length} av ${a.length} skogsfåglar gick tydligt sämre`, names: down.map(x => x.namn), foot: ' ' });
+    flock({ ground: natPoint(60.6, 14.2), lift: 0.8, at: 6.5, head: `${a.filter(x => x.tydlig && x.skillnad > 0).length} gick tydligt bättre`, names: up.map(x => x.namn),
+      foot: `där mycket skog höggs. Samvariation, inte orsak.` });
+  } },
 ];
 
 // ---- kameran ----
@@ -315,8 +481,8 @@ function sweden() {
 }
 function closeView(pl) {
   const d = pl.wU * (portrait() ? 2.4 : 1.35);
-  // på stående skärm ligger textrutan överst: sikta lite norr om platsen, så att den hamnar längre ner i bilden
-  const target = new THREE.Vector3(pl.cx, pl.top, pl.cz - (portrait() ? 0.32 * pl.hU : 0));
+  // sikta strax norr om mitten, så att rubriken ovanför platsen får plats i bilden
+  const target = new THREE.Vector3(pl.cx, pl.top, pl.cz - 0.12 * pl.hU);
   return { pos: target.clone().add(new THREE.Vector3(0.25 * d, 0.75 * d, 0.85 * d)), target };
 }
 let flight = null;    // {from, to, t, dur, fadeIn, fadeOut}
@@ -327,15 +493,14 @@ const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
 // ---- uppspelning ----
 let idx = 0, playing = true, yf = 2000, sceneT = 0, phase = 'fly', hold = 0, current = null, natAlpha = 1;
-const storyEl = document.getElementById('story'), yearEl = document.getElementById('year');
+const yearEl = document.getElementById('year');
 const dotsEl = document.getElementById('dots');
 SCENES.forEach((_, i) => { const s = document.createElement('span'); s.onclick = () => go(i); dotsEl.appendChild(s); });
 function go(i) {
   idx = (i + SCENES.length) % SCENES.length;
   const sc = SCENES[idx], pl = sc.place && places[sc.place];
   [...dotsEl.children].forEach((s, k) => s.classList.toggle('on', k === idx));
-  storyEl.classList.add('fade');
-  setTimeout(() => { storyEl.innerHTML = sc.html(pl); storyEl.classList.remove('fade'); }, 350);
+  clearLabels(); sc.build(pl);
   yf = sc.from; sceneT = 0; hold = 0; controls.autoRotate = false;
   const prev = current; current = sc;
   if (pl) pl.mesh.visible = true;
@@ -355,7 +520,7 @@ playBtn.onclick = () => { playing = !playing; playBtn.textContent = playing ? '�
 
 let last = 0;
 function frame(now) {
-  const dt = last ? Math.min((now - last) / 1000, 0.1) : 0; last = now;
+  const dt = last ? Math.min(Math.max(0, (now - last) / 1000), 0.1) : 0; last = now;
   const sc = current, pl = sc && sc.place && places[sc.place];
   if (flight) {
     flight.t = Math.min(1, flight.t + dt / flight.dur);
@@ -377,12 +542,13 @@ function frame(now) {
   if (sc && phase === 'play' && playing) {
     sceneT += dt;
     if (sceneT < sc.dur) yf = sc.from + (sc.to - sc.from) * Math.min(1, sceneT / (sc.dur - 1.5));
-    else { hold += dt; if (hold > 4) go(idx + 1); }
+    else { hold += dt; sceneT += 0; if (hold > 5) go(idx + 1); }
   }
   paintSweden(yf - 2000, sc && sc.pulse);
   if (pl) paintPlace(pl, yf - 2000);
   yearEl.textContent = Math.round(Math.min(yf, 2025));
   controls.update(); renderer.render(scene, camera);
+  updateLabels(dt);
   requestAnimationFrame(frame);
 }
 
