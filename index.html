@@ -79,7 +79,6 @@
   .tripbtn { padding: 6px 12px; font-size: .88rem; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
   .tripbtn.stop::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: pulse 1.6s infinite; }
   @keyframes pulse { 50% { opacity: .25; } }
-  #tripShow { padding: 6px 10px; font-size: .85rem; color: var(--muted); }
 
   /* Djurgrupper med sin figur. Raden kan skrollas i sidled om fler grupper läggs till. */
   #groupSeg { overflow-x: auto; scrollbar-width: none; }
@@ -204,18 +203,13 @@
                                       color: var(--text); text-decoration: none; background: var(--card); }
   .info-links .primary { background: var(--accent); color: #fff; border-color: var(--accent); }
   .small { font-size: .8rem; color: var(--muted); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .tripbtns { display: flex; gap: 8px; }
   /* Stationärt läge (ingen resa): bara en liten ruta som erbjuder resan */
   body:not(.tripview) .chartcard, body:not(.tripview) .topcard, body:not(.tripview) .tripcard { display: none; }
   .tripcard h2 { display: flex; justify-content: space-between; align-items: center; }
-  #tripHide { border: 0; background: transparent; color: var(--muted); font-size: .8rem; padding: 2px 4px; text-transform: none; letter-spacing: 0; }
-  body:not(.tripview) #tripHide, body.triprun #tripHide { display: none; }
-  .tripbtns button { flex: 1; }
   #gpsStatus { font-size: .85rem; color: var(--muted); margin-top: 10px; min-height: 2.6em; line-height: 1.3; white-space: pre-line;
                display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
-  /* Visualiseringar: en ruta per modell, i en rad som kan skrollas i sidled */
-  .viscard h2 { margin-bottom: 8px; }
+  /* Visualiseringar: en ruta per modell */
   .vistiles { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(132px, 1fr); gap: 10px; overflow-x: auto;
               scroll-snap-type: x mandatory; padding-bottom: 2px; }
   .vistile { scroll-snap-align: start; display: flex; flex-direction: column; gap: 2px; text-decoration: none; color: var(--text);
@@ -229,26 +223,24 @@
   @media (max-width: 899px) {
     .layout, .left, .bottomrow, .right { display: contents; }
     .layout { display: flex; flex-direction: column; }
-    .listcard { order: 2; } .mapcard { order: 3; } .viscard { order: 3; } .chartcard { order: 4; } .tripcard { order: 5; } .topcard { order: 6; }
+    .listcard { order: 2; } .mapcard { order: 3; } .chartcard { order: 4; } .tripcard { order: 5; } .topcard { order: 6; }
     .controls { width: 100%; }
     .yearpick { left: 0; right: 0; }
     .seg button { padding: 8px 10px; }
     .brandrow { width: 100%; }
     .brandrow .tripbtn { margin-left: auto; }
-    #tripShow + .tripbtn, .tripbtn + #tripShow:not([hidden]) { margin-left: 0; }
   }
   @media (max-width: 480px) { .brand small { display: none; } }
 
   /* Dator: allt på en skärm */
   @media (min-width: 900px) and (min-height: 560px) {
-    body { height: 100vh; overflow: hidden; }
-    main { max-width: none; height: 100vh; display: flex; flex-direction: column; padding: 12px 16px; }
-    .topbar { margin: 0 0 10px; }
+    body[data-page=explore] { height: 100vh; overflow: hidden; }
+    body[data-page=explore] main { max-width: none; height: 100vh; display: flex; flex-direction: column; padding: 12px 16px; }
+    body[data-page=explore] .topbar { margin: 0 0 10px; }
     .layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(340px, 1fr); gap: 12px; }
     .left { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
-    .card { margin: 0; }
+    .layout .card { margin: 0; }
     .mapcard { flex: 1; display: flex; min-height: 0; }
-    .viscard { flex: none; }
     .vistile svg { max-height: 58px; }
     #map { flex: 1; height: auto; min-height: 200px; }
     .bottomrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
@@ -265,17 +257,97 @@
     .listcard ol.two { column-count: 2; column-gap: 8px; }
     .listcard ol.two li { break-inside: avoid; }
   }
+
+  /* ---- Sidorna: Hem, Utforska och Visualiseringar ---- */
+  body:not([data-page=explore]) .explore-only { display: none !important; }
+  body:not([data-page=home]) .page-home, body:not([data-page=vis]) .page-vis { display: none; }
+  a.brand { color: inherit; text-decoration: none; }
+  .pagenav { display: flex; gap: 4px; }
+  .pagenav a { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 10px; color: var(--muted);
+               text-decoration: none; font-size: .9rem; position: relative; }
+  .pagenav a svg { width: 18px; height: 18px; }
+  .pagenav a.on { color: var(--accent); background: var(--card); box-shadow: inset 0 0 0 1px var(--line); font-weight: 600; }
+  .pagenav a.live::after { content: ''; position: absolute; top: 5px; right: 6px; width: 7px; height: 7px; border-radius: 50%;
+                           background: var(--trip); animation: pulse 1.6s infinite; }
+  @media (max-width: 899px) {
+    /* mobil: flikrad längst ner */
+    .pagenav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 2500; justify-content: space-around; gap: 0;
+               background: var(--card); border-top: 1px solid var(--line); padding: 4px 6px calc(4px + env(safe-area-inset-bottom)); }
+    .pagenav a { flex-direction: column; gap: 1px; font-size: .72rem; padding: 5px 4px; flex: 1; }
+    .pagenav a.on { background: transparent; box-shadow: none; }
+    .pagenav a svg { width: 22px; height: 22px; }
+    main { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+    .toast { bottom: calc(76px + env(safe-area-inset-bottom)) !important; }
+  }
+  @media (min-width: 900px) { .brandrow { flex: 1; } .pagenav { margin-left: 18px; } .brandrow .tripbtn { margin-left: auto; }
+    body:not([data-page=explore]) main { max-width: 1000px; } }
+
+  /* Startsidan */
+  .page-home, .page-vis { max-width: 980px; margin: 0 auto; }
+  .bigbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .bigbtn { display: flex; flex-direction: column; gap: 2px; padding: 16px; border-radius: 16px; text-decoration: none; color: #fff;
+            min-height: 112px; justify-content: flex-end; position: relative; overflow: hidden; }
+  .bigbtn b { font-size: 1.15rem; } .bigbtn span { font-size: .82rem; opacity: .9; }
+  .bigbtn svg.bg { position: absolute; right: -6px; top: -4px; width: 96px; height: 96px; opacity: .28; }
+  .bigbtn.explore { background: linear-gradient(135deg, #2f6b3a, #1f4f2a); }
+  .bigbtn.vis { background: linear-gradient(135deg, #1b2a4a, #05070d); }
+  .homegrid { display: grid; gap: 12px; }
+  @media (min-width: 900px) { .homegrid { grid-template-columns: 1.2fr 1fr; align-items: start; } .homegrid .featured { grid-row: span 2; } }
+  .homegrid .card { margin: 0; }
+  .homecard h2 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .homecard h2 small { text-transform: none; letter-spacing: 0; font-weight: 400; }
+  .featured { padding: 0; overflow: hidden; cursor: pointer; }
+  .featured .fimg { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; display: block; background: var(--line); }
+  .featured .fbody { padding: 12px 14px 14px; }
+  .featured .kicker { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .featured .fname { font-size: 1.5rem; font-weight: 700; line-height: 1.15; margin: 2px 0 6px; }
+  .featured .fmeta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: .85rem; color: var(--muted); }
+  .featured .credit { font-size: .7rem; color: var(--muted); padding: 4px 14px 0; }
+  .featured .credit a { color: inherit; }
+  .rlist { list-style: none; margin: 0; padding: 0; }
+  .rlist li { display: flex; align-items: center; gap: 10px; padding: 7px 2px; border-top: 1px solid var(--line); cursor: pointer; }
+  .rlist li:first-child { border-top: 0; }
+  .rlist .ic { width: 32px; height: 32px; flex: none; display: grid; place-items: center; border-radius: 8px; background: var(--bg); }
+  .rlist .ic img { width: 28px; height: 28px; image-rendering: pixelated; object-fit: contain; }
+  .rlist .ic img.grp { width: 26px; height: 20px; image-rendering: auto; }
+  .rlist .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rlist .nm small { display: block; color: var(--muted); font-size: .76rem; }
+  .rlist .bar { flex: none; width: 70px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+  .rlist .bar i { display: block; height: 100%; background: var(--accent); }
+  .rlist .cnt { color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; min-width: 2.5em; text-align: right; }
+  .rare { font-size: .7rem; font-weight: 600; padding: 2px 7px; border-radius: 999px; white-space: nowrap; border: 1px solid transparent; }
+  .rare.r5 { background: #6741d9; color: #fff; } .rare.r4 { background: #9775fa; color: #fff; }
+  .rare.r3 { background: transparent; color: var(--explore); border-color: var(--explore); }
+  .rare.r2, .rare.r1 { background: var(--bg); color: var(--muted); border-color: var(--line); }
+  .homenote { font-size: .74rem; color: var(--muted); margin: 10px 2px 0; }
+  .tripnow { display: flex; align-items: center; gap: 8px; padding: 10px 14px; margin-bottom: 12px; border-radius: 12px;
+             background: var(--card); border: 1px solid var(--trip); color: var(--text); text-decoration: none; font-size: .9rem; }
+  .tripnow::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--trip); animation: pulse 1.6s infinite; }
+  .tripnow[hidden] { display: none; }
+  /* Visualiseringar som egen sida */
+  .page-vis h1 { font-size: 1.3rem; margin: 4px 2px 2px; }
+  .page-vis p.lead { color: var(--muted); margin: 0 2px 14px; font-size: .92rem; }
+  .page-vis .vistiles { grid-auto-flow: row; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); overflow: visible; gap: 12px; }
+  .page-vis .vistile svg { max-height: none; }
+  .page-vis .vistile b { font-size: 1rem; padding: 8px 12px 0; } .page-vis .vistile span { font-size: .82rem; padding: 0 12px 12px; }
+  .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 20px; z-index: 2600; background: var(--text); color: var(--bg);
+           padding: 10px 16px; border-radius: 12px; font-size: .9rem; box-shadow: 0 6px 20px rgba(0,0,0,.3); max-width: calc(100% - 32px); }
+  .toast[hidden] { display: none; }
 </style>
 </head>
 <body>
 <main>
   <header class="topbar">
     <div class="brandrow">
-      <div class="brand"><img src="icon-192.png" alt="">Artappen <small>Artportalen via GBIF</small></div>
-      <button class="primary tripbtn" id="startBtn" title="Följ dig längs vägen och samla arter, med kurva och topplista">Starta resa</button>
-      <button id="tripShow" hidden title="Visa den sparade resan">Visa resa</button>
+      <a class="brand" href="#hem"><img src="icon-192.png" alt="">Artappen <small>Artportalen via GBIF</small></a>
+      <nav class="pagenav" id="pageNav" aria-label="Sidor">
+        <a href="#hem" data-page="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 11l8-6 8 6v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1z"/></svg><span>Hem</span></a>
+        <a href="#utforska" data-page="explore"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg><span>Utforska</span></a>
+        <a href="#visualiseringar" data-page="vis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19c3-1 4-6 8-6s5 5 8 6"/><circle cx="8" cy="7" r="1.4" fill="currentColor"/><circle cx="13" cy="5" r="1.1" fill="currentColor"/><circle cx="17" cy="8" r="1.6" fill="currentColor"/></svg><span>Visualiseringar</span></a>
+      </nav>
+      <button class="primary tripbtn explore-only" id="startBtn" title="Följ dig längs vägen och samla arter, med kurva och topplista">Resläge</button>
     </div>
-    <div class="controls">
+    <div class="controls explore-only">
       <div class="seg" id="groupSeg" role="group" aria-label="Djurgrupp">
         <button data-group="mammals"><img src="img/mammals.png" alt="">Däggdjur</button>
         <button data-group="birds"><img src="img/birds.png" alt="">Fåglar</button>
@@ -298,13 +370,27 @@
     </div>
   </header>
 
-  <div class="layout">
-    <div class="left">
-      <section class="card mapcard"><div id="map"></div></section>
+  <!-- Startsidan -->
+  <section class="page-home" id="pageHome">
+    <a class="tripnow" id="tripNow" href="#utforska" hidden>Resan pågår · visa resan</a>
+    <div class="bigbtns">
+      <a class="bigbtn explore" href="#utforska"><svg class="bg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg><b>Utforska</b><span>Arterna runt dig, på kartan och i listan. Resläge för bilen.</span></a>
+      <a class="bigbtn vis" href="#visualiseringar"><svg class="bg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19c3-1 4-6 8-6s5 5 8 6"/><circle cx="8" cy="7" r="1.4" fill="currentColor"/><circle cx="13" cy="5" r="1.1" fill="currentColor"/><circle cx="17" cy="8" r="1.6" fill="currentColor"/></svg><b>Visualiseringar</b><span>Flytten, fågelstammarna och skogen</span></a>
+    </div>
+    <div class="homegrid">
+      <section class="card featured" id="featured"><div class="fbody"><div class="kicker">Utvalt nära dig</div><p class="muted">Söker din position…</p></div></section>
+      <section class="card homecard"><h2>Ovanligast nära dig <small>senaste 30 dagarna</small></h2><ol class="rlist" id="rareList"><li class="muted">…</li></ol></section>
+      <section class="card homecard"><h2>Senaste fynden <small>inom 10 km</small></h2><ol class="rlist" id="latestList"><li class="muted">…</li></ol></section>
+      <section class="card homecard"><h2>Vanligast just nu <small>senaste 30 dagarna</small></h2><ol class="rlist" id="topNear"><li class="muted">…</li></ol></section>
+    </div>
+    <p class="homenote" id="homeNote">Fynd från Artportalen via GBIF, som uppdateras ungefär en gång i veckan. Hur ovanlig en art är räknas på alla fynd i Sverige de senaste tio åren.</p>
+  </section>
 
-      <section class="card viscard">
-        <h2>Visualiseringar</h2>
-        <div class="vistiles">
+  <!-- Visualiseringar -->
+  <section class="page-vis" id="pageVis">
+    <h1>Visualiseringar</h1>
+    <p class="lead">Fynden som mönster: flytten genom året, fågelstammarna rutt för rutt och skogen som förändras.</p>
+    <div class="vistiles">
           <a class="vistile" href="flytt/">
             <svg viewBox="0 0 120 64" aria-hidden="true"><rect width="120" height="64" fill="#05070d"/>
               <path d="M52 6 C46 18 44 30 48 42 C50 50 46 56 50 60" fill="none" stroke="#8fa6c8" stroke-width="1" opacity=".6"/>
@@ -347,7 +433,12 @@
               <path d="M78 44 L86 42 L90 45 L82 47 Z" fill="#ffa040"/><path d="M30 49 L36 47 L40 49 L34 51 Z" fill="#7a4a2a"/></svg>
             <b>Skogen</b><span>Hyggen, stormar och fåglarna, en berättelse</span></a>
         </div>
-      </section>
+  </section>
+
+  <div class="layout explore-only">
+    <div class="left">
+      <section class="card mapcard"><div id="map"></div></section>
+
 
       <div class="bottomrow">
         <section class="card chartcard">
@@ -356,11 +447,8 @@
           <div class="small" id="chartInfo"></div>
         </section>
         <section class="card tripcard">
-          <h2>Resa <button id="tripHide" title="Dölj resan (den sparas tills du rensar)">Dölj</button></h2>
+          <h2>Resa</h2>
           <div id="tripSummary" class="tripsum"></div>
-          <div class="tripbtns">
-            <button id="clearBtn">Rensa resan</button>
-          </div>
           <div id="gpsStatus">Resan följer din position och hämtar nya arter var 300:e meter.</div>
         </section>
       </div>
@@ -383,6 +471,7 @@
     </div>
   </div>
 </main>
+<div class="toast" id="toast" role="status" hidden></div>
 
 <!-- Informationskort om en art -->
 <div class="sheet-backdrop" id="infoBackdrop" hidden>
@@ -1010,6 +1099,7 @@ async function openInfo(it) {
     it.last ? `senast ${it.last}` : '',
     th ? `<b class="badge ${th.code.toLowerCase()}">${th.code}</b>${th.sv} · Rödlistan 2025` : '',
     sub ? `${THREAT[sub.st].code}: gäller underarten ${esc(sub.ssp)}` : '',
+    rarityFact(it.key),
   ].filter(Boolean);
   const head = `<h2 id="infoTitle">${esc(name)}</h2>${it.sci ? `<div class="info-sci">${esc(it.sci)}</div>` : ''}` +
     (facts.length ? `<div class="info-facts">${facts.map(f => `<span>${f}</span>`).join('')}</div>` : '');
@@ -1363,6 +1453,7 @@ function onFix(p) {
   showPosition(p);
   if (first) { first = false; timer ??= setInterval(maybeUpdate, 5_000); update(); }
   else maybeUpdate();
+  if (document.body.dataset.page === 'home') loadHome();   // startsidan väntar på positionen (hämtar bara om man flyttat sig)
   if (datesPaused && mode === 'gps' && !isFast()) renderCurrent(); // saktat in: visa datumen igen
 }
 
@@ -1375,7 +1466,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 
 function setTripButton(running) {
   const b = $('startBtn');
-  b.textContent = running ? 'Avsluta resa' : 'Starta resa';
+  b.textContent = running ? 'Avsluta resa' : 'Resläge';
   b.classList.toggle('primary', !running);
   b.classList.toggle('stop', running);
 }
@@ -1384,7 +1475,8 @@ function setTripView(on) {
   tripView = on; save(TRIPVIEW_KEY, on);
   document.body.classList.toggle('tripview', on);
   document.body.classList.toggle('triprun', tripOn);
-  $('tripShow').hidden = on || !track.length;
+  $('tripNow').hidden = !tripOn;
+  document.querySelector('#pageNav a[data-page=explore]').classList.toggle('live', tripOn);
   requestAnimationFrame(() => { map.invalidateSize(); drawChart(); });
 }
 
@@ -1403,7 +1495,14 @@ function locate() {
   }, { enableHighAccuracy: true, maximumAge: 5_000, timeout: 60_000 });
 }
 
+// Varje resa börjar från noll: den förra resans punkter, kurva och topplista tas bort.
+function newTrip() {
+  track = []; save(TRACK_KEY, track);
+  tripSpecies = {}; save(TRIP_KEY, tripSpecies); lastNew = null;
+  drawChart(); drawTrack(); renderTrip();
+}
 function start() {
+  newTrip();
   tripOn = true;
   setTripView(true);
   keepAwake();
@@ -1413,8 +1512,8 @@ function start() {
   if (pos) { if (mode !== 'gps') setMode('gps'); update(); }
 }
 
-// Avsluta resan: positionen följs vidare som vanligt, men inga fler punkter sparas.
-// Resan och kurvan finns kvar tills man rensar.
+// Avsluta resan: positionen följs vidare som vanligt, och resans rutor och spår försvinner.
+// En kort sammanfattning visas en stund.
 function stop() {
   tripOn = false;
   candidates = [];
@@ -1422,9 +1521,17 @@ function stop() {
   setTripButton(false);
   document.body.classList.remove('triprun');
   let km = 0; for (let i = 1; i < track.length; i++) km += distKm(track[i - 1], track[i]);
-  setGps(track.length ? `Resan avslutad · ${track.length} mätningar · ${km.toFixed(1)} km\nStarta igen för att fortsätta, eller rensa för att börja om.`
-                      : 'Resan avslutad.');
+  const bucket = tripSpecies[yearId()] || {};
+  const species = Object.values(bucket).reduce((n, g) => n + Object.keys(g).length, 0);
+  toast(track.length ? `Resan avslutad · ${km.toFixed(1).replace('.', ',')} km · ${species} arter` : 'Resan avslutad');
+  setTripView(false);
+  trackLine.setLatLngs([]);
   renderCurrent(); // ta bort NY-märkningen
+}
+let toastTimer = null;
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 6000);
 }
 
 // ---- Filter: djurgrupp och år ----
@@ -1484,28 +1591,151 @@ $('yearChips').onclick = e => {
 $('yearFrom').onchange = e => { filter.from = e.target.value ? +e.target.value : null; applyFilter(); };
 $('yearTo').onchange = e => { filter.to = e.target.value ? +e.target.value : null; applyFilter(); };
 $('startBtn').onclick = () => tripOn ? stop() : start();
-$('tripHide').onclick = () => setTripView(false);
-$('tripShow').onclick = () => setTripView(true);
-$('clearBtn').onclick = () => {
-  if (track.length && !confirm('Rensa hela resan, kurvan och topplistan?')) return;
-  track = []; save(TRACK_KEY, track);
-  tripSpecies = {}; save(TRIP_KEY, tripSpecies); lastNew = null;
-  drawChart(); drawTrack(); renderTrip();
-  if (!tripOn) setTripView(false);
-};
 $('topSeg').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
   topMode = b.dataset.top; save(TOP_KEY, topMode); renderTrip();
 };
 
+
+// ---- Sidorna: Hem, Utforska och Visualiseringar (#hem, #utforska, #visualiseringar) ----
+const PAGES = { '#utforska': 'explore', '#visualiseringar': 'vis' };
+function showPage() {
+  const page = PAGES[location.hash] || 'home';
+  const was = document.body.dataset.page;
+  document.body.dataset.page = page;
+  document.querySelectorAll('#pageNav a').forEach(a => a.classList.toggle('on', a.dataset.page === page));
+  if (page !== was) window.scrollTo(0, 0);
+  if (page === 'explore') requestAnimationFrame(() => { map.invalidateSize(); drawChart(); });
+  if (page === 'home') loadHome();
+}
+addEventListener('hashchange', showPage);
+
+// ---- Hur ovanlig är arten i Sverige? ----
+// data/raritet.json (tools/raritet.py): antal fynd per art i Artportalen de senaste tio åren.
+// Klassen jämför med gruppens vanligaste art, logaritmiskt (lr = log10 av hur många gånger färre fynd):
+// under en tusendel = mycket sällsynt, en hundradel = sällsynt, 5 % = ovanlig, 30 % = vanlig.
+const RARE = [[3, 'Mycket sällsynt', 'r5'], [2, 'Sällsynt', 'r4'], [1.3, 'Ovanlig', 'r3'], [0.5, 'Vanlig', 'r2'], [-1, 'Mycket vanlig', 'r1']];
+let rarity = null, rarityYears = '';
+const rarityReady = fetch('data/raritet.json').then(r => r.ok ? r.json() : null).then(d => {
+  if (!d) return;
+  rarity = {}; rarityYears = d.years.replace(',', '–');
+  for (const [g, m] of Object.entries(d.grupper)) {
+    const max = Math.max(...Object.values(m));
+    for (const [k, n] of Object.entries(m)) rarity[k] = { g, n, lr: Math.log10(max / n) };
+  }
+}).catch(() => {});
+function rarityOf(key) {
+  if (!rarity) return null;
+  const r = rarity[key], lr = r ? r.lr : 9;            // saknas = inga fynd på tio år
+  const [, label, cls] = RARE.find(x => lr >= x[0]);
+  return { label, cls, n: r ? r.n : 0, lr };
+}
+const rarePill = key => { const r = rarityOf(key); return r ? `<span class="rare ${r.cls}">${r.label}</span>` : ''; };
+function rarityFact(key) {
+  const r = rarityOf(key); if (!r) return '';
+  return `<span class="rare ${r.cls}">${r.label}</span> i Sverige · ${fmtN(r.n)} fynd ${rarityYears}`;
+}
+
+// ---- Startsidan: det som hänt nära dig senaste tiden ----
+const HOME_KM = 10, HOME_DAYS = 30;
+let homeRes = null, homeSeq = 0, homeBusy = false;
+const GROUP_IMG = { mammals: 'img/mammals.png', birds: 'img/birds.png', herps: 'img/herps.png' };
+const allTaxa = () => Object.values(GROUPS).map(taxonParam).join('');
+// GBIF svarar ibland "för många anrop" (429): då väntar throttled och försöker igen
+const getJSON = url => throttled(async () => { const r = await fetch(url); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+async function loadHome() {
+  if (!pos) {
+    if (!homeRes) $('featured').innerHTML = '<div class="fbody"><div class="kicker">Utvalt nära dig</div><p class="muted">Söker din position…</p></div>';
+    return;
+  }
+  const here = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+  if (homeBusy || (homeRes && distKm(homeRes, here) < 1 && Date.now() - homeRes.t < 30 * 60_000)) return;
+  const my = ++homeSeq; homeBusy = true;
+  const geo = `&geoDistance=${here.lat},${here.lon},${HOME_KM}km`;
+  const date = days => `&eventDate=${ymd(addDays(new Date(), -days))},${ymd(new Date())}`;
+  try {
+    await rarityReady;
+    // arterna per djurgrupp senaste 30 dagarna
+    const fac = await Promise.all(Object.entries(GROUPS).map(async ([gid, g]) => {
+      const d = await getJSON(`${OCC}?datasetKey=${DATASET}${taxonParam(g)}${geo}${date(HOME_DAYS)}&occurrenceStatus=PRESENT&limit=0&facet=speciesKey&facetLimit=1000`);
+      return (d.facets?.[0]?.counts || []).map(c => ({ key: c.name, n: c.count, gid }));
+    }));
+    // senaste fynden: kortaste tidsfönster som ger några fynd (GBIF kan inte sortera på datum)
+    let latest = [];
+    for (const days of [7, 14, HOME_DAYS]) {
+      const d = await getJSON(`${OCC}?datasetKey=${DATASET}${allTaxa()}${geo}${date(days)}&occurrenceStatus=PRESENT&limit=300`);
+      latest = d.results || [];
+      if (latest.length >= 12 || days === HOME_DAYS) break;
+    }
+    if (my !== homeSeq) return;
+    const species = fac.flat();
+    const keyGroup = Object.fromEntries(species.map(s => [s.key, s.gid]));
+    latest = latest.filter(o => o.speciesKey && o.eventDate)
+      .map(o => ({ key: String(o.speciesKey), date: o.eventDate.slice(0, 10), gid: keyGroup[o.speciesKey],
+                   km: distKm(here, { lat: o.decimalLatitude, lon: o.decimalLongitude }) }))
+      .sort((a, b) => b.date.localeCompare(a.date));
+    const seen = new Set(); latest = latest.filter(o => !seen.has(o.key) && seen.add(o.key)).slice(0, 6);
+    const rare = species.slice().sort((a, b) => (rarityOf(b.key)?.lr ?? 0) - (rarityOf(a.key)?.lr ?? 0)).slice(0, 6);
+    const top = species.slice().sort((a, b) => b.n - a.n).slice(0, 5);
+    const keys = [...new Set([...rare, ...latest, ...top].map(x => x.key))];
+    await mapLimit(keys, 3, k => speciesName(k));
+    loadAllRedlists().catch(() => {});
+    if (my !== homeSeq) return;
+    homeRes = { ...here, t: Date.now(), species, latest, rare, top };
+    renderHome();
+  } catch (e) {
+    if (my === homeSeq) $('featured').innerHTML = `<div class="fbody"><div class="kicker">Utvalt nära dig</div><p class="muted">Kunde inte hämta fynden just nu.</p></div>`;
+  } finally { homeBusy = false; }
+}
+const nameOf = k => names[k]?.swe || names[k]?.sci || '…';
+function icon(key, gid) {
+  const pal = palettes[key];
+  return `<span class="ic">${pal ? `<img src="${esc(pal.sprite)}" alt="">` : `<img class="grp" src="${GROUP_IMG[gid] || GROUP_IMG.birds}" alt="">`}</span>`;
+}
+const dayText = d => { const diff = Math.round((new Date(ymd(new Date())) - new Date(d)) / 864e5);
+  return diff <= 0 ? 'idag' : diff === 1 ? 'igår' : `${+d.slice(8, 10)} ${MON[+d.slice(5, 7) - 1]}`; };
+function homeRow(x, right, sub) {
+  return `<li data-key="${x.key}" data-gid="${x.gid || ''}">${icon(x.key, x.gid)}<span class="nm">${esc(nameOf(x.key))}${sub ? `<small>${sub}</small>` : ''}</span>${right}</li>`;
+}
+async function renderHome() {
+  const h = homeRes; if (!h) return;
+  const none = '<li class="muted">Inga fynd inom 10 km den senaste tiden.</li>';
+  $('rareList').innerHTML = h.rare.map(x => homeRow(x, rarePill(x.key), `${fmtN(x.n)} obs. nära dig`)).join('') || none;
+  $('latestList').innerHTML = h.latest.map(x => homeRow(x, `<span class="cnt">${dayText(x.date)}</span>`, `${x.km.toFixed(1).replace('.', ',')} km bort`)).join('') || none;
+  const max = h.top[0]?.n || 1;
+  $('topNear').innerHTML = h.top.map(x => homeRow(x, `<span class="bar"><i style="width:${x.n / max * 100}%"></i></span><span class="cnt">${fmtN(x.n)}</span>`)).join('') || none;
+  // utvald: den ovanligaste arten nära dig, med bild
+  const f = h.rare[0], el = $('featured');
+  if (!f) { el.innerHTML = '<div class="fbody"><div class="kicker">Utvalt nära dig</div><p class="muted">Inga fynd inom 10 km den senaste månaden.</p></div>'; return; }
+  const r = rarityOf(f.key), th = THREAT[redlist[f.key]];
+  const meta = `${r ? `<span class="rare ${r.cls}">${r.label}</span>` : ''}${th ? `<b class="badge ${th.code.toLowerCase()}">${th.code}</b>` : ''}<span>${fmtN(f.n)} obs. inom 10 km senaste månaden</span>`;
+  const body = `<div class="fbody"><div class="kicker">Utvalt nära dig</div><div class="fname">${esc(nameOf(f.key))}</div><div class="fmeta">${meta}</div></div>`;
+  el.innerHTML = body;
+  el.onclick = () => openInfo({ key: f.key, swe: names[f.key]?.swe, sci: names[f.key]?.sci, n: f.n, gid: f.gid, where: 'inom 10 km senaste 30 dagarna' });
+  try {
+    const info = await speciesInfo(f.key, names[f.key]?.sci);
+    if (homeRes !== h || !info.img) return;
+    el.innerHTML = `<img class="fimg" src="${esc(info.img.src)}" alt="${esc(nameOf(f.key))}">`
+      + `<div class="credit">Foto: <a href="${esc(info.img.page)}" target="_blank" rel="noopener">${esc(info.img.artist)}</a>${info.img.license ? ` · ${esc(info.img.license)}` : ''} · Wikimedia Commons</div>` + body;
+    el.querySelector('.credit a').onclick = e => e.stopPropagation();
+  } catch {}
+}
+['rareList', 'latestList', 'topNear'].forEach(id => $(id).onclick = e => {
+  const li = e.target.closest('li[data-key]'); if (!li) return;
+  const k = li.dataset.key, x = homeRes?.species.find(s => s.key === k);
+  openInfo({ key: k, swe: names[k]?.swe, sci: names[k]?.sci, n: x?.n, gid: li.dataset.gid || x?.gid || 'birds', where: 'inom 10 km senaste 30 dagarna' });
+});
+
 fillYears();
-setTripView(tripView && track.length > 0);
+// En resa pågår bara medan appen är öppen: vid start finns ingen pågående resa, och en gammal visas inte.
+if (track.length) newTrip();
+setTripView(false);
 syncControls();
 renderCurrent();
 drawChart();
 drawTrack();
 renderTrip();
-if (tripView && track.length) map.fitBounds(trackLine.getBounds().pad(0.3), { maxZoom: 12 }); // en kort resa ska inte ge maxzoom
+showPage();
 new ResizeObserver(() => map.invalidateSize()).observe($('map'));
 new ResizeObserver(() => drawChart()).observe($('chart'));
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(e => console.warn('Service worker:', e));
