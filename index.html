@@ -123,6 +123,7 @@
                  border-radius: 8px; overflow: hidden; font-size: .9rem; cursor: pointer; }
   .listcard li:hover { box-shadow: inset 0 0 0 1px var(--muted); }
   .listcard li.sel { box-shadow: inset 0 0 0 2px var(--sel); }
+  #list, #justHere { position: relative; }
   li .barfill { position: absolute; inset: 0 auto 0 0; background: var(--bar); z-index: 0; border-radius: 8px; }
   li > span { position: relative; z-index: 1; }
   li .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -359,7 +360,7 @@
   .justhere .nm small { color: var(--muted); font-size: .72rem; }
   .justhere .nm small.typ { color: var(--trip); font-weight: 600; }
   .justhere .empty { grid-column: 1 / -1; color: var(--muted); font-size: .88rem; background: none; border: 0; cursor: default; }
-  #strip { width: 100%; height: 200px; display: block; border-radius: 10px; background: #0b0f14; }
+  #strip { width: 100%; height: 220px; display: block; border-radius: 12px; background: #0a1020; }
   .striplegend { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: .72rem; color: var(--muted); margin-top: 6px; }
   .striplegend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: 0; }
   /* när resan startar: rutan glider fram och en radarring vidgas */
@@ -388,8 +389,8 @@
   .tripend .typ { margin-top: 10px; }
   .tripend .typ div { font-size: .9rem; margin: 4px 0; }
   .tripend .typ i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
-  @media (max-width: 899px) { .tripstage { order: 1; } .justhere { grid-template-columns: 1fr 1fr; } #strip { height: 180px; } }
-  @media (min-width: 900px) and (min-height: 560px) { .left .tripstage { flex: none; } body.tripview .mapcard { min-height: 160px; } #strip { height: 150px; } }
+  @media (max-width: 899px) { .tripstage { order: 1; } .justhere { grid-template-columns: 1fr 1fr; } #strip { height: 210px; } }
+  @media (min-width: 900px) and (min-height: 560px) { .left .tripstage { flex: none; } body.tripview .mapcard { min-height: 160px; } #strip { height: 190px; } }
 </style>
 </head>
 <body>
@@ -921,6 +922,56 @@ function loadRedlist(cls, rank = 'CLASS') {
   })().catch(e => { delete redlistLoads[cls]; throw e; });
 }
 
+
+// ---- Smidiga byten ----
+// Mät var raderna stod, rita om, och låt dem sedan glida till sina nya platser. Nya rader tonar in,
+// rader som försvinner tonar ut där de stod, och tal och staplar glider till sina nya värden.
+const calm = matchMedia('(prefers-reduced-motion: reduce)');
+const numOf = t => +String(t || '').replace(/[^\d]/g, '');
+function tweenNumber(el, from, to) {
+  if (from === to || !el) return;
+  const t0 = performance.now(), d = 650;
+  const step = now => { const t = Math.min(1, (now - t0) / d), e = 1 - (1 - t) ** 3;
+    el.textContent = fmtN(Math.round(from + (to - from) * e)); if (t < 1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
+function flip(container, render, keyOf = el => el.dataset.key) {
+  // en ny uppdatering mitt i en annan: avsluta rörelserna och ta bort kopiorna först, så att inget lägger sig på varandra
+  container.querySelectorAll('.ghost').forEach(g => g.remove());
+  container.getAnimations({ subtree: true }).forEach(a => a.finish());
+  const busy = performance.now() - (container._flipAt || 0) < 900; container._flipAt = performance.now();
+  const before = new Map();
+  container.querySelectorAll('[data-key]').forEach(el => {
+    const k = keyOf(el); if (!k || before.has(k)) return;
+    before.set(k, { el, r: el.getBoundingClientRect(), bar: el.querySelector('.barfill')?.style.width, cnt: numOf(el.querySelector('.cnt')?.textContent) });
+  });
+  render();
+  if (calm.matches || !before.size) return;
+  const seen = new Set();
+  container.querySelectorAll('[data-key]').forEach(el => {
+    const k = keyOf(el); if (!k || seen.has(k)) return; seen.add(k);
+    const b = before.get(k), r = el.getBoundingClientRect();
+    if (!b) { el.animate([{ opacity: 0, transform: 'translateX(18px) scale(.97)' }, { opacity: 1, transform: 'none' }],
+                         { duration: 520, delay: 120, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' }); return; }
+    const dx = b.r.left - r.left, dy = b.r.top - r.top;
+    if (Math.abs(dx) + Math.abs(dy) > 1) el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }],
+                                                     { duration: 650, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    const bar = el.querySelector('.barfill');
+    if (bar && b.bar && b.bar !== bar.style.width) bar.animate([{ width: b.bar }, { width: bar.style.width }], { duration: 700, easing: 'ease-out' });
+    const cnt = el.querySelector('.cnt'); if (cnt && b.cnt && /^\d/.test(cnt.textContent)) tweenNumber(cnt, b.cnt, numOf(cnt.textContent));
+  });
+  // de som försvann: en kopia tonar ut där raden stod
+  const now = container.getBoundingClientRect();
+  for (const [k, b] of before) {
+    if (seen.has(k) || busy) continue;
+    const g = b.el.cloneNode(true); g.classList.add('ghost');
+    Object.assign(g.style, { position: 'absolute', margin: 0, pointerEvents: 'none', zIndex: 3, width: b.r.width + 'px', height: b.r.height + 'px',
+      left: (b.r.left - now.left + container.scrollLeft) + 'px', top: (b.r.top - now.top + container.scrollTop) + 'px' });
+    container.appendChild(g);
+    g.animate([{ opacity: 1 }, { opacity: 0, transform: 'translateX(-18px)' }], { duration: 450, easing: 'ease-in' }).onfinish = () => g.remove();
+  }
+}
+
 // ---- Artlistan ----
 function speciesRow(it, max) {
   const li = document.createElement('li');
@@ -1003,6 +1054,7 @@ function renderList(items) {
   // Rödlistade arter står kvar på sin plats i listan (med etikett) och samlas dessutom under listan.
   const threatened = threatenedOf(items);
   const scroll = list.parentElement.scrollTop;
+  flip(list, () => {
   list.innerHTML = '';
   const shown = expanded ? items : items.slice(0, TOP_N);
   const ol = document.createElement('ol');
@@ -1026,6 +1078,7 @@ function renderList(items) {
     list.appendChild(box);
   }
   list.parentElement.scrollTop = scroll;
+  }, el => el.dataset.key + (el.closest('.redgroup') ? '·r' : ''));
 }
 
 // ---- Resesammanfattning ----
@@ -1757,23 +1810,14 @@ function renderJustHere() {
     .sort((a, b) => b.score - a.score).slice(0, 6);
   const missing = top.filter(x => !names[x.k]);
   if (missing.length) Promise.all(missing.map(x => speciesName(x.k))).then(() => renderJustHere());
-  ol.querySelector('.empty')?.remove();
-  const old = new Map([...ol.children].map(li => [li.dataset.key, li]));
-  for (const [k, li] of old) if (!top.some(x => x.k === k) && !li.classList.contains('leave')) {
-    li.classList.add('leave'); setTimeout(() => li.remove(), 500);
-  }
-  top.forEach((x, i) => {
-    let li = old.get(x.k);
-    const typ = pts.length > 3 && x.n >= 3 && x.n > 2.5 * x.m + 2;   // klart vanligare här än på resten av resan
-    const html = `${spIcon(x.k, g)}<span class="nm"><b>${esc(nameOf(x.k))}</b><small class="${typ ? 'typ' : ''}">${typ ? 'typisk just här' : `${fmtN(x.n)} obs.`}</small></span>`;
-    if (!li || li.classList.contains('leave')) {
-      li = document.createElement('li'); li.dataset.key = x.k; li.className = 'enter';
-      li.onclick = () => openInfo({ key: x.k, n: x.n, ...(names[x.k] || {}), gid: g, where: 'vid senaste punkten på resan' });
-      requestAnimationFrame(() => requestAnimationFrame(() => li.classList.remove('enter')));
-    }
-    li.innerHTML = html;
-    ol.insertBefore(li, ol.children[i] || null);
+  flip(ol, () => {
+    ol.innerHTML = top.map(x => {
+      const typ = pts.length > 3 && x.n >= 3 && x.n > 2.5 * x.m + 2;   // klart vanligare här än på resten av resan
+      return `<li data-key="${x.k}">${spIcon(x.k, g)}<span class="nm"><b>${esc(nameOf(x.k))}</b><small class="${typ ? 'typ' : ''}">${typ ? 'typisk just här' : `${fmtN(x.n)} obs.`}</small></span></li>`;
+    }).join('');
   });
+  ol.onclick = e => { const li = e.target.closest('li[data-key]'); if (!li) return; const x = top.find(t => t.k === li.dataset.key);
+    if (x) openInfo({ key: x.k, n: x.n, ...(names[x.k] || {}), gid: g, where: 'vid senaste punkten på resan' }); };
   if (!top.length) ol.innerHTML = '<li class="empty">Inga observationer just här.</li>';
 }
 
@@ -1802,50 +1846,121 @@ function stripModel(pts, maxRows) {
     .sort((a, b) => b.score - a.score).slice(0, maxRows).sort((a, b) => a.first - b.first || b.sum - a.sum);
   return rows;
 }
+// Fast slump per punkt, så att träd och hus står still när snittet ritas om
+const rnd = (seed, i) => { const x = Math.sin(seed * 12.9898 + i * 78.233) * 43758.5453; return x - Math.floor(x); };
+const GROUND = { aker: ['#c9a542', '#e3c45a'], oppen: ['#7f9a4a', '#9fb862'], vatmark: ['#7d5f97', '#a77fc4'], vatten: ['#2f6aa8', '#4f8fd6'],
+                 bebyggt: ['#4f5560', '#6b717c'], hygge: ['#7a6236', '#a8894a'], skog: ['#1f4a26', '#2b5e32'], sumpskog: ['#234a40', '#2f6152'] };
 function paintStrip(cv, pts, W, H, shift, opts = {}) {
   const ctx = cv.getContext('2d'), g = filter.group;
-  ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = '#0b0f14'; ctx.fillRect(0, 0, W, H);
   // i början av resan får varje punkt mer plats, så att snittet fyller bredden; sedan rullar det
   const col = opts.col || Math.min(36, Math.max(COL, W / Math.max(1, pts.length))), n = Math.min(pts.length, Math.ceil(W / col) + 1);
   const vis = pts.slice(-n);
   const xOf = i => W - (vis.length - 1 - i) * col - col / 2 + shift;
-  // biotoperna
+  const LAND = Math.round(H * 0.42), groundY = H - 16, top = 16;
+  // himmel i skymning
+  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, '#0a1020'); sky.addColorStop(0.65, '#14203a'); sky.addColorStop(1, '#2a2f45');
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+  // ljus vid horisonten och avlägsna åsar bakom träden, för djup
+  const glow = ctx.createLinearGradient(0, groundY - LAND, 0, groundY);
+  glow.addColorStop(0, 'rgba(255,170,90,0)'); glow.addColorStop(1, 'rgba(255,170,90,.16)');
+  ctx.fillStyle = glow; ctx.fillRect(0, groundY - LAND, W, LAND);
+  const off = (pts.length - vis.length) * col - shift;   // åsarna följer med när snittet rullar, men långsammare
+  ctx.fillStyle = 'rgba(30,40,62,.9)'; ctx.beginPath(); ctx.moveTo(0, groundY);
+  for (let x = 0; x <= W; x += 4) { const u = (x + off * 0.35) / 90; ctx.lineTo(x, groundY - LAND * 0.45 - Math.sin(u) * 7 - Math.sin(u * 2.7 + 1) * 4); }
+  ctx.lineTo(W, groundY); ctx.fill();
+  // ---- landskapet ----
   vis.forEach((p, i) => {
-    let y = H; const x = xOf(i) - col / 2;
-    if (!p.bio) { ctx.fillStyle = '#1b2230'; ctx.fillRect(x, H - BIO_H, col + 0.5, BIO_H); return; }
-    for (const b of BIO) { const v = p.bio[b.id]; if (!v) continue;
-      const h = v * BIO_H; ctx.fillStyle = b.color; ctx.fillRect(x, y - h, col + 0.5, h + 0.5); y -= h; }
-  });
-  // arterna
-  const top = 18, rowsH = H - BIO_H - top - 6;
-  const rows = stripModel(vis, Math.max(3, Math.floor(rowsH / 17)));
-  const rh = rows.length ? rowsH / rows.length : 0;
-  ctx.font = '600 11px -apple-system, Segoe UI, sans-serif'; ctx.textBaseline = 'middle';
-  rows.forEach((r, ri) => {
-    const cy = top + rh * (ri + 0.5), maxT = Math.min(rh - 3, 13), color = spColor(r.k);
-    ctx.fillStyle = color; ctx.globalAlpha = 0.9;
-    const th = p => { const v = share(p, g, r.k); return v ? 1.5 + (maxT - 1.5) * Math.sqrt(v / r.max) : 0; };
-    for (let i = 0; i < vis.length; i++) {
-      const a = th(vis[i]); if (!a) continue;
-      const b = i + 1 < vis.length ? th(vis[i + 1]) : 0, x0 = xOf(i), x1 = x0 + col;
-      if (b) { ctx.beginPath(); ctx.moveTo(x0, cy - a / 2); ctx.lineTo(x1, cy - b / 2); ctx.lineTo(x1, cy + b / 2); ctx.lineTo(x0, cy + a / 2); ctx.fill(); }
-      else { ctx.beginPath(); ctx.arc(x0, cy, Math.max(a / 2, 1.5), 0, 7); ctx.fill(); }
+    const x0 = xOf(i) - col / 2, seed = (p.t % 100000) / 7;
+    const bio = p.bio || {};
+    // marken: de öppna biotoperna i lager, nerifrån
+    let y = H;
+    const groundCats = ['vatten', 'vatmark', 'aker', 'oppen', 'bebyggt', 'hygge'];
+    const gsum = groundCats.reduce((a, k) => a + (bio[k] || 0), 0) || 0;
+    const gh = H - groundY;
+    if (!p.bio) { ctx.fillStyle = '#1b2230'; ctx.fillRect(x0, groundY, col + 0.6, gh); }
+    else if (!gsum) { ctx.fillStyle = GROUND.skog[0]; ctx.fillRect(x0, groundY, col + 0.6, gh); }
+    else for (const k of groundCats) {
+      const v = (bio[k] || 0) / gsum; if (!v) continue; const h = v * gh;
+      ctx.fillStyle = GROUND[k][0]; ctx.fillRect(x0, y - h, col + 0.6, h + 0.6);
+      // åker: fåror; vatten: krusningar; våtmark: vass
+      ctx.strokeStyle = GROUND[k][1]; ctx.lineWidth = 1; ctx.beginPath();
+      if (k === 'aker') for (let yy = y - h + 2; yy < y; yy += 3) { ctx.moveTo(x0, yy); ctx.lineTo(x0 + col, yy); }
+      if (k === 'vatten') for (let yy = y - h + 2; yy < y; yy += 4) { ctx.moveTo(x0, yy); ctx.quadraticCurveTo(x0 + col / 2, yy - 1.5, x0 + col, yy); }
+      ctx.stroke();
+      y -= h;
     }
-    ctx.globalAlpha = 1;
-    // namnet där arten dyker upp, eller till vänster om den funnits hela tiden
-    let at = vis.findIndex(p => p.sp[g]?.[r.k]); const x = Math.max(4, xOf(at) + 4);
-    const label = nameOf(r.k);
-    ctx.fillStyle = 'rgba(11,15,20,.75)'; const w = ctx.measureText(label).width;
-    ctx.fillRect(x - 2, cy - 7, w + 4, 14);
-    ctx.fillStyle = '#e8ecf5'; ctx.fillText(label, x, cy);
+    // ovanpå marken: träd, hyggen, vass och hus, så tätt som biotopen tar plats
+    const slots = Math.max(1, Math.round(col / 4.5));
+    for (let s = 0; s < slots; s++) {
+      const r = rnd(seed, s), x = x0 + (s + 0.5) * col / slots + (rnd(seed, s + 50) - 0.5) * 2;
+      let acc = 0, kind = null;
+      for (const [k, v] of Object.entries(bio)) { acc += v; if (r < acc) { kind = k; break; } }
+      if (kind === 'skog' || kind === 'sumpskog') {           // gran: en smal triangel
+        const h = (kind === 'skog' ? 16 : 11) + rnd(seed, s + 9) * (LAND - 24), w = 3 + h * 0.22;
+        ctx.fillStyle = kind === 'skog' ? (rnd(seed, s + 3) > 0.5 ? '#1f5a2c' : '#2a6b35') : '#2c6457';
+        ctx.beginPath(); ctx.moveTo(x, groundY - h); ctx.lineTo(x - w / 2, groundY); ctx.lineTo(x + w / 2, groundY); ctx.fill();
+      } else if (kind === 'hygge') {                          // stubbar och plantor
+        ctx.fillStyle = '#8a6d3e'; ctx.fillRect(x - 1, groundY - 3, 2, 3);
+        ctx.fillStyle = '#7fb04a'; ctx.beginPath(); ctx.arc(x + 2, groundY - 4, 1.6 + rnd(seed, s + 7) * 1.5, 0, 7); ctx.fill();
+      } else if (kind === 'bebyggt') {                        // hus med tända fönster
+        const h = 6 + rnd(seed, s + 4) * 14, w = Math.min(col / slots, 7);
+        ctx.fillStyle = '#3c414c'; ctx.fillRect(x - w / 2, groundY - h, w, h);
+        ctx.fillStyle = '#ffd77a'; if (rnd(seed, s + 6) > 0.35) ctx.fillRect(x - 1, groundY - h + 2, 1.6, 1.6);
+        if (h > 12 && rnd(seed, s + 8) > 0.4) ctx.fillRect(x - 1, groundY - h + 6, 1.6, 1.6);
+      } else if (kind === 'vatmark') {                        // vass
+        ctx.strokeStyle = '#b79bd1'; ctx.lineWidth = 1; ctx.beginPath();
+        for (let q = -1; q <= 1; q++) { ctx.moveTo(x + q * 1.5, groundY); ctx.lineTo(x + q * 2.2, groundY - 5 - rnd(seed, s + q + 20) * 4); }
+        ctx.stroke();
+      } else if (kind === 'oppen') {                          // gräs
+        ctx.strokeStyle = '#a9c46c'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, groundY); ctx.lineTo(x - 1, groundY - 3); ctx.moveTo(x, groundY); ctx.lineTo(x + 1.5, groundY - 3); ctx.stroke();
+      }
+    }
   });
-  // avstånd: en markering per kilometer
-  ctx.fillStyle = 'rgba(232,236,245,.45)'; ctx.font = '10px -apple-system, Segoe UI, sans-serif';
+  // ---- arterna: mjuka strömmar ovanför landskapet ----
+  const rowsH = groundY - LAND - top - 4;
+  const rows = stripModel(vis, Math.max(3, Math.min(6, Math.floor(rowsH / 20))));
+  const rh = rows.length ? rowsH / rows.length : 0;
+  ctx.font = '600 10.5px -apple-system, Segoe UI, sans-serif'; ctx.textBaseline = 'middle';
+  rows.forEach((r, ri) => {
+    const cy = top + rh * (ri + 0.5), maxT = Math.min(rh - 4, 16), color = spColor(r.k);
+    const th = i => { const v = share(vis[i], g, r.k); return v ? 1 + (maxT - 1) * (v / r.max) : 0; };
+    // sammanhängande sträckor där arten finns, ritade som en mjuk ström med glöd
+    let i = 0;
+    while (i < vis.length) {
+      while (i < vis.length && !th(i)) i++;
+      const a = i; while (i < vis.length && th(i)) i++;
+      const b = i - 1; if (a > b) continue;
+      const P = []; for (let k = a; k <= b; k++) P.push([xOf(k), th(k) / 2]);
+      if (P.length === 1) P.unshift([P[0][0] - col * 0.35, P[0][1] * 0.6]), P.push([P[1][0] + col * 0.35, P[1][1] * 0.6]);
+      ctx.save(); ctx.shadowColor = color; ctx.shadowBlur = 8; ctx.fillStyle = color; ctx.globalAlpha = 0.85;
+      ctx.beginPath(); ctx.moveTo(P[0][0] - col * 0.3, cy);
+      for (let k = 0; k < P.length; k++) { const [x, h] = P[k], [px, ph] = P[Math.max(0, k - 1)]; ctx.quadraticCurveTo(px, cy - ph, (px + x) / 2, cy - (ph + h) / 2); }
+      ctx.lineTo(P.at(-1)[0], cy - P.at(-1)[1]); ctx.lineTo(P.at(-1)[0] + col * 0.3, cy);
+      ctx.lineTo(P.at(-1)[0], cy + P.at(-1)[1]);
+      for (let k = P.length - 1; k >= 0; k--) { const [x, h] = P[k], [nx, nh] = P[Math.min(P.length - 1, k + 1)]; ctx.quadraticCurveTo(nx, cy + nh, (nx + x) / 2, cy + (nh + h) / 2); }
+      ctx.lineTo(P[0][0] - col * 0.3, cy); ctx.closePath(); ctx.fill(); ctx.restore();
+    }
+    // namnet i en liten etikett där strömmen börjar
+    const label = nameOf(r.k), w = ctx.measureText(label).width, at = vis.findIndex((p, k) => th(k));
+    const x = Math.min(W - w - 14, Math.max(4, xOf(at) - col * 0.3));   // etiketten ska rymmas i bilden
+    ctx.fillStyle = 'rgba(8,12,22,.72)'; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x - 3, cy - 7.5, w + 12, 15, 7.5) : ctx.rect(x - 3, cy - 7.5, w + 12, 15); ctx.fill();
+    ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x + 2.5, cy, 2.5, 0, 7); ctx.fill();
+    ctx.fillStyle = '#eef1f7'; ctx.fillText(label, x + 8, cy + 0.5);
+  });
+  // avstånd: en markering per kilometer, siffror var femte
+  ctx.fillStyle = 'rgba(232,236,245,.4)'; ctx.font = '10px -apple-system, Segoe UI, sans-serif'; ctx.textBaseline = 'top';
   let km = 0; const base = pts.length - vis.length;
   for (let i = 1; i < base + vis.length; i++) {
     const before = Math.floor(km); km += distKm(pts[i - 1], pts[i]);
-    if (Math.floor(km) > before && i >= base) { const x = xOf(i - base); ctx.fillRect(x, 0, 1, 5); if (Math.floor(km) % 5 === 0) ctx.fillText(`${Math.floor(km)} km`, x + 3, 8); }
+    if (Math.floor(km) > before && i >= base) { const x = xOf(i - base); ctx.fillRect(x, 0, 1, 4); if (Math.floor(km) % 5 === 0) ctx.fillText(`${Math.floor(km)} km`, x + 3, 2); }
+  }
+  // du är här: en ljus linje vid senaste punkten
+  if (!opts.col) {
+    const x = xOf(vis.length - 1);
+    const gl = ctx.createLinearGradient(0, top, 0, groundY); gl.addColorStop(0, 'rgba(255,146,43,0)'); gl.addColorStop(1, 'rgba(255,146,43,.55)');
+    ctx.fillStyle = gl; ctx.fillRect(x - 0.75, top, 1.5, groundY - top);
+    ctx.fillStyle = '#ff922b'; ctx.beginPath(); ctx.arc(x, groundY, 3.2, 0, 7); ctx.fill();
   }
   return rows;
 }
@@ -1943,7 +2058,7 @@ function showPage() {
   document.body.dataset.page = page;
   document.querySelectorAll('#pageNav a').forEach(a => a.classList.toggle('on', a.dataset.page === page));
   if (page !== was) window.scrollTo(0, 0);
-  if (page === 'explore') requestAnimationFrame(() => { map.invalidateSize(); drawChart(); });
+  if (page === 'explore') requestAnimationFrame(() => { map.invalidateSize(); drawChart(); if (mode === 'gps' ? follow : true) fitView(); });
   if (page === 'home') loadHome();
 }
 addEventListener('hashchange', showPage);
@@ -2078,7 +2193,13 @@ drawChart();
 drawTrack();
 renderTrip();
 showPage();
-new ResizeObserver(() => map.invalidateSize()).observe($('map'));
+// Kartan byter storlek (sidbyte, resvyn): låt hela 5 km-cirkeln rymmas igen så länge kartan följer dig
+let refitTimer = null;
+new ResizeObserver(() => {
+  map.invalidateSize();
+  clearTimeout(refitTimer);
+  refitTimer = setTimeout(() => { if ($('map').offsetWidth && ((mode === 'gps' && follow) || mode === 'explore')) fitView(); }, 150);
+}).observe($('map'));
 new ResizeObserver(() => drawChart()).observe($('chart'));
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(e => console.warn('Service worker:', e));
 // Appen visar arterna där du är direkt – resan startar man själv.
