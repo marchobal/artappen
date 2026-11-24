@@ -20,7 +20,12 @@
     border: 1px solid rgba(255,255,255,0.18); border-radius: 8px; padding: 5px 8px; max-width: 100%; }
   #art option { color: #000; }
   .credit { color: var(--muted); font-size: 10px; margin-top: 6px; opacity: 0.8; }
-  .credit[hidden] { display: none; }
+  .credit[hidden], .skogtext[hidden] { display: none; }
+  .skogtext { margin-top: 8px; font-size: 12px; line-height: 1.45; color: var(--text); }
+  .skogtext b { font-weight: 600; }
+  .skogtext.down b { color: #ffb070; }
+  .skogtext.up b { color: #8fdc8f; }
+  .skogtext .unsure { color: var(--muted); }
   .year { position: absolute; right: 18px; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 62px); z-index: 5;
     color: var(--border); font-size: 22px; letter-spacing: 0.5px; font-variant-numeric: tabular-nums; }
   .bar { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(14px, env(safe-area-inset-bottom));
@@ -45,7 +50,8 @@
   <h1 id="title"></h1>
   <div class="sub">Arten ligger som en lysande hinna över Sveriges terräng. Ju fler fåglar som räknas på Fågeltaxeringens rutter i trakten, desto starkare lyser den.</div>
   <select id="art" aria-label="Välj art"></select>
-  <div class="credit" id="credit">Grönt: skog år 2000. Rost: skog som försvunnit sedan dess, mest hyggen. Hansen m.fl., Global Forest Watch (CC BY 4.0)</div>
+  <div class="skogtext" id="skogtext" hidden></div>
+  <div class="credit" id="credit">Grönt: skogen. Orange: år då det höggs ovanligt mycket. Rostton: där mycket har huggits sedan 2001. Hansen m.fl., Global Forest Watch (CC BY 4.0). Jämförelsen visar samvariation, inte orsak.</div>
 </div>
 <div class="year" id="year"></div>
 <div class="bar">
@@ -184,42 +190,37 @@ const ready = fetch('../data/sverige.json').then(r => r.json()).then(async g => 
   terrainGeo.computeVertexNormals();
   terrainGeo.setAttribute('aIn', new THREE.BufferAttribute(inside, 1));
   loadLoss();
-  border =new THREE.BufferGeometry(); border.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  border = new THREE.BufferGeometry(); border.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
   const bl = new THREE.LineSegments(border, new THREE.LineBasicMaterial({ color: 0x8fa6c8, transparent: true, opacity: 0.35, depthTest: false }));
   bl.renderOrder = 2; scene.add(bl);
 });
 
-// ---- skogsförlust (Hansen m.fl.) som ett lager på marken ----
+// ---- skogen och hyggena (Hansen m.fl.) som ett lager på marken ----
 // data/skog/forlust.png (tools/skog_forlust.swift): röd = år efter 2000, grön = hur mycket skog som försvann, blå = skog år 2000.
-// Skogen ligger grön tills den huggs; då glöder pixeln en stund och lägger sig sedan som mörk rost.
+// Bilden räknas ihop till landskapets eget rutnät och jämnas ut, så att lagret ligger lugnt när kartan snurrar:
+//   aF  = hur stor del av marken som är skog (minus det som huggits hittills)
+//   aC  = hur stor del av skogen som huggits sedan 2001 (ger en svag rostton)
+//   aP  = årets puls: orange där det höggs ovanligt mycket just det året jämfört med traktens vanliga takt
+//         (stormar, granbarkborre, toppår), så att åren skiljer sig åt i stället för att allt lyser jämnt
+const NY = 26;                                   // år 2000–2025, index = år − 2000
+let fShare = null, rate = null, cum = null, anom = null, ANOM_REF = 1;
+const aF = new Float32Array(NV), aC = new Float32Array(NV), aP = new Float32Array(NV);
+terrainGeo.setAttribute('aF', new THREE.BufferAttribute(aF, 1));
+terrainGeo.setAttribute('aC', new THREE.BufferAttribute(aC, 1));
+terrainGeo.setAttribute('aP', new THREE.BufferAttribute(aP, 1));
 const loss = new THREE.Mesh(terrainGeo, new THREE.ShaderMaterial({
   transparent: true, depthWrite: false,
-  vertexShader: `attribute float aIn; varying vec2 vUv; varying float vIn;
-    void main() { vUv = vec2((position.x + ${HALF_X.toFixed(5)}) / ${(2 * HALF_X).toFixed(5)}, (position.z + ${HALF_Z.toFixed(5)}) / ${(2 * HALF_Z).toFixed(5)});
-      vIn = aIn; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-  uniforms: { uLoss: { value: null }, uSize: { value: new THREE.Vector2(1, 1) }, uYear: { value: 0 }, uOn: { value: 1 } },
-  fragmentShader: `uniform sampler2D uLoss; uniform vec2 uSize; uniform float uYear, uOn; varying vec2 vUv; varying float vIn;
-    float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  uniforms: { uOn: { value: 1 } },
+  vertexShader: `attribute float aIn, aF, aC, aP; varying float vIn, vF, vC, vP;
+    void main() { vIn = aIn; vF = aF; vC = aC; vP = aP; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `uniform float uOn; varying float vIn, vF, vC, vP;
     void main() {
-      vec4 t = texture2D(uLoss, vUv);
-      float y = floor(t.r * 255.0 + 0.5);
-      // En pixel är ungefär 0,6 km bred och oftast bara delvis avverkad. Den blir därför rost med en sannolikhet
-      // som motsvarar hur mycket som försvann, så att ungefär en femtedel av skogen är borta 2025, som i Hansens siffror.
-      float n = hash(floor(vUv * uSize)), n2 = hash(floor(vUv * uSize) + vec2(17.3, 5.1));
-      bool forest = t.b > 0.5, cut = y > 0.5 && uYear >= y - 1.0 && n2 < clamp((t.g + 0.03) * 1.5, 0.0, 1.0);
-      if (!forest && !cut) discard;
-      // frodig skog: varje pixel får en egen nyans mellan mörk gran och ljust lövgrönt
-      vec3 green = mix(vec3(0.05, 0.24, 0.10), vec3(0.20, 0.52, 0.18), n * n);
-      float aGreen = forest ? 0.62 + 0.25 * n : 0.0;
-      // hygget: tänds under sitt år, glöder och svalnar till mörk rost under åren efter
-      float show = cut ? smoothstep(y - 1.0, y, uYear) : 0.0;
-      float glow = exp(-max(uYear - y, 0.0) * 1.3);
-      vec3 rust = mix(vec3(0.42, 0.17, 0.08), vec3(1.0, 0.66, 0.34), glow);
-      float aRust = (0.45 + 0.55 * t.g) * mix(0.8, 1.0, glow);
-      vec3 col = mix(green, rust, show);
-      float a = mix(aGreen, aRust, show) * smoothstep(0.2, 0.6, vIn) * uOn;
-      if (a < 0.01) discard;
-      gl_FragColor = vec4(col, a);
+      float f = clamp(vF, 0.0, 1.0), p = clamp(vP, 0.0, 1.5);
+      vec3 green = mix(vec3(0.06, 0.22, 0.10), vec3(0.17, 0.50, 0.19), f);         // tät skog är frodigare
+      vec3 col = mix(green, vec3(0.40, 0.20, 0.09), clamp(vC * 1.6, 0.0, 0.7));      // rostton där mycket har huggits
+      col += vec3(1.0, 0.55, 0.20) * p * 0.9;                                         // årets hyggen
+      float a = (0.15 + 0.6 * f + 0.5 * p) * smoothstep(0.2, 0.6, vIn) * uOn;
+      gl_FragColor = vec4(col, clamp(a, 0.0, 0.95));
     }`,
 }));
 loss.renderOrder = 0.5; loss.visible = false;
@@ -227,14 +228,93 @@ scene.add(loss);
 function loadLoss() {
   const img = new Image();
   img.onload = () => {
-    // via canvas och DataTexture, så att värdena kommer fram exakt och inget blandas mellan åren
     const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
     const g = c.getContext('2d'); g.drawImage(img, 0, 0);
-    const tex = new THREE.DataTexture(g.getImageData(0, 0, c.width, c.height).data, c.width, c.height, THREE.RGBAFormat);
-    tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false; tex.needsUpdate = true;
-    loss.material.uniforms.uLoss.value = tex; loss.material.uniforms.uSize.value.set(c.width, c.height); loss.visible = true;
+    const d = g.getImageData(0, 0, c.width, c.height).data, W = c.width, H = c.height;
+    // varje bildpixel räknas till närmaste punkt i rutnätet
+    const cnt = new Float32Array(NV), F = new Float32Array(NV), L = new Float32Array(NV * NY);
+    for (let py = 0; py < H; py++) {
+      const r = Math.round(py / (H - 1) * (NZ - 1));
+      for (let px = 0; px < W; px++) {
+        const v = r * NX + Math.round(px / (W - 1) * (NX - 1)), k = (py * W + px) * 4;
+        cnt[v]++;
+        if (d[k + 2] > 127) F[v]++;
+        // en pixel är ungefär 0,6 km och oftast bara delvis huggen: mängden räknas om till en andel,
+        // så att ungefär en femtedel av skogen är borta 2025, som i Hansens siffror för Sverige
+        if (d[k] > 0) L[v * NY + d[k]] += Math.min(1, (d[k + 1] / 255 + 0.03) * 1.5);
+      }
+    }
+    // jämna ut över grannpunkterna (två varv), så att enstaka hyggen inte blir prickar
+    const blur = (arr, stride, off) => {
+      for (let pass = 0; pass < 2; pass++) {
+        const src = new Float32Array(NV); for (let i = 0; i < NV; i++) src[i] = arr[i * stride + off];
+        for (let r = 0; r < NZ; r++) for (let cc = 0; cc < NX; cc++) {
+          let s = 0, k = 0;
+          for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+            const rr = r + dr, c2 = cc + dc;
+            if (rr >= 0 && rr < NZ && c2 >= 0 && c2 < NX) { s += src[rr * NX + c2]; k++; }
+          }
+          arr[(r * NX + cc) * stride + off] = s / k;
+        }
+      }
+    };
+    blur(cnt, 1, 0); blur(F, 1, 0); for (let y = 1; y < NY; y++) blur(L, NY, y);
+    fShare = new Float32Array(NV); rate = new Float32Array(NV * NY);
+    for (let i = 0; i < NV; i++) {
+      if (!cnt[i]) continue;
+      fShare[i] = F[i] / cnt[i];
+      for (let y = 1; y < NY; y++) {
+        rate[i * NY + y] = L[i * NY + y] / cnt[i];
+      }
+    }
+    cum = new Float32Array(NV * NY);               // huggen andel till och med varje år
+    for (let i = 0; i < NV; i++) for (let y = 1; y < NY; y++) cum[i * NY + y] = cum[i * NY + y - 1] + rate[i * NY + y];
+    // avvikelse från traktens medeltakt 2001–2025, i andel av marken
+    anom = new Float32Array(NV * NY); const pos = [];
+    for (let i = 0; i < NV; i++) {
+      const mean = cum[i * NY + NY - 1] / (NY - 1);
+      for (let y = 1; y < NY; y++) {
+        const a = Math.max(0, rate[i * NY + y] - mean); anom[i * NY + y] = a;
+        if (a > 0 && inside[i] > 0.5 && fShare[i] > 0.2) pos.push(a);
+      }
+    }
+    pos.sort((a, b) => a - b);
+    ANOM_REF = pos[Math.floor(pos.length * 0.98)] || 1;   // full styrka i de 2 % mest ovanliga trakt-åren
+    loss.visible = true;
   };
   img.src = '../data/skog/forlust.png';
+}
+// Skogen ett visst år (yf = år − 2000, med decimaler). Pulsen toppar mitt i sitt år.
+function forestAt(yf) {
+  if (!fShare) return;
+  const y0 = Math.floor(yf), fr = yf - y0;
+  for (let i = 0; i < NV; i++) {
+    const f = fShare[i];
+    if (f <= 0) { aF[i] = aC[i] = aP[i] = 0; continue; }
+    let cut = y0 < 0 ? 0 : cum[i * NY + Math.min(NY - 1, y0)];
+    if (y0 + 1 >= 1 && y0 + 1 < NY) cut += rate[i * NY + y0 + 1] * fr;
+    aF[i] = Math.max(0, f - cut); aC[i] = cut / f;
+    let p = 0;
+    for (let y = Math.max(1, y0 - 1); y <= Math.min(NY - 1, y0 + 2); y++) {
+      const dd = (yf - y) / 0.35; p += anom[i * NY + y] * Math.exp(-dd * dd);
+    }
+    aP[i] = p / ANOM_REF;
+  }
+  terrainGeo.attributes.aF.needsUpdate = terrainGeo.attributes.aC.needsUpdate = terrainGeo.attributes.aP.needsUpdate = true;
+}
+
+// ---- skogsfåglarna och avverkningen: en mening per art ----
+let skog = null;
+function showSkog(key) {
+  const el = document.getElementById('skogtext'), r = skog && skog.arter[key];
+  if (!r) { el.hidden = true; el.dataset.has = ''; return; }
+  const pct = v => Math.round(Math.abs(v) * 100) + ' %', h = skog.hugget;
+  el.className = 'skogtext ' + (r.skillnad < 0 ? 'down' : 'up');
+  el.innerHTML = `På rutter där ${pct(h.mycket)} av skogen höggs 2001–2025 gick det <b>${pct(r.skillnad)} ${r.skillnad < 0 ? 'sämre' : 'bättre'}</b> `
+    + `för arten än på rutter i samma del av landet där ${pct(h.lite)} höggs. `
+    + (r.tydlig ? 'Skillnaden är tydlig.' : '<span class="unsure">Skillnaden är osäker.</span>');
+  el.dataset.has = '1';
+  el.hidden = !document.getElementById('skog').classList.contains('on');
 }
 
 // ---- data ----
@@ -248,7 +328,14 @@ async function load(key) {
   if (!rutter) {
     [rutter, list] = await Promise.all(['rutter', 'arter'].map(f => fetch(`../data/trend/sft/${f}.json`).then(r => r.json())));
     const sel = document.getElementById('art');
-    list.arter.forEach(a => sel.add(new Option(a.namn, a.key)));
+    // skogsfåglarna först, de som jämförts mot avverkningen (tools/skog_rutter.py)
+    skog = await fetch('../data/trend/skog.json').then(r => r.json()).catch(() => null);
+    const groups = [['Skogsfåglar', a => skog && skog.arter[a.key]], ['Övriga arter', a => !(skog && skog.arter[a.key])]];
+    for (const [label, test] of groups) {
+      const og = document.createElement('optgroup'); og.label = label;
+      list.arter.filter(test).forEach(a => og.appendChild(new Option(a.namn, a.key)));
+      if (og.children.length) sel.appendChild(og);
+    }
     sel.onchange = () => { history.replaceState(null, '', `?art=${sel.value}`); load(sel.value); };
     const rx = rutter.routes.map(([, lat, lon]) => toXZ(lat, lon));
     near = [];
@@ -293,6 +380,7 @@ async function load(key) {
   // mjukt logaritmisk: få fåglar ger en synlig kulle, många fortfarande högst
   heights = heights.map(h => h.map(v => v <= 0.02 ? 0 : Math.min(1.1, Math.log1p(v / (top / 6)) / Math.log1p(6))));
   document.getElementById('title').textContent = sp.namn;
+  showSkog(sp.key);
   document.title = `${sp.namn} · Landskapet`;
   document.getElementById('loading').style.display = 'none';
 }
@@ -307,7 +395,7 @@ function shape() {
     aV[i] = v;
   }
   P.needsUpdate = true; geo.attributes.aV.needsUpdate = true;
-  loss.material.uniforms.uYear.value = years[0] + tt - 2000;
+  forestAt(years[0] + tt - 2000);
   document.getElementById('year').textContent = years[Math.round(tt)];
 }
 
@@ -323,6 +411,7 @@ skogBtn.onclick = () => {
   const on = !skogBtn.classList.contains('on');
   skogBtn.classList.toggle('on', on); loss.material.uniforms.uOn.value = on ? 1 : 0;
   document.getElementById('credit').hidden = !on;
+  const st = document.getElementById('skogtext'); st.hidden = !on || !st.dataset.has;
 };
 // Uppspelningen: spela åren, stanna en stund på sista året, tona ut hinnan,
 // börja om och låt hinnan tändas med en puls så att man ser att det börjar om.
