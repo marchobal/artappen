@@ -360,8 +360,10 @@
   .justhere .nm small { color: var(--muted); font-size: .72rem; }
   .justhere .nm small.typ { color: var(--trip); font-weight: 600; }
   .justhere .empty { grid-column: 1 / -1; color: var(--muted); font-size: .88rem; background: none; border: 0; cursor: default; }
-  #strip { width: 100%; height: 220px; display: block; border-radius: 12px; background: #0a1020; }
+  #strip { width: 100%; height: 230px; display: block; border-radius: 12px; background: #0d131d; }
   .striplegend { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: .72rem; color: var(--muted); margin-top: 6px; }
+  .striplegend .striphint { margin-left: auto; color: var(--accent); }
+  #strip { cursor: pointer; }
   .striplegend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: 0; }
   /* när resan startar: rutan glider fram och en radarring vidgas */
   body.tripstart .tripstage { animation: stageIn .9s cubic-bezier(.2,.8,.2,1); position: relative; overflow: hidden; }
@@ -383,14 +385,33 @@
   .evcard.red small { color: var(--redtext); }
   @keyframes evIn { from { opacity: 0; transform: translateY(-14px); } }
   /* sammanfattningen när resan avslutas */
-  .tripend h2.t { font-size: 1.35rem; text-transform: none; letter-spacing: 0; color: var(--text); margin: 0 0 4px; }
+  /* skyltar på pinne: plattan står ovanför punkten, pinnen går ner i marken */
+  .signicon { background: none; border: 0; }
+  .sign { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center;
+          pointer-events: none; animation: signIn .6s cubic-bezier(.2,.8,.2,1) backwards; transition: opacity .3s; }
+  .sign.hide { opacity: 0; }
+  .sign.hide .plate { pointer-events: none; }
+  .sign .plate { pointer-events: auto; cursor: pointer; display: flex; align-items: center; gap: 4px; white-space: nowrap; padding: 2px 8px 2px 3px;
+                 border-radius: 999px; background: rgba(12,16,26,.88); color: #eef1f7; font-size: 11.5px; font-weight: 600;
+                 border: 1px solid rgba(255,255,255,.18); box-shadow: 0 3px 10px rgba(0,0,0,.35); }
+  .sign.red .plate { border-color: #f0a08f; }
+  .sign .plate .ic { width: 20px; height: 20px; display: grid; place-items: center; }
+  .sign .plate .ic img { width: 18px; height: 18px; image-rendering: pixelated; object-fit: contain; }
+  .sign .plate .ic img.grp { width: 18px; height: 14px; image-rendering: auto; }
+  .sign .plate .badge { font-size: 9px; padding: 0 4px; }
+  .sign .stick { width: 2px; height: 26px; background: #f4f6fa; box-shadow: 0 0 0 1px rgba(10,14,22,.55); }
+  .sign .foot { width: 7px; height: 7px; border-radius: 50%; background: #f4f6fa; box-shadow: 0 0 0 1.5px rgba(10,14,22,.7), 0 2px 4px rgba(0,0,0,.4);
+                margin-top: -3.5px; transform: translateY(3.5px); }
+  @keyframes signIn { from { opacity: 0; transform: translate(-50%, calc(-100% - 14px)); } }
+  #bioMap { height: min(60vh, 520px); border-radius: 12px; margin: 10px 0 8px; background: var(--line); }
+  .tripend h2.t, .biomapwrap h2.t { font-size: 1.35rem; text-transform: none; letter-spacing: 0; color: var(--text); margin: 0 0 4px; }
   .tripend img.strip { width: 100%; border-radius: 10px; display: block; margin: 10px 0 4px; background: #0b0f14; }
   .tripend .biobar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; margin: 8px 0 4px; }
   .tripend .typ { margin-top: 10px; }
   .tripend .typ div { font-size: .9rem; margin: 4px 0; }
   .tripend .typ i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
-  @media (max-width: 899px) { .tripstage { order: 1; } .justhere { grid-template-columns: 1fr 1fr; } #strip { height: 210px; } }
-  @media (min-width: 900px) and (min-height: 560px) { .left .tripstage { flex: none; } body.tripview .mapcard { min-height: 160px; } #strip { height: 190px; } }
+  @media (max-width: 899px) { .tripstage { order: 1; } .justhere { grid-template-columns: 1fr 1fr; } #strip { height: 240px; } }
+  @media (min-width: 900px) and (min-height: 560px) { .left .tripstage { flex: none; } body.tripview .mapcard { min-height: 160px; } #strip { height: 210px; } }
 </style>
 </head>
 <body>
@@ -674,7 +695,7 @@ async function update() {
       const pt = { t: r.t, lat, lon, acc: Math.round(acc), yr: r.yr,
                    n: Object.fromEntries(Object.entries(r.byGroup).map(([k, v]) => [k, v.counts.length])),
                    obs: Object.fromEntries(Object.entries(r.byGroup).map(([k, v]) => [k, v.total])),
-                   sp: Object.fromEntries(Object.entries(r.byGroup).map(([k, v]) => [k, Object.fromEntries(v.counts.slice(0, 30).map(c => [c.key, c.n]))])) };
+                   sps: { [r.yr]: topSpecies(r.byGroup) } };
       track.push(pt);
       save(TRACK_KEY, track);
       collectTrip(r);
@@ -1215,6 +1236,7 @@ async function speciesInfo(key, sci) {
 let infoSeq = 0, infoOpener = null;
 function closeInfo() {
   $('infoBackdrop').hidden = true; document.body.style.overflow = '';
+  if (typeof bioMap !== 'undefined' && bioMap) { bioMap.remove(); bioMap = null; }
   infoOpener?.focus?.(); infoOpener = null;
 }
 $('infoClose').onclick = closeInfo;
@@ -1701,7 +1723,7 @@ function applyFilter() {
   save(FILTER_KEY, filter);
   syncControls();
   obsLayer.setUrl(obsUrl());
-  drawChart(); renderTrip(); renderStage();
+  drawChart(); renderTrip(); renderStage(); backfillTrip();
   // Byte av djurgrupp: allt finns redan hämtat. Byte av år: hämta om för resa och utforskad punkt.
   if (tripRes && tripRes.yr !== yearId() && pos) update();
   if (exploreRes && exploreRes.yr !== yearId() && exploreAt) exploreFetch();
@@ -1742,14 +1764,14 @@ $('topSeg').onclick = e => {
 const NMD_WMS = 'https://geodata.naturvardsverket.se/geoserver/wms';
 const NMD_LAYER = 'lc-nmd:LC.LandCoverRaster.Bas.2023.v2.x';
 const BIO = [   // ritas nerifrån och upp i snittet
-  { id: 'vatten', name: 'Vatten', color: '#3f7fc9', test: c => c === 61 || c === 62 },
-  { id: 'vatmark', name: 'Våtmark', color: '#a77fc4', test: c => c === 54 || (c >= 200 && c <= 228) },
-  { id: 'sumpskog', name: 'Sumpskog', color: '#3c7a66', test: c => c === 23 || (c >= 121 && c <= 127) },
-  { id: 'skog', name: 'Skog', color: '#2f7a3a', test: c => c === 43 || (c >= 111 && c <= 117) },
-  { id: 'hygge', name: 'Hygge', color: '#a8894a', test: c => c === 118 || c === 128 },
-  { id: 'oppen', name: 'Öppen mark', color: '#9fb862', test: c => c === 411 || (c >= 4211 && c <= 4233) },
-  { id: 'aker', name: 'Åker', color: '#e3c45a', test: c => c === 3 },
-  { id: 'bebyggt', name: 'Bebyggt', color: '#8a8f98', test: c => c === 51 || c === 52 },
+  { id: 'vatten', name: 'Vatten', color: '#3b6fa8', test: c => c === 61 || c === 62 },
+  { id: 'vatmark', name: 'Våtmark', color: '#8a6aa8', test: c => c === 54 || (c >= 200 && c <= 228) },
+  { id: 'sumpskog', name: 'Sumpskog', color: '#2f6357', test: c => c === 23 || (c >= 121 && c <= 127) },
+  { id: 'skog', name: 'Skog', color: '#2f6b3a', test: c => c === 43 || (c >= 111 && c <= 117) },
+  { id: 'hygge', name: 'Hygge', color: '#8f7647', test: c => c === 118 || c === 128 },
+  { id: 'oppen', name: 'Öppen mark', color: '#7f9a52', test: c => c === 411 || (c >= 4211 && c <= 4233) },
+  { id: 'aker', name: 'Åker', color: '#c8a94a', test: c => c === 3 },
+  { id: 'bebyggt', name: 'Bebyggt', color: '#6b707a', test: c => c === 51 || c === 52 },
 ];
 const bioOf = id => BIO.find(b => b.id === id);
 async function nmdClass(lat, lon) {
@@ -1770,7 +1792,33 @@ async function biotopeAt(lat, lon) {
   return Object.fromEntries(Object.entries(n).map(([k, v]) => [k, v / tot]));
 }
 
-const tripPoints = () => track.filter(p => p.sp && p.yr === yearId());
+// Fynden vid varje punkt sparas per årsval (sps[yearId]). Landskapet ritas av alla punkter, och byter man år
+// hämtas fynden för de punkter som saknar dem i bakgrunden (backfillTrip), så att resan finns kvar.
+const topSpecies = byGroup => Object.fromEntries(Object.entries(byGroup).map(([k, v]) => [k, Object.fromEntries(v.counts.slice(0, 30).map(c => [c.key, c.n]))]));
+const spOf = p => p.sps?.[yearId()] ?? null;
+const tripPoints = () => track.filter(p => p.sps);
+let backfillBusy = false;
+async function backfillTrip() {
+  if (backfillBusy || !tripView) return;
+  const yid = yearId(), todo = track.filter(p => p.sps && !p.sps[yid]).slice(-80);
+  if (!todo.length) return;
+  backfillBusy = true;
+  let done = 0;
+  try {
+    await mapLimit(todo, 3, async p => {
+      if (yearId() !== yid) return;
+      const ids = Object.keys(GROUPS);
+      const res = await Promise.all(ids.map(id => throttled(() => facet(GROUPS[id], p.lat, p.lon, yearParam()))));
+      p.sps[yid] = topSpecies(Object.fromEntries(ids.map((id, i) => [id, res[i]])));
+      if (++done % 4 === 0 && yearId() === yid) renderStage();
+    });
+  } catch {}
+  backfillBusy = false;
+  save(TRACK_KEY, track);
+  if (yearId() === yid) renderStage(); else backfillTrip();
+}
+// alla arter längs resan (alla grupper) för det valda året
+const tripSpeciesCount = pts => new Set(pts.flatMap(p => Object.values(spOf(p) || {}).flatMap(m => Object.keys(m)))).size;
 const spIcon = (key, gid) => { const pal = palettes[key];
   return `<span class="ic">${pal ? `<img src="${esc(pal.sprite)}" alt="">` : `<img class="grp" src="img/${gid}.png" alt="">`}</span>`; };
 // Varje art får en färg: färgschemats första färg om det finns, annars en nyans ur nyckeln
@@ -1785,14 +1833,22 @@ function spColor(key) {
   return `hsl(${h}, 62%, 62%)`;
 }
 
+// Siffrorna i resvyn räknas fram till sitt nya värde i stället för att byta direkt
+function tweenStat(el, to, dec = 0) {
+  const from = el._v ?? 0; el._v = to;
+  const show = v => el.textContent = dec ? v.toFixed(dec).replace('.', ',') : fmtN(Math.round(v));
+  if (calm.matches || from === to) { show(to); return; }
+  cancelAnimationFrame(el._raf); const t0 = performance.now();
+  const step = now => { const t = Math.min(1, (now - t0) / 900), e = 1 - (1 - t) ** 3; show(from + (to - from) * e); if (t < 1) el._raf = requestAnimationFrame(step); };
+  el._raf = requestAnimationFrame(step);
+}
 function renderStage() {
   if (!tripView) return;
   const pts = tripPoints(), last = pts.at(-1);
   let km = 0; for (let i = 1; i < pts.length; i++) km += distKm(pts[i - 1], pts[i]);
-  const bucket = tripSpecies[yearId()] || {};
-  $('tsKm').textContent = km.toFixed(1).replace('.', ',');
-  $('tsSp').textContent = fmtN(Object.values(bucket).reduce((n, g) => n + Object.keys(g).length, 0));
-  $('tsNew').textContent = lastNew && lastNew.yr === yearId() ? Object.values(lastNew.byGroup).reduce((s, x) => s + x.size, 0) : 0;
+  tweenStat($('tsKm'), km, 1);
+  tweenStat($('tsSp'), tripSpeciesCount(pts));
+  tweenStat($('tsNew'), lastNew && lastNew.yr === yearId() ? Object.values(lastNew.byGroup).reduce((s, x) => s + x.size, 0) : 0);
   const bio = last?.bio ? Object.entries(last.bio).sort((a, b) => b[1] - a[1]).slice(0, 2) : [];
   $('tsHere').innerHTML = bio.length ? `Du är i<br>${bio.map(([k, v]) => `<span><i style="background:${bioOf(k).color}"></i>${bioOf(k).name} ${Math.round(v * 100)} %</span>`).join('<br>')}`
                                       : (last ? '<span class="muted">Läser av landskapet…</span>' : '');
@@ -1802,10 +1858,11 @@ function renderStage() {
 
 // Just här: arterna vid senaste punkten som är mest typiska för just här jämfört med resten av resan
 function renderJustHere() {
-  const ol = $('justHere'), g = filter.group, pts = tripPoints(), last = pts.at(-1);
-  if (!last) { ol.innerHTML = '<li class="empty">Väntar på första skanningen …</li>'; return; }
-  const here = Object.entries(last.sp[g] || {});
-  const mean = k => pts.reduce((s, p) => s + (p.sp[g]?.[k] || 0), 0) / pts.length;
+  const ol = $('justHere'), g = filter.group, pts = tripPoints(), last = pts.filter(spOf).at(-1);
+  if (!last) { ol.innerHTML = `<li class="empty">${pts.length ? 'Hämtar fynden för det nya årsvalet …' : 'Väntar på första skanningen …'}</li>`; return; }
+  const here = Object.entries(spOf(last)?.[g] || {});
+  const withData = pts.filter(spOf);
+  const mean = k => withData.reduce((s, p) => s + (spOf(p)[g]?.[k] || 0), 0) / Math.max(1, withData.length);
   const top = here.map(([k, n]) => { const m = mean(k); return { k, n, m, score: n / (m + 1) * Math.log1p(n) }; })
     .sort((a, b) => b.score - a.score).slice(0, 6);
   const missing = top.filter(x => !names[x.k]);
@@ -1827,171 +1884,248 @@ const COL = 9, BIO_H = 30;
 let stripShift = 0, stripAnim = null, stripCount = 0;
 // Fynden samlas där folk bor, så antalet säger mest var det rapporteras. Banden visar därför artens andel
 // av fynden vid punkten: då syns vilka arter som hör till skogen, slätten eller sjön även där det är glest.
-const share = (p, g, k) => { const sp = p.sp[g] || {}; const n = sp[k] || 0; if (!n) return 0;
-  const tot = p._tot?.[g] ?? ((p._tot ??= {})[g] = Object.values(sp).reduce((a, b) => a + b, 0)); return n / tot; };
-function stripModel(pts, maxRows) {
-  const g = filter.group, keys = {};
-  pts.forEach((p, i) => Object.keys(p.sp[g] || {}).forEach(k => {
-    const o = keys[k] ??= { k, sum: 0, pres: 0, max: 0, first: Infinity };
-    const v = share(p, g, k); o.sum += v; o.pres++; o.max = Math.max(o.max, v); o.first = Math.min(o.first, i);
-  }));
-  // arter som kommer och går med landskapet: stor variation längs vägen (de som finns precis överallt
-  // med samma mängd ger platta band och säger minst), och lite tyngd åt de vanligare
-  const rows = Object.values(keys).filter(o => o.pres >= 1)
-    .map(o => {
-      const v = pts.map(p => share(p, g, o.k)), m = v.reduce((a, b) => a + b, 0) / v.length;
-      const sd = Math.sqrt(v.reduce((a, b) => a + (b - m) ** 2, 0) / v.length);
-      return { ...o, score: sd + 0.3 * m };
-    })
-    .sort((a, b) => b.score - a.score).slice(0, maxRows).sort((a, b) => a.first - b.first || b.sum - a.sum);
-  return rows;
+const share = (p, g, k) => { const sp = spOf(p)?.[g] || {}; const n = sp[k] || 0; if (!n) return 0;
+  const id = yearId() + g; const tot = p._tot?.[id] ?? ((p._tot ??= {})[id] = Object.values(sp).reduce((a, b) => a + b, 0)); return n / tot; };
+// Biotoperna som mjuka staplade band: bandets höjd vid en punkt är biotopens andel där.
+// Uppifrån: bebyggt och öppna marker, skogarna i mitten, vatten längst ner.
+const BAND_ORDER = ['bebyggt', 'aker', 'oppen', 'hygge', 'skog', 'sumpskog', 'vatmark', 'vatten'];
+// Vilken biotop följer arten? Artens andel av fynden vägd med varje biotops andel, jämförd med artens snitt på
+// resan. Den biotop där arten är klart vanligare än annars blir dess hem; annars den biotop som dominerar där
+// arten är som vanligast.
+function speciesHomes(pts, g) {
+  const data = pts.filter(p => spOf(p) && p.bio);
+  const keys = new Set(data.flatMap(p => Object.keys(spOf(p)[g] || {})));
+  const wb = {}; data.forEach(p => { for (const [b, w] of Object.entries(p.bio)) wb[b] = (wb[b] || 0) + w; });
+  const out = {};
+  for (const k of keys) {
+    let tot = 0, pres = 0; const by = {};
+    data.forEach(p => { const v = share(p, g, k); tot += v; if (v) pres++;
+      for (const [b, w] of Object.entries(p.bio)) by[b] = (by[b] || 0) + v * w; });
+    const mean = tot / data.length; if (!mean || pres < 2) continue;          // minst två punkter
+    // bara biotoper som funnits på motsvarande minst två punkter, annars blir det slump
+    const ratio = Object.entries(by).filter(([b]) => wb[b] >= 2).map(([b, x]) => [b, x / wb[b] / mean, x / wb[b]])
+      .filter(([, , m]) => m > 0).sort((a, b) => b[1] - a[1]);
+    out[k] = { home: ratio[0]?.[0], ratio: ratio[0]?.[1] || 0, inHome: ratio[0]?.[2] || 0, mean };
+  }
+  return out;
 }
-// Fast slump per punkt, så att träd och hus står still när snittet ritas om
-const rnd = (seed, i) => { const x = Math.sin(seed * 12.9898 + i * 78.233) * 43758.5453; return x - Math.floor(x); };
-const GROUND = { aker: ['#c9a542', '#e3c45a'], oppen: ['#7f9a4a', '#9fb862'], vatmark: ['#7d5f97', '#a77fc4'], vatten: ['#2f6aa8', '#4f8fd6'],
-                 bebyggt: ['#4f5560', '#6b717c'], hygge: ['#7a6236', '#a8894a'], skog: ['#1f4a26', '#2b5e32'], sumpskog: ['#234a40', '#2f6152'] };
 function paintStrip(cv, pts, W, H, shift, opts = {}) {
   const ctx = cv.getContext('2d'), g = filter.group;
-  // i början av resan får varje punkt mer plats, så att snittet fyller bredden; sedan rullar det
   const col = opts.col || Math.min(36, Math.max(COL, W / Math.max(1, pts.length))), n = Math.min(pts.length, Math.ceil(W / col) + 1);
   const vis = pts.slice(-n);
   const xOf = i => W - (vis.length - 1 - i) * col - col / 2 + shift;
-  const LAND = Math.round(H * 0.42), groundY = H - 16, top = 16;
-  // himmel i skymning
-  const sky = ctx.createLinearGradient(0, 0, 0, H);
-  sky.addColorStop(0, '#0a1020'); sky.addColorStop(0.65, '#14203a'); sky.addColorStop(1, '#2a2f45');
-  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
-  // ljus vid horisonten och avlägsna åsar bakom träden, för djup
-  const glow = ctx.createLinearGradient(0, groundY - LAND, 0, groundY);
-  glow.addColorStop(0, 'rgba(255,170,90,0)'); glow.addColorStop(1, 'rgba(255,170,90,.16)');
-  ctx.fillStyle = glow; ctx.fillRect(0, groundY - LAND, W, LAND);
-  const off = (pts.length - vis.length) * col - shift;   // åsarna följer med när snittet rullar, men långsammare
-  ctx.fillStyle = 'rgba(30,40,62,.9)'; ctx.beginPath(); ctx.moveTo(0, groundY);
-  for (let x = 0; x <= W; x += 4) { const u = (x + off * 0.35) / 90; ctx.lineTo(x, groundY - LAND * 0.45 - Math.sin(u) * 7 - Math.sin(u * 2.7 + 1) * 4); }
-  ctx.lineTo(W, groundY); ctx.fill();
-  // ---- landskapet ----
-  vis.forEach((p, i) => {
-    const x0 = xOf(i) - col / 2, seed = (p.t % 100000) / 7;
-    const bio = p.bio || {};
-    // marken: de öppna biotoperna i lager, nerifrån
-    let y = H;
-    const groundCats = ['vatten', 'vatmark', 'aker', 'oppen', 'bebyggt', 'hygge'];
-    const gsum = groundCats.reduce((a, k) => a + (bio[k] || 0), 0) || 0;
-    const gh = H - groundY;
-    if (!p.bio) { ctx.fillStyle = '#1b2230'; ctx.fillRect(x0, groundY, col + 0.6, gh); }
-    else if (!gsum) { ctx.fillStyle = GROUND.skog[0]; ctx.fillRect(x0, groundY, col + 0.6, gh); }
-    else for (const k of groundCats) {
-      const v = (bio[k] || 0) / gsum; if (!v) continue; const h = v * gh;
-      ctx.fillStyle = GROUND[k][0]; ctx.fillRect(x0, y - h, col + 0.6, h + 0.6);
-      // åker: fåror; vatten: krusningar; våtmark: vass
-      ctx.strokeStyle = GROUND[k][1]; ctx.lineWidth = 1; ctx.beginPath();
-      if (k === 'aker') for (let yy = y - h + 2; yy < y; yy += 3) { ctx.moveTo(x0, yy); ctx.lineTo(x0 + col, yy); }
-      if (k === 'vatten') for (let yy = y - h + 2; yy < y; yy += 4) { ctx.moveTo(x0, yy); ctx.quadraticCurveTo(x0 + col / 2, yy - 1.5, x0 + col, yy); }
-      ctx.stroke();
-      y -= h;
-    }
-    // ovanpå marken: träd, hyggen, vass och hus, så tätt som biotopen tar plats
-    const slots = Math.max(1, Math.round(col / 4.5));
-    for (let s = 0; s < slots; s++) {
-      const r = rnd(seed, s), x = x0 + (s + 0.5) * col / slots + (rnd(seed, s + 50) - 0.5) * 2;
-      let acc = 0, kind = null;
-      for (const [k, v] of Object.entries(bio)) { acc += v; if (r < acc) { kind = k; break; } }
-      if (kind === 'skog' || kind === 'sumpskog') {           // gran: en smal triangel
-        const h = (kind === 'skog' ? 16 : 11) + rnd(seed, s + 9) * (LAND - 24), w = 3 + h * 0.22;
-        ctx.fillStyle = kind === 'skog' ? (rnd(seed, s + 3) > 0.5 ? '#1f5a2c' : '#2a6b35') : '#2c6457';
-        ctx.beginPath(); ctx.moveTo(x, groundY - h); ctx.lineTo(x - w / 2, groundY); ctx.lineTo(x + w / 2, groundY); ctx.fill();
-      } else if (kind === 'hygge') {                          // stubbar och plantor
-        ctx.fillStyle = '#8a6d3e'; ctx.fillRect(x - 1, groundY - 3, 2, 3);
-        ctx.fillStyle = '#7fb04a'; ctx.beginPath(); ctx.arc(x + 2, groundY - 4, 1.6 + rnd(seed, s + 7) * 1.5, 0, 7); ctx.fill();
-      } else if (kind === 'bebyggt') {                        // hus med tända fönster
-        const h = 6 + rnd(seed, s + 4) * 14, w = Math.min(col / slots, 7);
-        ctx.fillStyle = '#3c414c'; ctx.fillRect(x - w / 2, groundY - h, w, h);
-        ctx.fillStyle = '#ffd77a'; if (rnd(seed, s + 6) > 0.35) ctx.fillRect(x - 1, groundY - h + 2, 1.6, 1.6);
-        if (h > 12 && rnd(seed, s + 8) > 0.4) ctx.fillRect(x - 1, groundY - h + 6, 1.6, 1.6);
-      } else if (kind === 'vatmark') {                        // vass
-        ctx.strokeStyle = '#b79bd1'; ctx.lineWidth = 1; ctx.beginPath();
-        for (let q = -1; q <= 1; q++) { ctx.moveTo(x + q * 1.5, groundY); ctx.lineTo(x + q * 2.2, groundY - 5 - rnd(seed, s + q + 20) * 4); }
-        ctx.stroke();
-      } else if (kind === 'oppen') {                          // gräs
-        ctx.strokeStyle = '#a9c46c'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, groundY); ctx.lineTo(x - 1, groundY - 3); ctx.moveTo(x, groundY); ctx.lineTo(x + 1.5, groundY - 3); ctx.stroke();
+  const top = 16, bot = H - 4, BH = bot - top;
+  ctx.fillStyle = '#0d131d'; ctx.fillRect(0, 0, W, H);
+  // ---- biotopbanden ----
+  // Varje punkt mäts med nio stickprov, så andelarna hoppar. De jämnas ut mot grannpunkterna, och banden
+  // ritas som en sammanhängande strömgraf: ett band kan krympa till noll och växa igen utan glipor.
+  const raw = vis.map(p => p.bio ? { ...p.bio } : { _: 1 });
+  const keysB = [...BAND_ORDER, '_'];
+  const sm = raw.map((_, i) => {
+    const o = {}; let t = 0;
+    for (const b of keysB) { const v = (raw[i - 1]?.[b] || 0) + 2 * (raw[i][b] || 0) + (raw[i + 1]?.[b] || 0); o[b] = v; t += v; }
+    for (const b of keysB) o[b] /= t || 1;
+    return o;
+  });
+  const order = ['_', ...BAND_ORDER];
+  const stack = sm.map(o => { let y = top; const out = {}; for (const b of order) { out[b] = [y, y + o[b] * BH]; y += o[b] * BH; } return out; });
+  const color = b => b === '_' ? '#1e2634' : bioOf(b).color;
+  const xs = vis.map((_, i) => xOf(i)), xL = xs[0] - col / 2, xR = xs.at(-1) + col / 2;
+  const curve = (pts) => { ctx.lineTo(pts[0][0], pts[0][1]);
+    for (let k = 1; k < pts.length; k++) { const [x0, y0] = pts[k - 1], [x1, y1] = pts[k], xm = (x0 + x1) / 2; ctx.bezierCurveTo(xm, y0, xm, y1, x1, y1); } };
+  for (const b of order) {
+    if (!stack.some(st => st[b][1] - st[b][0] > 0.4)) continue;
+    const topE = [[xL, stack[0][b][0]], ...xs.map((x, i) => [x, stack[i][b][0]]), [xR, stack.at(-1)[b][0]]];
+    const botE = [[xL, stack[0][b][1]], ...xs.map((x, i) => [x, stack[i][b][1]]), [xR, stack.at(-1)[b][1]]].reverse();
+    ctx.beginPath(); ctx.moveTo(topE[0][0], topE[0][1]); curve(topE); curve(botE); ctx.closePath();
+    ctx.fillStyle = color(b); ctx.fill();
+    ctx.strokeStyle = 'rgba(13,19,29,.5)'; ctx.lineWidth = 1; ctx.stroke();
+  }
+  // bandens namn, där bandet är som bredast
+  ctx.font = '600 10px -apple-system, Segoe UI, sans-serif'; ctx.textBaseline = 'middle';
+  for (const b of BAND_ORDER) {
+    let best = -1, bh = 0;
+    stack.forEach((st, i) => { const s = st[b]; if (s && s[1] - s[0] > bh) { bh = s[1] - s[0]; best = i; } });
+    if (best < 0 || bh < 16) continue;
+    const s = stack[best][b], name = bioOf(b).name.toUpperCase(), w = ctx.measureText(name).width;
+    const x = Math.min(W - w - 6, Math.max(6, xOf(best) - w / 2));
+    ctx.fillStyle = 'rgba(255,255,255,.42)'; ctx.fillText(name, x, s[0] + 9);
+  }
+  // ---- arterna i sin biotop ----
+  const homes = speciesHomes(pts, g);
+  const chosen = {};
+  Object.entries(homes).filter(([, h]) => h.home && h.ratio > 1.35)
+    .sort((a, b) => b[1].ratio * Math.sqrt(b[1].inHome) - a[1].ratio * Math.sqrt(a[1].inHome))
+    .forEach(([k, h]) => { const list = chosen[h.home] ??= []; if (list.length < (opts.perBand || 2)) list.push(k); });
+  const labels = [], placed = [];
+  for (const [b, keys] of Object.entries(chosen)) {
+    keys.forEach((k, slot) => {
+      const c = spColor(k), lane = (slot + 1) / (keys.length + 1);      // egen fil i bandet
+      // där arten finns och bandet finns: ett tunt spår, tjockare där artens andel är större
+      let peak = -1, pv = 0; const pv0 = [];
+      vis.forEach((p, i) => { const s = stack[i][b], v = share(p, g, k); pv0.push(s && v ? [xOf(i), s[0] + (s[1] - s[0]) * lane, v, s[1] - s[0]] : null);
+                              if (s && v * (p.bio?.[b] || 0) > pv) { pv = v * (p.bio?.[b] || 0); peak = i; } });
+      const vmax = Math.max(...pv0.filter(Boolean).map(q => q[2]), 1e-9);
+      ctx.strokeStyle = c; ctx.lineCap = 'round';
+      for (let i = 1; i < pv0.length; i++) {
+        const a = pv0[i - 1], d = pv0[i]; if (!a || !d || a[3] < 3 || d[3] < 3) continue;
+        ctx.globalAlpha = 0.85; ctx.lineWidth = 1 + 3 * (a[2] + d[2]) / 2 / vmax;
+        ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.bezierCurveTo((a[0] + d[0]) / 2, a[1], (a[0] + d[0]) / 2, d[1], d[0], d[1]); ctx.stroke();
       }
-    }
+      ctx.globalAlpha = 1;
+      if (peak < 0 || !pv0[peak]) return;
+      const [x, y, v] = pv0[peak], r = 3.5 + 3 * v / vmax;
+      ctx.fillStyle = c; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.stroke();
+      labels.push({ k, x, y, r });
+    });
+  }
+  // namnen: en liten etikett bredvid pricken, och bara om den inte krockar med en annan
+  ctx.font = '600 10.5px -apple-system, Segoe UI, sans-serif';
+  labels.sort((a, b) => b.r - a.r).forEach(l => {
+    const t = nameOf(l.k), w = ctx.measureText(t).width + 10, h = 15;
+    let x = l.x + l.r + 3; if (x + w > W - 4) x = l.x - l.r - 3 - w;
+    const y = l.y - h / 2, box = [x, y, x + w, y + h];
+    if (placed.some(q => box[0] < q[2] && box[2] > q[0] && box[1] < q[3] && box[3] > q[1])) return;
+    placed.push(box);
+    ctx.fillStyle = 'rgba(10,14,22,.78)'; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, 7.5) : ctx.rect(x, y, w, h); ctx.fill();
+    ctx.fillStyle = '#eef1f7'; ctx.fillText(t, x + 5, l.y + 0.5);
   });
-  // ---- arterna: mjuka strömmar ovanför landskapet ----
-  const rowsH = groundY - LAND - top - 4;
-  const rows = stripModel(vis, Math.max(3, Math.min(6, Math.floor(rowsH / 20))));
-  const rh = rows.length ? rowsH / rows.length : 0;
-  ctx.font = '600 10.5px -apple-system, Segoe UI, sans-serif'; ctx.textBaseline = 'middle';
-  rows.forEach((r, ri) => {
-    const cy = top + rh * (ri + 0.5), maxT = Math.min(rh - 4, 16), color = spColor(r.k);
-    const th = i => { const v = share(vis[i], g, r.k); return v ? 1 + (maxT - 1) * (v / r.max) : 0; };
-    // sammanhängande sträckor där arten finns, ritade som en mjuk ström med glöd
-    let i = 0;
-    while (i < vis.length) {
-      while (i < vis.length && !th(i)) i++;
-      const a = i; while (i < vis.length && th(i)) i++;
-      const b = i - 1; if (a > b) continue;
-      const P = []; for (let k = a; k <= b; k++) P.push([xOf(k), th(k) / 2]);
-      if (P.length === 1) P.unshift([P[0][0] - col * 0.35, P[0][1] * 0.6]), P.push([P[1][0] + col * 0.35, P[1][1] * 0.6]);
-      ctx.save(); ctx.shadowColor = color; ctx.shadowBlur = 8; ctx.fillStyle = color; ctx.globalAlpha = 0.85;
-      ctx.beginPath(); ctx.moveTo(P[0][0] - col * 0.3, cy);
-      for (let k = 0; k < P.length; k++) { const [x, h] = P[k], [px, ph] = P[Math.max(0, k - 1)]; ctx.quadraticCurveTo(px, cy - ph, (px + x) / 2, cy - (ph + h) / 2); }
-      ctx.lineTo(P.at(-1)[0], cy - P.at(-1)[1]); ctx.lineTo(P.at(-1)[0] + col * 0.3, cy);
-      ctx.lineTo(P.at(-1)[0], cy + P.at(-1)[1]);
-      for (let k = P.length - 1; k >= 0; k--) { const [x, h] = P[k], [nx, nh] = P[Math.min(P.length - 1, k + 1)]; ctx.quadraticCurveTo(nx, cy + nh, (nx + x) / 2, cy + (nh + h) / 2); }
-      ctx.lineTo(P[0][0] - col * 0.3, cy); ctx.closePath(); ctx.fill(); ctx.restore();
-    }
-    // namnet i en liten etikett där strömmen börjar
-    const label = nameOf(r.k), w = ctx.measureText(label).width, at = vis.findIndex((p, k) => th(k));
-    const x = Math.min(W - w - 14, Math.max(4, xOf(at) - col * 0.3));   // etiketten ska rymmas i bilden
-    ctx.fillStyle = 'rgba(8,12,22,.72)'; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x - 3, cy - 7.5, w + 12, 15, 7.5) : ctx.rect(x - 3, cy - 7.5, w + 12, 15); ctx.fill();
-    ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x + 2.5, cy, 2.5, 0, 7); ctx.fill();
-    ctx.fillStyle = '#eef1f7'; ctx.fillText(label, x + 8, cy + 0.5);
-  });
-  // avstånd: en markering per kilometer, siffror var femte
-  ctx.fillStyle = 'rgba(232,236,245,.4)'; ctx.font = '10px -apple-system, Segoe UI, sans-serif'; ctx.textBaseline = 'top';
+  // avstånd och var du är
+  ctx.fillStyle = 'rgba(232,236,245,.45)'; ctx.font = '10px -apple-system, Segoe UI, sans-serif'; ctx.textBaseline = 'top';
   let km = 0; const base = pts.length - vis.length;
   for (let i = 1; i < base + vis.length; i++) {
     const before = Math.floor(km); km += distKm(pts[i - 1], pts[i]);
     if (Math.floor(km) > before && i >= base) { const x = xOf(i - base); ctx.fillRect(x, 0, 1, 4); if (Math.floor(km) % 5 === 0) ctx.fillText(`${Math.floor(km)} km`, x + 3, 2); }
   }
-  // du är här: en ljus linje vid senaste punkten
-  if (!opts.col) {
-    const x = xOf(vis.length - 1);
-    const gl = ctx.createLinearGradient(0, top, 0, groundY); gl.addColorStop(0, 'rgba(255,146,43,0)'); gl.addColorStop(1, 'rgba(255,146,43,.55)');
-    ctx.fillStyle = gl; ctx.fillRect(x - 0.75, top, 1.5, groundY - top);
-    ctx.fillStyle = '#ff922b'; ctx.beginPath(); ctx.arc(x, groundY, 3.2, 0, 7); ctx.fill();
-  }
-  return rows;
+  if (!opts.col) { const x = xOf(vis.length - 1); ctx.fillStyle = 'rgba(255,146,43,.9)'; ctx.fillRect(x - 1, top, 2, bot - top); }
+  return Object.values(chosen).flat().map(k => ({ k }));
 }
+
+// Varje ändring tonar över från förra bilden: en ny punkt glider in från höger medan den gamla bilden
+// glider undan och bleknar, och nya biotoper eller fynd tonar fram i stället för att hoppa.
+const stripSnap = document.createElement('canvas');
 function drawStrip(animate) {
   const cv = $('strip'); if (!cv || !tripView) return;
   const W = cv.clientWidth, H = cv.clientHeight; if (!W) return;
   const dpr = Math.min(devicePixelRatio || 1, 2);
-  if (cv.width !== W * dpr) { cv.width = W * dpr; cv.height = H * dpr; }
+  const resized = cv.width !== W * dpr;
+  if (resized) { cv.width = W * dpr; cv.height = H * dpr; }
   const pts = tripPoints();
-  // ny punkt: rulla in den från höger
-  if (animate && pts.length > stripCount && stripCount) {
-    cancelAnimationFrame(stripAnim); const t0 = performance.now();
-    const colW = Math.min(36, Math.max(COL, W / Math.max(1, pts.length)));
-    const step = now => { const t = Math.min(1, (now - t0) / 700); stripShift = colW * (1 - (1 - (1 - t) ** 3));
-      paint(); if (t < 1) stripAnim = requestAnimationFrame(step); };
+  const colOf = n => Math.min(36, Math.max(COL, W / Math.max(1, n)));
+  const grew = pts.length > stripCount && stripCount > 0;
+  const oldCol = colOf(stripCount), newCol = colOf(pts.length);
+  stripCount = pts.length;
+  const fade = animate && !resized && !calm.matches && pts.length > 1;
+  if (fade) { stripSnap.width = cv.width; stripSnap.height = cv.height; stripSnap.getContext('2d').drawImage(cv, 0, 0); }
+  function paint(t) {
+    const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (!pts.length) { ctx.fillStyle = '#0a1020'; ctx.fillRect(0, 0, W, H); ctx.fillStyle = '#8d97ad'; ctx.font = '13px -apple-system, sans-serif';
+      ctx.fillText('Landskapet ritas upp när resan börjar.', 12, H / 2); return []; }
+    const e = 1 - (1 - t) ** 3;
+    const rows = paintStrip(cv, pts, W, H, grew ? newCol * (1 - e) : 0);
+    if (t < 1 && fade) {   // den gamla bilden ovanpå: glider undan en kolumn och bleknar
+      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1 - e;
+      ctx.drawImage(stripSnap, grew ? -oldCol * dpr * e : 0, 0); ctx.restore();
+    }
+    return rows;
+  }
+  cancelAnimationFrame(stripAnim);
+  if (fade) {
+    const t0 = performance.now();
+    const step = now => { const t = Math.min(1, (now - t0) / 900); paint(t); if (t < 1) stripAnim = requestAnimationFrame(step); };
     stripAnim = requestAnimationFrame(step);
   }
-  stripCount = pts.length;
-  function paint() {
-    const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    if (!pts.length) { ctx.fillStyle = '#0b0f14'; ctx.fillRect(0, 0, W, H); ctx.fillStyle = '#8d97ad'; ctx.font = '13px -apple-system, sans-serif';
-      ctx.fillText('Landskapet ritas upp när resan börjar.', 12, H / 2); return; }
-    const rows = paintStrip(cv, pts, W, H, stripShift);
-    const missing = rows.filter(r => !names[r.k]);
-    if (missing.length && !paint.asked) { paint.asked = true; Promise.all(missing.map(r => speciesName(r.k))).then(() => drawStrip(false)); }
-  }
-  paint();
+  const rows = paint(fade ? 0 : 1);
+  const missing = rows.filter(r => !names[r.k]);
+  if (missing.length) Promise.all(missing.map(r => speciesName(r.k))).then(() => { if (missing.some(r => names[r.k])) drawStrip(true); });
   const used = new Set(pts.flatMap(p => Object.keys(p.bio || {})));
-  $('stripLegend').innerHTML = BIO.filter(b => used.has(b.id)).map(b => `<span><i style="background:${b.color}"></i>${b.name}</span>`).join('');
+  $('stripLegend').innerHTML = BIO.filter(b => used.has(b.id)).map(b => `<span><i style="background:${b.color}"></i>${b.name}</span>`).join('')
+    + (pts.length ? '<span class="striphint">Tryck för att se landskapet ovanifrån</span>' : '');
 }
 new ResizeObserver(() => drawStrip(false)).observe($('strip'));
+
+
+// ---- Landskapet ovanifrån ----
+// Ett tryck på snittet: Naturvårdsverkets marktäckekarta med resvägen, så att man ser vad man färdas genom uppifrån.
+// Teckenförklaringen har NMD:s egna färger (samma som kartan), grupperade som i snittet.
+const NMD_LEGEND = [['Skog', '#2D5F00'], ['Sumpskog', '#305E50'], ['Hygge', '#CDCD66'], ['Våtmark', '#C29ED7'], ['Åker', '#FFFFBE'],
+                    ['Gräsmark', '#FFD37F'], ['Hed och ris', '#CDAA66'], ['Vatten', '#6699CD'], ['Bebyggt', '#E5464B']];
+let bioMap = null;
+function openBioMap() {
+  const pts = tripPoints(); if (!pts.length) return;
+  $('infoBody').innerHTML = `<div class="biomapwrap"><h2 class="t">Landskapet ovanifrån</h2>
+    <div class="muted">Det du färdas genom, enligt Naturvårdsverkets marktäckedata. Resvägen i orange, och skyltar där typiska arter har setts.</div>
+    <div id="bioMap"></div>
+    <div class="striplegend">${NMD_LEGEND.map(([n, c]) => `<span><i style="background:${c}"></i>${n}</span>`).join('')}</div></div>`;
+  $('infoBackdrop').hidden = false; document.body.style.overflow = 'hidden';
+  requestAnimationFrame(() => {
+    bioMap?.remove();
+    bioMap = L.map('bioMap', { zoomSnap: 0.25, zoomDelta: 0.5 });
+    bioMap.attributionControl.setPrefix(false);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, className: 'basemap', attribution: '© OpenStreetMap' }).addTo(bioMap);
+    L.tileLayer.wms(NMD_WMS, { layers: NMD_LAYER, format: 'image/png', transparent: true, opacity: 0.8, maxZoom: 19,
+                               attribution: 'Marktäcke: Naturvårdsverket, NMD 2023' }).addTo(bioMap);
+    const ll = pts.map(p => [p.lat, p.lon]);
+    L.polyline(ll, { color: '#1b1b1b', weight: 7, opacity: 0.5 }).addTo(bioMap);
+    const line = L.polyline(ll, { color: '#ff922b', weight: 4, opacity: 0.95 }).addTo(bioMap);
+    L.circleMarker(ll.at(-1), { radius: 7, color: '#fff', weight: 2, fillColor: '#ff922b', fillOpacity: 1 }).addTo(bioMap);
+    if (ll.length > 1) bioMap.fitBounds(line.getBounds().pad(0.2), { maxZoom: 14 }); else bioMap.setView(ll[0], 13);
+    bioMap.attributionControl.addAttribution('Fynd: Artportalen via GBIF');
+    placeSigns(bioMap, pts);
+  });
+}
+
+// Skyltar på kartan ovanifrån: de arter som är mest typiska för varje del av resan, plus hotade arter, satta där
+// ett riktigt fynd gjordes nära vägen. Skylten (ikon och namn) står på en tunn pinne ner i marken.
+let signSeq = 0;
+async function placeSigns(m, pts) {
+  const my = ++signSeq, g = filter.group, data = pts.filter(spOf);
+  if (!data.length) return;
+  const avg = {};
+  data.forEach(p => Object.keys(spOf(p)[g] || {}).forEach(k => avg[k] = (avg[k] || 0) + share(p, g, k) / data.length));
+  const cand = new Map();
+  data.forEach(p => Object.keys(spOf(p)[g] || {}).forEach(k => {
+    const v = share(p, g, k), sc = v / (avg[k] + 0.01) * Math.sqrt(v) + (redlist[k] ? 1.5 : 0);
+    const c = cand.get(k); if (!c || sc > c.sc) cand.set(k, { k, p, sc });
+  }));
+  const pick = [...cand.values()].sort((a, b) => b.sc - a.sc).slice(0, 30);
+  await mapLimit(pick, 4, c => speciesName(c.k));
+  const near = (lat, lon) => Math.min(...pts.map(q => distKm(q, { lat, lon })));
+  const markers = [];
+  await mapLimit(pick, 4, async (c, i) => {
+    if (my !== signSeq || !bioMap) return;
+    let d;
+    try { d = await getJSON(`${OCC}?datasetKey=${DATASET}&taxonKey=${c.k}&geoDistance=${c.p.lat},${c.p.lon},${RADIUS_KM}km${yearParam()}&hasCoordinate=true&occurrenceStatus=PRESENT&limit=40`); }
+    catch { return; }
+    if (my !== signSeq || !bioMap) return;
+    const recs = (d.results || []).filter(o => o.decimalLatitude != null);
+    if (!recs.length) return;
+    const o = recs.map(o => ({ o, km: near(o.decimalLatitude, o.decimalLongitude) })).sort((a, b) => a.km - b.km)[0].o;
+    const th = THREAT[redlist[c.k]];
+    const html = `<div class="sign${th ? ' red' : ''}"><div class="plate">${spIcon(c.k, g)}<span>${esc(nameOf(c.k))}${th ? ` <b class="badge ${th.code.toLowerCase()}">${th.code}</b>` : ''}</span></div><div class="stick"></div><div class="foot"></div></div>`;
+    const mk = L.marker([o.decimalLatitude, o.decimalLongitude], { icon: L.divIcon({ className: 'signicon', html, iconSize: [0, 0], iconAnchor: [0, 0] }),
+                                                                    zIndexOffset: 1000 - i * 10, rank: i }).addTo(m);
+    mk.on('click', () => { const date = o.eventDate?.slice(0, 10); bioMap?.remove(); bioMap = null;
+      openInfo({ key: c.k, ...(names[c.k] || {}), gid: g, last: date ? `${+date.slice(8, 10)} ${MON[+date.slice(5, 7) - 1]} ${date.slice(0, 4)}` : null, where: 'nära resvägen' }); });
+    markers.push(mk); declutter();
+  });
+  // skyltar som skulle stå på varandra döljs; de viktigaste (högst upp i listan) står kvar
+  function declutter() {
+    if (!bioMap) return;
+    const placed = [];
+    markers.slice().sort((a, b) => a.options.rank - b.options.rank).forEach(mk => {
+      const el = mk.getElement()?.querySelector('.plate'); if (!el) return;
+      el.parentElement.classList.remove('hide');
+      const r = el.getBoundingClientRect();
+      const hit = placed.some(q => r.left < q.right + 2 && r.right > q.left - 2 && r.top < q.bottom + 2 && r.bottom > q.top - 2);
+      el.parentElement.classList.toggle('hide', hit);
+      if (!hit) placed.push(r);
+    });
+  }
+  m.on('zoomend moveend', declutter);
+}
+$('strip').addEventListener('click', openBioMap);
 
 // Händelser: ett litet kort glider in när en ny art eller en hotad art dyker upp
 function eventCard(key, gid, kind) {
@@ -2008,7 +2142,7 @@ async function tripEvents(p) {
   const g = filter.group, fresh = [...(lastNew.byGroup[g] || [])];
   const reds = Object.entries(lastNew.byGroup).flatMap(([gid, set]) => [...set].filter(k => redlist[k]).map(k => [k, gid]));
   const show = [...reds.map(([k, gid]) => [k, gid, 'red']),
-                ...fresh.filter(k => !redlist[k]).sort((a, b) => (p.sp[g]?.[b] || 0) - (p.sp[g]?.[a] || 0)).slice(0, 2).map(k => [k, g, 'new'])].slice(0, 3);
+                ...fresh.filter(k => !redlist[k]).sort((a, b) => (spOf(p)?.[g]?.[b] || 0) - (spOf(p)?.[g]?.[a] || 0)).slice(0, 2).map(k => [k, g, 'new'])].slice(0, 3);
   await Promise.all(show.map(([k]) => speciesName(k)));
   show.forEach(([k, gid, kind], i) => setTimeout(() => eventCard(k, gid, kind), i * 900));
 }
@@ -2019,7 +2153,7 @@ async function tripEnd() {
   const g = filter.group;
   let km = 0; for (let i = 1; i < pts.length; i++) km += distKm(pts[i - 1], pts[i]);
   const mins = Math.round((pts.at(-1).t - pts[0].t) / 60_000);
-  const bucket = tripSpecies[yearId()] || {}, nsp = Object.values(bucket).reduce((n, x) => n + Object.keys(x).length, 0);
+  const nsp = tripSpeciesCount(pts);
   // biotopernas andel av hela resan
   const tot = {}; pts.forEach(p => Object.entries(p.bio || {}).forEach(([k, v]) => tot[k] = (tot[k] || 0) + v));
   const sum = Object.values(tot).reduce((a, b) => a + b, 0) || 1;
@@ -2029,7 +2163,7 @@ async function tripEnd() {
   const typ = [];
   for (const b of BIO) {
     const at = pts.filter(p => dom(p) === b.id); if (at.length < 2) continue;
-    const keys = new Set(at.flatMap(p => Object.keys(p.sp[g] || {})));
+    const keys = new Set(at.flatMap(p => Object.keys(spOf(p)?.[g] || {})));
     const best = [...keys].map(k => { const m = mean(at, k); return { k, s: m / (mean(pts, k) + 0.01) * Math.sqrt(m) }; })
       .sort((a, c) => c.s - a.s).slice(0, 3);
     typ.push([b, best.map(x => x.k)]);
@@ -2041,12 +2175,14 @@ async function tripEnd() {
   const html = `<div class="tripend"><h2 class="t">Resan</h2>
     <div class="muted">${km.toFixed(1).replace('.', ',')} km · ${mins >= 60 ? `${Math.floor(mins / 60)} h ${mins % 60} min` : `${mins} min`} · ${fmtN(nsp)} arter</div>
     <img class="strip" src="${cv.toDataURL('image/png')}" alt="Landskapet längs resan">
+    <div class="info-links" style="margin:8px 0"><button class="primary" id="endBioMap">Se landskapet ovanifrån</button></div>
     <div class="biobar">${BIO.filter(b => tot[b.id]).map(b => `<i title="${b.name}" style="background:${b.color};width:${tot[b.id] / sum * 100}%"></i>`).join('')}</div>
     <div class="striplegend">${BIO.filter(b => tot[b.id]).map(b => `<span><i style="background:${b.color}"></i>${b.name} ${Math.round(tot[b.id] / sum * 100)} %</span>`).join('')}</div>
     ${typ.length ? `<div class="typ"><h2>Typiskt för ${GROUPS[g].label.toLowerCase()} i varje biotop</h2>${typ.map(([b, ks]) => `<div><i style="background:${b.color}"></i><b>${b.name}:</b> ${ks.map(k => esc(nameOf(k))).join(', ')}</div>`).join('')}</div>` : ''}
     <p class="homenote">Biotoper: Naturvårdsverkets Nationella marktäckedata 2023. Arter: Artportalen via GBIF, inom 5 km från varje punkt.</p></div>`;
   $('infoBody').innerHTML = html;
   $('infoBackdrop').hidden = false; document.body.style.overflow = 'hidden';
+  $('endBioMap').onclick = openBioMap;
   return true;
 }
 
