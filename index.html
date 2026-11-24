@@ -334,6 +334,25 @@
   .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 20px; z-index: 2600; background: var(--text); color: var(--bg);
            padding: 10px 16px; border-radius: 12px; font-size: .9rem; box-shadow: 0 6px 20px rgba(0,0,0,.3); max-width: calc(100% - 32px); }
   .toast[hidden] { display: none; }
+  .striphead { display: flex; align-items: center; justify-content: space-between; }
+  .cloudbtn { font-size: .78rem; padding: 4px 10px; border-radius: 999px; text-transform: none; letter-spacing: 0; font-weight: 600;
+              background: linear-gradient(135deg, #2a2f5a, #12182e); color: #dfe6ff; border: 1px solid #3c4580; }
+  .cloudview { position: fixed; inset: 0; z-index: 3500; color: #e8ecf5;
+               background: linear-gradient(#02040a 0%, #07101f 22%, #0b1424 34%, #0b1424 40%, #05070d 60%); }
+  .cloudview[hidden] { display: none; }
+  .cloudview canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .cloudhead { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 16px; right: 16px; z-index: 2; display: flex; align-items: center; gap: 10px; }
+  .cloudhead b { font-size: 1.05rem; letter-spacing: .3px; color: #c9d4ff; }
+  .cloudhead span { color: #8d97ad; font-size: .8rem; }
+  .cloudhead button { margin-left: auto; width: 36px; height: 36px; padding: 0; border-radius: 50%; background: rgba(255,255,255,.1); color: #fff; border: 0; }
+  .cloudlabels { position: absolute; inset: 0; pointer-events: none; z-index: 1; overflow: hidden; }
+  .cloudlabels .cl { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); white-space: nowrap; font-size: 12px; font-weight: 600;
+                     padding: 2px 9px 2px 6px; border-radius: 999px; background: rgba(5,8,14,.55); border: 1px solid rgba(255,255,255,.12);
+                     display: flex; align-items: center; gap: 5px; transition: opacity .6s; }
+  .cloudlabels .cl i { width: 8px; height: 8px; border-radius: 50%; }
+  .cloudlegend { position: absolute; left: 16px; right: 16px; bottom: max(14px, env(safe-area-inset-bottom)); z-index: 2; display: flex; flex-wrap: wrap;
+                 gap: 4px 12px; font-size: .74rem; color: #aab3c6; }
+  .cloudlegend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; opacity: .8; }
 
   /* ---- Resläget: siffrorna, Just här och landskapssnittet ---- */
   .tripstage { display: none; }
@@ -526,7 +545,7 @@
         </div>
         <h2>Just här</h2>
         <ol class="justhere" id="justHere"></ol>
-        <h2>Landskapet längs vägen</h2>
+        <h2 class="striphead">Landskapet längs vägen <button id="cloudBtn" class="cloudbtn">✦ Livets ljus</button></h2>
         <canvas id="strip"></canvas>
         <div class="striplegend" id="stripLegend"></div>
       </section>
@@ -566,6 +585,12 @@
 </main>
 <div class="toast" id="toast" role="status" hidden></div>
 <div class="events" id="events" aria-live="polite"></div>
+<!-- Livets ljus: landskapet i natt runt bilen, där varje plats med fynd lyser -->
+<div class="cloudview" id="cloudView" hidden>
+  <div class="cloudhead"><b>Livets ljus</b><span id="cloudSub"></span><button id="cloudClose" aria-label="Stäng">✕</button></div>
+  <div class="cloudlabels" id="cloudLabels"></div>
+  <div class="cloudlegend" id="cloudLegend"></div>
+</div>
 
 <!-- Informationskort om en art -->
 <div class="sheet-backdrop" id="infoBackdrop" hidden>
@@ -2209,6 +2234,172 @@ async function tripEnd() {
   $('infoBackdrop').hidden = false; document.body.style.overflow = 'hidden';
   $('endBioMap').onclick = openBioMap;
   return true;
+}
+
+// ---- Livets ljus: landskapet i natt, där varje fynd är ett ljus ----
+// Golvet är Naturvårdsverkets marktäckekarta, mörklagd, i rutor på ungefär 5 × 5 km runt bilen (zoom 12).
+// Ljusen kommer från GBIF:s kartrutor: varje plats med fynd blir en pixel, och färgen säger hur många fynd platsen har
+// (gult = få, rött = många). Alla år men bara den här årstiden, en färg per djurgrupp. Fynd från de senaste 30 dagarna
+// lyser vitt och pulserar. Kameran flyger med bilen, snett bakifrån och ovanifrån, och tittar framåt.
+const LZ = 12;
+const LGROUP = { birds: [1.0, 0.82, 0.42], mammals: [1.0, 0.52, 0.28], herps: [0.45, 1.0, 0.55] };
+const cloud = { open: false, three: null, r: null, scene: null, cam: null, tiles: new Map(), origin: null, carX: 0, carZ: 0, head: 0, raf: 0, route: null, me: null };
+function loadThree() {
+  return cloud.three ??= new Promise((ok, fail) => {
+    if (window.THREE) return ok();
+    const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+    sc.onload = ok; sc.onerror = () => { cloud.three = null; fail(new Error('kunde inte ladda 3D')); }; document.head.appendChild(sc);
+  });
+}
+async function openClouds() {
+  $('cloudView').hidden = false; cloud.open = true; document.body.style.overflow = 'hidden';
+  $('cloudSub').textContent = 'Laddar …';
+  try { await loadThree(); } catch (e) { $('cloudSub').textContent = e.message; return; }
+  if (!cloud.r) initClouds();
+  resizeClouds();
+  $('cloudLegend').innerHTML = Object.entries(LGROUP).map(([g, c]) => `<span><i style="background:rgb(${c.map(v => Math.round(v * 255))});border-radius:50%"></i>${GROUPS[g].label}</span>`).join('')
+    + '<span><i style="background:#fff;border-radius:50%;box-shadow:0 0 6px #fff"></i>Senaste 30 dagarna</span>';
+  if (!cloud.raf) cloud.raf = requestAnimationFrame(cloudFrame);
+}
+function closeClouds() {
+  $('cloudView').hidden = true; cloud.open = false; document.body.style.overflow = '';
+  cancelAnimationFrame(cloud.raf); cloud.raf = 0;
+}
+$('cloudBtn').onclick = openClouds;
+$('cloudClose').onclick = closeClouds;
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && cloud.open) closeClouds(); });
+// lokala koordinater i km kring resans början: x österut, z söderut
+const toLocal = (lat, lon) => { const o = cloud.origin; return [(lon - o.lon) * 111.32 * Math.cos(o.lat * Math.PI / 180), -(lat - o.lat) * 110.57]; };
+const tileLon = (x, n) => x / n * 360 - 180;
+const tileLat = (y, n) => Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n))) * 180 / Math.PI;
+const tileOf = (lat, lon) => { const n = 2 ** LZ, la = lat * Math.PI / 180; return [Math.floor((lon + 180) / 360 * n), Math.floor((1 - Math.log(Math.tan(la) + 1 / Math.cos(la)) / Math.PI) / 2 * n)]; };
+function initClouds() {
+  const r = cloud.r = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  r.setPixelRatio(Math.min(devicePixelRatio, 2)); r.setClearColor(0x000000, 0);   // himlen är en gradient bakom (CSS)
+  $('cloudView').prepend(r.domElement);
+  cloud.scene = new THREE.Scene();
+  cloud.scene.fog = new THREE.Fog(0x0b1424, 6, 13);                                  // långt bort tonar marken in i natthimlen
+  cloud.cam = new THREE.PerspectiveCamera(50, 1, 0.01, 60);
+  cloud.lmat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    uniforms: { uTime: { value: 0 }, uPx: { value: 16 * Math.min(devicePixelRatio, 2) } },
+    vertexShader: `attribute vec3 aColor; attribute float aI, aSeed, aFresh; uniform float uTime, uPx;
+      varying vec3 vC; varying float vA;
+      void main() {
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mv;
+        float tw = 0.85 + 0.15 * sin(uTime * (1.3 + aSeed) + aSeed * 40.0);              // ljusen glimmar svagt
+        float pulse = aFresh > 0.5 ? 0.7 + 0.6 * (0.5 + 0.5 * sin(uTime * 2.2 + aSeed * 9.0)) : 1.0;
+        float s = sqrt(aI);                                                               // få fynd syns också, många lyser mer
+        gl_PointSize = uPx * (1.3 + 1.5 * s) * (aFresh > 0.5 ? 1.2 : 1.0) * pulse / max(0.15, -mv.z);
+        vC = aColor; vA = (0.8 + 0.4 * s) * tw * clamp(1.5 - (-mv.z) / 10.0, 0.0, 1.0);
+      }`,
+    fragmentShader: `varying vec3 vC; varying float vA;
+      void main() { float d = length(gl_PointCoord - .5);
+        float core = smoothstep(.16, .0, d), halo = smoothstep(.5, .05, d);          // skarp kärna och mjuk gloria
+        float a = (core + 0.35 * halo * halo) * vA;
+        gl_FragColor = vec4(mix(vC, vec3(1.0), core * 0.5) * a, a); }`,
+  });
+  // resvägen som en lysande linje på marken, och en ring där bilen är
+  cloud.route = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xff922b, transparent: true, opacity: 0.9 }));
+  cloud.route.position.y = 0.004; cloud.scene.add(cloud.route);
+  cloud.me = new THREE.Mesh(new THREE.RingGeometry(0.05, 0.07, 32), new THREE.MeshBasicMaterial({ color: 0xff922b, transparent: true, opacity: 0.9, side: THREE.DoubleSide }));
+  cloud.me.rotation.x = -Math.PI / 2; cloud.me.position.y = 0.005; cloud.scene.add(cloud.me);
+  addEventListener('resize', resizeClouds);
+}
+function resizeClouds() {
+  if (!cloud.r) return;
+  const w = innerWidth, h = innerHeight; cloud.r.setSize(w, h); cloud.cam.aspect = w / h; cloud.cam.updateProjectionMatrix();
+  cloud.portrait = w < h;
+}
+const tileImage = url => new Promise((ok, fail) => { const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => ok(im); im.onerror = fail; im.src = url; });
+// En ruta: golvet (marktäckekartan) och ljusen för varje djurgrupp och för de färska fynden
+async function loadTile(tx, ty, key) {
+  const n = 2 ** LZ, t = { key, objs: [] };
+  cloud.tiles.set(key, t);
+  const W = tileLon(tx, n), E = tileLon(tx + 1, n), N = tileLat(ty, n), S = tileLat(ty + 1, n);
+  const [x0, z0] = toLocal(N, W), [x1, z1] = toLocal(S, E);
+  // golvet: mörklagd marktäckekarta (i Web Mercator, så att den passar rutan)
+  const m3857 = v => v * 20037508.34 / 180, y3857 = la => Math.log(Math.tan((90 + la) * Math.PI / 360)) * 6378137;
+  const wms = `${NMD_WMS}?service=WMS&version=1.1.1&request=GetMap&layers=${NMD_LAYER}&styles=&srs=EPSG:3857&bbox=${m3857(W)},${y3857(S)},${m3857(E)},${y3857(N)}&width=256&height=256&format=image/png&transparent=true`;
+  tileImage(wms).then(im => {
+    if (!cloud.tiles.has(key)) return;
+    const tex = new THREE.Texture(im); tex.needsUpdate = true;
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0), new THREE.MeshBasicMaterial({ map: tex, color: 0x1a2130, transparent: true, opacity: 0.95, depthWrite: false }));
+    floor.rotation.x = -Math.PI / 2; floor.position.set((x0 + x1) / 2, 0, (z0 + z1) / 2); floor.renderOrder = -1;
+    cloud.scene.add(floor); t.objs.push(floor);
+  }).catch(() => {});
+  // ljusen
+  const layers = [...Object.keys(LGROUP).map(g => [g, `${taxonParam(GROUPS[g])}${yearParam()}`, false]),
+                  ['fresh', `${allTaxa()}&eventDate=${ymd(addDays(new Date(), -30))},${ymd(new Date())}`, true]];
+  for (const [g, q, fresh] of layers) {
+    const url = `https://api.gbif.org/v2/map/occurrence/adhoc/${LZ}/${tx}/${ty}@1x.png?datasetKey=${DATASET}${q}&style=classic.point&srs=EPSG:3857`;
+    tileImage(url).then(im => {
+      if (!cloud.tiles.has(key)) return;
+      const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const gx = c.getContext('2d'); gx.drawImage(im, 0, 0);
+      const d = gx.getImageData(0, 0, im.width, im.height).data, P = [], C = [], I = [], SD = [], F = [];
+      const col = fresh ? [1, 1, 1] : LGROUP[g];
+      for (let py = 0; py < im.height; py++) for (let px = 0; px < im.width; px++) {
+        const k = (py * im.width + px) * 4; if (d[k + 3] < 128) continue;
+        // classic.point: gult (255,255,0) = ett fynd, mot rött (255,0,0) = många
+        const inten = 1 - d[k + 1] / 255;
+        P.push(x0 + (px + 0.5) / im.width * (x1 - x0), 0.01 + inten * 0.03, z0 + (py + 0.5) / im.height * (z1 - z0));
+        C.push(...col); I.push(fresh ? 1 : inten); SD.push(Math.random()); F.push(fresh ? 1 : 0);
+      }
+      if (!P.length) return;
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); geo.setAttribute('aColor', new THREE.Float32BufferAttribute(C, 3));
+      geo.setAttribute('aI', new THREE.Float32BufferAttribute(I, 1)); geo.setAttribute('aSeed', new THREE.Float32BufferAttribute(SD, 1));
+      geo.setAttribute('aFresh', new THREE.Float32BufferAttribute(F, 1));
+      const pts = new THREE.Points(geo, cloud.lmat); pts.frustumCulled = false; pts.renderOrder = fresh ? 3 : 2;
+      cloud.scene.add(pts); t.objs.push(pts); t.lights = (t.lights || 0) + P.length / 3;
+    }).catch(() => {});
+  }
+}
+function dropTile(key) {
+  const t = cloud.tiles.get(key); if (!t) return;
+  t.objs.forEach(o => { cloud.scene.remove(o); o.geometry.dispose(); if (o.material !== cloud.lmat) { o.material.map?.dispose(); o.material.dispose(); } });
+  cloud.tiles.delete(key);
+}
+// rutorna runt bilen (5 × 5), med årstid och år i nyckeln så att de byts när valet ändras
+function syncTiles(lat, lon) {
+  const [tx, ty] = tileOf(lat, lon), want = new Set(), q = yearId();
+  for (let dx = -2; dx <= 2; dx++) for (let dy = -2; dy <= 2; dy++) {
+    const key = `${tx + dx}/${ty + dy}|${q}`; want.add(key);
+    if (!cloud.tiles.has(key)) loadTile(tx + dx, ty + dy, key);
+  }
+  for (const k of [...cloud.tiles.keys()]) if (!want.has(k)) dropTile(k);
+}
+function cloudFrame(now) {
+  cloud.raf = requestAnimationFrame(cloudFrame);
+  if (!cloud.open || !window.THREE) return;
+  const pts = tripPoints(), here = pos ? { lat: pos.coords.latitude, lon: pos.coords.longitude } : pts.at(-1);
+  if (!here) { $('cloudSub').textContent = 'Väntar på din position …'; cloud.r.render(cloud.scene, cloud.cam); return; }
+  if (!cloud.origin) cloud.origin = { lat: here.lat, lon: here.lon };
+  syncTiles(here.lat, here.lon);
+  // bilen glider mjukt mot sin position, och riktningen räknas från de senaste punkterna
+  const [cx, cz] = toLocal(here.lat, here.lon), dt = Math.min(0.1, (now - (cloud.last || now)) / 1000); cloud.last = now;
+  cloud.carX += (cx - cloud.carX) * Math.min(1, dt * 1.5); cloud.carZ += (cz - cloud.carZ) * Math.min(1, dt * 1.5);
+  const prev = pts.length > 1 ? pts.at(-2) : null;
+  if (prev && distKm(prev, here) > 0.05) {
+    const [px, pz] = toLocal(prev.lat, prev.lon), want = Math.atan2(cx - px, cz - pz);
+    let dh = want - cloud.head; dh = Math.atan2(Math.sin(dh), Math.cos(dh)); cloud.head += dh * Math.min(1, dt * 0.8);
+  }
+  // resvägen
+  if (pts.length > 1) {
+    const v = []; pts.forEach(p => { const [x, z] = toLocal(p.lat, p.lon); v.push(x, 0, z); }); v.push(cx, 0, cz);
+    cloud.route.geometry.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+  }
+  const t = now / 1000, pulse = 1 + 0.25 * Math.sin(t * 3);
+  cloud.me.position.x = cloud.carX; cloud.me.position.z = cloud.carZ; cloud.me.scale.setScalar(pulse);
+  // kameran: bakom och ovanför bilen, tittar framåt i färdriktningen
+  const fx = Math.sin(cloud.head), fz = Math.cos(cloud.head), back = cloud.portrait ? 1.3 : 1.6, up = cloud.portrait ? 1.1 : 0.85;
+  cloud.cam.position.set(cloud.carX - fx * back + Math.sin(t * 0.1) * 0.03, up + Math.sin(t * 0.17) * 0.02, cloud.carZ - fz * back);
+  cloud.cam.lookAt(cloud.carX + fx * 2.2, 0, cloud.carZ + fz * 2.2);
+  cloud.lmat.uniforms.uTime.value = t;
+  let lit = 0; cloud.tiles.forEach(x => lit += x.lights || 0);
+  $('cloudSub').textContent = `${fmtN(Math.round(lit))} platser med fynd runt dig · ${yearText()}`;
+  cloud.r.render(cloud.scene, cloud.cam);
 }
 
 // ---- Sidorna: Hem, Utforska och Visualiseringar (#hem, #utforska, #visualiseringar) ----
