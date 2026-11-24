@@ -333,6 +333,63 @@
   .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 20px; z-index: 2600; background: var(--text); color: var(--bg);
            padding: 10px 16px; border-radius: 12px; font-size: .9rem; box-shadow: 0 6px 20px rgba(0,0,0,.3); max-width: calc(100% - 32px); }
   .toast[hidden] { display: none; }
+
+  /* ---- Resläget: siffrorna, Just här och landskapssnittet ---- */
+  .tripstage { display: none; }
+  body.tripview .tripstage { display: block; }
+  body.tripview .chartcard, body.tripview .tripcard, body.tripview .bottomrow { display: none !important; }
+  .tripstats { display: flex; align-items: flex-end; gap: 18px; margin-bottom: 12px; }
+  .tripstats > div b { display: block; font-size: 1.7rem; line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .tripstats > div span { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .tripstats > div.new b { color: var(--trip); }
+  .tripstats .here { margin-left: auto; text-align: right; font-size: .82rem; line-height: 1.3; max-width: 46%; }
+  .tripstats .here span { text-transform: none; letter-spacing: 0; font-size: .82rem; color: var(--text); }
+  .tripstats .here i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: 0; }
+  .tripstage h2 { margin: 10px 0 6px; }
+  .justhere { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .justhere li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; background: var(--bg);
+                 border: 1px solid var(--line); cursor: pointer; transition: opacity .5s, transform .5s; min-width: 0; }
+  .justhere li.enter { opacity: 0; transform: translateX(24px); }
+  .justhere li.leave { opacity: 0; transform: translateX(-24px); }
+  .justhere .ic { width: 30px; height: 30px; flex: none; display: grid; place-items: center; }
+  .justhere .ic img { width: 28px; height: 28px; image-rendering: pixelated; object-fit: contain; }
+  .justhere .ic img.grp { width: 26px; height: 20px; image-rendering: auto; }
+  .justhere .nm { flex: 1; min-width: 0; font-size: .88rem; line-height: 1.2; }
+  .justhere .nm b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .justhere .nm small { color: var(--muted); font-size: .72rem; }
+  .justhere .nm small.typ { color: var(--trip); font-weight: 600; }
+  .justhere .empty { grid-column: 1 / -1; color: var(--muted); font-size: .88rem; background: none; border: 0; cursor: default; }
+  #strip { width: 100%; height: 200px; display: block; border-radius: 10px; background: #0b0f14; }
+  .striplegend { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: .72rem; color: var(--muted); margin-top: 6px; }
+  .striplegend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: 0; }
+  /* när resan startar: rutan glider fram och en radarring vidgas */
+  body.tripstart .tripstage { animation: stageIn .9s cubic-bezier(.2,.8,.2,1); position: relative; overflow: hidden; }
+  body.tripstart .tripstage::after { content: ''; position: absolute; left: 50%; top: 40px; width: 40px; height: 40px; margin-left: -20px;
+    border-radius: 50%; border: 3px solid var(--trip); animation: radarOut 1.4s ease-out forwards; pointer-events: none; }
+  @keyframes stageIn { from { opacity: 0; transform: translateY(-18px) scale(.98); } to { opacity: 1; transform: none; } }
+  @keyframes radarOut { from { transform: scale(1); opacity: .9; } to { transform: scale(18); opacity: 0; } }
+  /* händelser under resan: ny art, hotad art */
+  .events { position: fixed; left: 50%; transform: translateX(-50%); top: max(12px, env(safe-area-inset-top)); z-index: 2600;
+            display: flex; flex-direction: column; gap: 6px; width: min(380px, calc(100% - 24px)); pointer-events: none; }
+  .evcard { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 12px; background: var(--card);
+            border: 1px solid var(--line); box-shadow: 0 6px 20px rgba(0,0,0,.25); pointer-events: auto; cursor: pointer;
+            animation: evIn .5s cubic-bezier(.2,.8,.2,1); transition: opacity .5s, transform .5s; }
+  .evcard.out { opacity: 0; transform: translateY(-10px); }
+  .evcard.red { border-color: var(--redtext); }
+  .evcard .ic img { width: 30px; height: 30px; image-rendering: pixelated; object-fit: contain; }
+  .evcard .ic img.grp { width: 28px; height: 22px; image-rendering: auto; }
+  .evcard small { display: block; font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: var(--trip); font-weight: 700; }
+  .evcard.red small { color: var(--redtext); }
+  @keyframes evIn { from { opacity: 0; transform: translateY(-14px); } }
+  /* sammanfattningen när resan avslutas */
+  .tripend h2.t { font-size: 1.35rem; text-transform: none; letter-spacing: 0; color: var(--text); margin: 0 0 4px; }
+  .tripend img.strip { width: 100%; border-radius: 10px; display: block; margin: 10px 0 4px; background: #0b0f14; }
+  .tripend .biobar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; margin: 8px 0 4px; }
+  .tripend .typ { margin-top: 10px; }
+  .tripend .typ div { font-size: .9rem; margin: 4px 0; }
+  .tripend .typ i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
+  @media (max-width: 899px) { .tripstage { order: 1; } .justhere { grid-template-columns: 1fr 1fr; } #strip { height: 180px; } }
+  @media (min-width: 900px) and (min-height: 560px) { .left .tripstage { flex: none; } body.tripview .mapcard { min-height: 160px; } #strip { height: 150px; } }
 </style>
 </head>
 <body>
@@ -360,6 +417,7 @@
           <button data-span="10">10 år</button>
           <button data-span="0">Alla år</button>
           <button id="yearPickBtn" aria-expanded="false">Välj</button>
+          <button id="seasonBtn" title="Bara fynd från samma tid på året som nu">Årstid</button>
         </div>
         <div class="yearpick" id="yearPick" hidden>
           <label class="yr">Från <select id="yearFrom"></select></label>
@@ -383,7 +441,7 @@
       <section class="card homecard"><h2>Senaste fynden <small>inom 10 km</small></h2><ol class="rlist" id="latestList"><li class="muted">…</li></ol></section>
       <section class="card homecard"><h2>Vanligast just nu <small>senaste 30 dagarna</small></h2><ol class="rlist" id="topNear"><li class="muted">…</li></ol></section>
     </div>
-    <p class="homenote" id="homeNote">Fynd från Artportalen via GBIF, som uppdateras ungefär en gång i veckan. Hur ovanlig en art är räknas på alla fynd i Sverige de senaste tio åren.</p>
+    <p class="homenote" id="homeNote">Fynd från Artportalen via GBIF, som uppdateras ungefär en gång i veckan. Hur ovanlig en art är räknas på i hur många kommuner den hittats de senaste tio åren.</p>
   </section>
 
   <!-- Visualiseringar -->
@@ -437,6 +495,19 @@
 
   <div class="layout explore-only">
     <div class="left">
+      <section class="card tripstage" id="tripStage">
+        <div class="tripstats">
+          <div><b id="tsKm">0</b><span>km</span></div>
+          <div><b id="tsSp">0</b><span>arter</span></div>
+          <div class="new"><b id="tsNew">0</b><span>nya</span></div>
+          <div class="here" id="tsHere"></div>
+        </div>
+        <h2>Just här</h2>
+        <ol class="justhere" id="justHere"></ol>
+        <h2>Landskapet längs vägen</h2>
+        <canvas id="strip"></canvas>
+        <div class="striplegend" id="stripLegend"></div>
+      </section>
       <section class="card mapcard"><div id="map"></div></section>
 
 
@@ -472,6 +543,7 @@
   </div>
 </main>
 <div class="toast" id="toast" role="status" hidden></div>
+<div class="events" id="events" aria-live="polite"></div>
 
 <!-- Informationskort om en art -->
 <div class="sheet-backdrop" id="infoBackdrop" hidden>
@@ -532,17 +604,21 @@ let track = load(TRACK_KEY, []).map(p => {
   return { t: p.t, lat: p.lat, lon: p.lon, yr, n: { [g]: p.n }, obs: { [g]: p.obs } };
 });
 const names = load(NAME_KEY, {});
-let filter = Object.assign({ group: 'mammals', from: null, to: null }, load(FILTER_KEY, {}));
+let filter = Object.assign({ group: 'mammals', from: null, to: null, season: true }, load(FILTER_KEY, {}));
 if (!GROUPS[filter.group]) filter.group = 'mammals';
 
 const grp = () => GROUPS[filter.group];
-const yearId = () => `${filter.from ?? ''}-${filter.to ?? ''}`;
-const yearParam = () => (filter.from || filter.to) ? `&year=${filter.from ?? '*'},${filter.to ?? '*'}` : '';
+// Årstiden: bara fynd från samma tid på året som nu (månaden före, denna och nästa), under de valda åren.
+// Då syns inte sommarens fåglar på en resa i november.
+const seasonMonths = () => { const m = new Date().getMonth(); return [m - 1, m, m + 1].map(x => (x + 12) % 12 + 1); };
+const seasonText = () => { const ms = seasonMonths(); return `${MON[ms[0] - 1]}–${MON[ms[2] - 1]}`; };
+const yearId = () => `${filter.from ?? ''}-${filter.to ?? ''}${filter.season ? '-s' + seasonMonths().join('.') : ''}`;
+const yearParam = () => ((filter.from || filter.to) ? `&year=${filter.from ?? '*'},${filter.to ?? '*'}` : '')
+  + (filter.season ? seasonMonths().map(m => `&month=${m}`).join('') : '');
 function yearText() {
   const { from, to } = filter;
-  if (!from && !to) return 'alla år';
-  if (from && to) return from === to ? `${from}` : `${from}–${to}`;
-  return from ? `från ${from}` : `till ${to}`;
+  const yrs = !from && !to ? 'alla år' : from && to ? (from === to ? `${from}` : `${from}–${to}`) : from ? `från ${from}` : `till ${to}`;
+  return filter.season ? `${seasonText()}, ${yrs}` : yrs;
 }
 const viewRes = () => mode === 'explore' ? exploreRes : tripRes;
 const viewPoint = () => mode === 'explore' ? exploreAt : (pos && { lat: pos.coords.latitude, lon: pos.coords.longitude });
@@ -594,13 +670,16 @@ async function update() {
     r.acc = acc;
     tripRes = r;
     if (tripOn) { // utan resa sparas inga punkter
-      track.push({ t: r.t, lat, lon, acc: Math.round(acc), yr: r.yr,
+      const pt = { t: r.t, lat, lon, acc: Math.round(acc), yr: r.yr,
                    n: Object.fromEntries(Object.entries(r.byGroup).map(([k, v]) => [k, v.counts.length])),
-                   obs: Object.fromEntries(Object.entries(r.byGroup).map(([k, v]) => [k, v.total])) });
+                   obs: Object.fromEntries(Object.entries(r.byGroup).map(([k, v]) => [k, v.total])),
+                   sp: Object.fromEntries(Object.entries(r.byGroup).map(([k, v]) => [k, Object.fromEntries(v.counts.slice(0, 30).map(c => [c.key, c.n]))])) };
+      track.push(pt);
       save(TRACK_KEY, track);
       collectTrip(r);
-      drawChart(); drawTrack(); renderTrip();
+      drawChart(); drawTrack(); renderTrip(); renderStage(); tripEvents(pt);
       scanFlash();
+      biotopeAt(lat, lon).then(b => { pt.bio = b; save(TRACK_KEY, track); renderStage(); }).catch(() => {});
     }
     showProgress();
     if (mode === 'gps') renderCurrent();
@@ -1505,6 +1584,9 @@ function start() {
   newTrip();
   tripOn = true;
   setTripView(true);
+  stripCount = 0; renderStage();
+  document.body.classList.add('tripstart'); setTimeout(() => document.body.classList.remove('tripstart'), 1600);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
   keepAwake();
   setTripButton(true);
   setGps(pos ? 'Resan har startat.' : 'Söker din position… (första gången frågar webbläsaren om lov)');
@@ -1523,7 +1605,7 @@ function stop() {
   let km = 0; for (let i = 1; i < track.length; i++) km += distKm(track[i - 1], track[i]);
   const bucket = tripSpecies[yearId()] || {};
   const species = Object.values(bucket).reduce((n, g) => n + Object.keys(g).length, 0);
-  toast(track.length ? `Resan avslutad · ${km.toFixed(1).replace('.', ',')} km · ${species} arter` : 'Resan avslutad');
+  tripEnd().then(shown => { if (!shown) toast(track.length ? `Resan avslutad · ${km.toFixed(1).replace('.', ',')} km · ${species} arter` : 'Resan avslutad'); });
   setTripView(false);
   trackLine.setLatLngs([]);
   renderCurrent(); // ta bort NY-märkningen
@@ -1555,6 +1637,9 @@ function syncControls() {
   const pick = $('yearPickBtn');
   pick.classList.toggle('on', !chipOn);
   pick.textContent = chipOn ? 'Välj' : (filter.from && filter.to && filter.from === filter.to ? `${filter.from}` : `${filter.from ?? ''}–${filter.to ?? ''}`);
+  const sb = $('seasonBtn'); sb.classList.toggle('on', !!filter.season);
+  sb.textContent = filter.season ? seasonText() : 'Hela året';
+  sb.title = filter.season ? `Bara fynd från ${seasonText()} (tryck för hela året)` : 'Fynd från hela året (tryck för bara den här årstiden)';
   document.querySelectorAll('.mapseg button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
   syncLabels();
 }
@@ -1563,7 +1648,7 @@ function applyFilter() {
   save(FILTER_KEY, filter);
   syncControls();
   obsLayer.setUrl(obsUrl());
-  drawChart(); renderTrip();
+  drawChart(); renderTrip(); renderStage();
   // Byte av djurgrupp: allt finns redan hämtat. Byte av år: hämta om för resa och utforskad punkt.
   if (tripRes && tripRes.yr !== yearId() && pos) update();
   if (exploreRes && exploreRes.yr !== yearId() && exploreAt) exploreFetch();
@@ -1583,6 +1668,7 @@ document.addEventListener('click', e => { if (!e.target.closest('.yearwrap')) sh
 $('yearChips').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.id === 'yearPickBtn') { showYearPick($('yearPick').hidden); return; }
+  if (b.id === 'seasonBtn') { filter.season = !filter.season; applyFilter(); return; }
   showYearPick(false);
   const span = +b.dataset.span;
   filter.from = span ? THIS_YEAR - span + 1 : null; filter.to = null;
@@ -1596,6 +1682,258 @@ $('topSeg').onclick = e => {
   topMode = b.dataset.top; save(TOP_KEY, topMode); renderTrip();
 };
 
+
+// ---- Resläget: landskapet man skär igenom ----
+// Varje punkt på resan sparar också arterna där (de 30 vanligaste per grupp) och biotoperna runt omkring.
+// Biotoperna kommer från Naturvårdsverkets Nationella marktäckedata (NMD 2023), nio punkter i en ring på 250 m.
+const NMD_WMS = 'https://geodata.naturvardsverket.se/geoserver/wms';
+const NMD_LAYER = 'lc-nmd:LC.LandCoverRaster.Bas.2023.v2.x';
+const BIO = [   // ritas nerifrån och upp i snittet
+  { id: 'vatten', name: 'Vatten', color: '#3f7fc9', test: c => c === 61 || c === 62 },
+  { id: 'vatmark', name: 'Våtmark', color: '#a77fc4', test: c => c === 54 || (c >= 200 && c <= 228) },
+  { id: 'sumpskog', name: 'Sumpskog', color: '#3c7a66', test: c => c === 23 || (c >= 121 && c <= 127) },
+  { id: 'skog', name: 'Skog', color: '#2f7a3a', test: c => c === 43 || (c >= 111 && c <= 117) },
+  { id: 'hygge', name: 'Hygge', color: '#a8894a', test: c => c === 118 || c === 128 },
+  { id: 'oppen', name: 'Öppen mark', color: '#9fb862', test: c => c === 411 || (c >= 4211 && c <= 4233) },
+  { id: 'aker', name: 'Åker', color: '#e3c45a', test: c => c === 3 },
+  { id: 'bebyggt', name: 'Bebyggt', color: '#8a8f98', test: c => c === 51 || c === 52 },
+];
+const bioOf = id => BIO.find(b => b.id === id);
+async function nmdClass(lat, lon) {
+  const d = 0.0004;
+  const url = `${NMD_WMS}?service=WMS&version=1.1.1&request=GetFeatureInfo&layers=${NMD_LAYER}&query_layers=${NMD_LAYER}&styles=` +
+    `&srs=EPSG:4326&bbox=${lon - d},${lat - d},${lon + d},${lat + d}&width=3&height=3&x=1&y=1&info_format=application/json`;
+  const j = await fetch(url).then(r => r.json());
+  const k = j.features?.[0]?.properties?.Klass || '';
+  return parseInt(k.replace(/^(\d) (\d{3})/, '$1$2'), 10);   // "4 211 Buskdominerad…" → 4211
+}
+async function biotopeAt(lat, lon) {
+  const dLat = 0.00225, dLon = dLat / Math.cos(lat * Math.PI / 180), pts = [[0, 0]];
+  for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; pts.push([Math.sin(a) * dLat, Math.cos(a) * dLon]); }
+  const codes = await Promise.all(pts.map(([a, b]) => nmdClass(lat + a, lon + b).catch(() => NaN)));
+  const n = {}; let tot = 0;
+  for (const c of codes) { const b = BIO.find(x => x.test(c)); if (b) { n[b.id] = (n[b.id] || 0) + 1; tot++; } }   // vägar räknas inte
+  if (!tot) return null;
+  return Object.fromEntries(Object.entries(n).map(([k, v]) => [k, v / tot]));
+}
+
+const tripPoints = () => track.filter(p => p.sp && p.yr === yearId());
+const spIcon = (key, gid) => { const pal = palettes[key];
+  return `<span class="ic">${pal ? `<img src="${esc(pal.sprite)}" alt="">` : `<img class="grp" src="img/${gid}.png" alt="">`}</span>`; };
+// Varje art får en färg: färgschemats första färg om det finns, annars en nyans ur nyckeln
+function spColor(key) {
+  const pal = palettes[key];
+  if (pal) {   // [r, g, b, andel]: den mest färgstarka färgen som syns mot mörk bakgrund
+    const sat = ([r, g, b]) => (Math.max(r, g, b) - Math.min(r, g, b)) / 255, lum = ([r, g, b]) => 0.3 * r + 0.59 * g + 0.11 * b;
+    const c = pal.colors.filter(c => lum(c) > 70).sort((x, y) => sat(y) * (0.3 + y[3]) - sat(x) * (0.3 + x[3]))[0];
+    if (c) return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+  }
+  let h = 0; for (const ch of String(key)) h = (h * 31 + ch.charCodeAt(0)) % 360;
+  return `hsl(${h}, 62%, 62%)`;
+}
+
+function renderStage() {
+  if (!tripView) return;
+  const pts = tripPoints(), last = pts.at(-1);
+  let km = 0; for (let i = 1; i < pts.length; i++) km += distKm(pts[i - 1], pts[i]);
+  const bucket = tripSpecies[yearId()] || {};
+  $('tsKm').textContent = km.toFixed(1).replace('.', ',');
+  $('tsSp').textContent = fmtN(Object.values(bucket).reduce((n, g) => n + Object.keys(g).length, 0));
+  $('tsNew').textContent = lastNew && lastNew.yr === yearId() ? Object.values(lastNew.byGroup).reduce((s, x) => s + x.size, 0) : 0;
+  const bio = last?.bio ? Object.entries(last.bio).sort((a, b) => b[1] - a[1]).slice(0, 2) : [];
+  $('tsHere').innerHTML = bio.length ? `Du är i<br>${bio.map(([k, v]) => `<span><i style="background:${bioOf(k).color}"></i>${bioOf(k).name} ${Math.round(v * 100)} %</span>`).join('<br>')}`
+                                      : (last ? '<span class="muted">Läser av landskapet…</span>' : '');
+  renderJustHere();
+  drawStrip(true);
+}
+
+// Just här: arterna vid senaste punkten som är mest typiska för just här jämfört med resten av resan
+function renderJustHere() {
+  const ol = $('justHere'), g = filter.group, pts = tripPoints(), last = pts.at(-1);
+  if (!last) { ol.innerHTML = '<li class="empty">Väntar på första skanningen …</li>'; return; }
+  const here = Object.entries(last.sp[g] || {});
+  const mean = k => pts.reduce((s, p) => s + (p.sp[g]?.[k] || 0), 0) / pts.length;
+  const top = here.map(([k, n]) => { const m = mean(k); return { k, n, m, score: n / (m + 1) * Math.log1p(n) }; })
+    .sort((a, b) => b.score - a.score).slice(0, 6);
+  const missing = top.filter(x => !names[x.k]);
+  if (missing.length) Promise.all(missing.map(x => speciesName(x.k))).then(() => renderJustHere());
+  ol.querySelector('.empty')?.remove();
+  const old = new Map([...ol.children].map(li => [li.dataset.key, li]));
+  for (const [k, li] of old) if (!top.some(x => x.k === k) && !li.classList.contains('leave')) {
+    li.classList.add('leave'); setTimeout(() => li.remove(), 500);
+  }
+  top.forEach((x, i) => {
+    let li = old.get(x.k);
+    const typ = pts.length > 3 && x.n >= 3 && x.n > 2.5 * x.m + 2;   // klart vanligare här än på resten av resan
+    const html = `${spIcon(x.k, g)}<span class="nm"><b>${esc(nameOf(x.k))}</b><small class="${typ ? 'typ' : ''}">${typ ? 'typisk just här' : `${fmtN(x.n)} obs.`}</small></span>`;
+    if (!li || li.classList.contains('leave')) {
+      li = document.createElement('li'); li.dataset.key = x.k; li.className = 'enter';
+      li.onclick = () => openInfo({ key: x.k, n: x.n, ...(names[x.k] || {}), gid: g, where: 'vid senaste punkten på resan' });
+      requestAnimationFrame(() => requestAnimationFrame(() => li.classList.remove('enter')));
+    }
+    li.innerHTML = html;
+    ol.insertBefore(li, ol.children[i] || null);
+  });
+  if (!top.length) ol.innerHTML = '<li class="empty">Inga observationer just här.</li>';
+}
+
+// Landskapssnittet: senaste punkten längst till höger, och det rullar åt vänster som utsikten från ett tågfönster.
+// Underst biotoperna, ovanför arterna som band som tjocknar där de är vanliga.
+const COL = 9, BIO_H = 30;
+let stripShift = 0, stripAnim = null, stripCount = 0;
+// Fynden samlas där folk bor, så antalet säger mest var det rapporteras. Banden visar därför artens andel
+// av fynden vid punkten: då syns vilka arter som hör till skogen, slätten eller sjön även där det är glest.
+const share = (p, g, k) => { const sp = p.sp[g] || {}; const n = sp[k] || 0; if (!n) return 0;
+  const tot = p._tot?.[g] ?? ((p._tot ??= {})[g] = Object.values(sp).reduce((a, b) => a + b, 0)); return n / tot; };
+function stripModel(pts, maxRows) {
+  const g = filter.group, keys = {};
+  pts.forEach((p, i) => Object.keys(p.sp[g] || {}).forEach(k => {
+    const o = keys[k] ??= { k, sum: 0, pres: 0, max: 0, first: Infinity };
+    const v = share(p, g, k); o.sum += v; o.pres++; o.max = Math.max(o.max, v); o.first = Math.min(o.first, i);
+  }));
+  // arter som kommer och går med landskapet: stor variation längs vägen (de som finns precis överallt
+  // med samma mängd ger platta band och säger minst), och lite tyngd åt de vanligare
+  const rows = Object.values(keys).filter(o => o.pres >= 1)
+    .map(o => {
+      const v = pts.map(p => share(p, g, o.k)), m = v.reduce((a, b) => a + b, 0) / v.length;
+      const sd = Math.sqrt(v.reduce((a, b) => a + (b - m) ** 2, 0) / v.length);
+      return { ...o, score: sd + 0.3 * m };
+    })
+    .sort((a, b) => b.score - a.score).slice(0, maxRows).sort((a, b) => a.first - b.first || b.sum - a.sum);
+  return rows;
+}
+function paintStrip(cv, pts, W, H, shift, opts = {}) {
+  const ctx = cv.getContext('2d'), g = filter.group;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0b0f14'; ctx.fillRect(0, 0, W, H);
+  // i början av resan får varje punkt mer plats, så att snittet fyller bredden; sedan rullar det
+  const col = opts.col || Math.min(36, Math.max(COL, W / Math.max(1, pts.length))), n = Math.min(pts.length, Math.ceil(W / col) + 1);
+  const vis = pts.slice(-n);
+  const xOf = i => W - (vis.length - 1 - i) * col - col / 2 + shift;
+  // biotoperna
+  vis.forEach((p, i) => {
+    let y = H; const x = xOf(i) - col / 2;
+    if (!p.bio) { ctx.fillStyle = '#1b2230'; ctx.fillRect(x, H - BIO_H, col + 0.5, BIO_H); return; }
+    for (const b of BIO) { const v = p.bio[b.id]; if (!v) continue;
+      const h = v * BIO_H; ctx.fillStyle = b.color; ctx.fillRect(x, y - h, col + 0.5, h + 0.5); y -= h; }
+  });
+  // arterna
+  const top = 18, rowsH = H - BIO_H - top - 6;
+  const rows = stripModel(vis, Math.max(3, Math.floor(rowsH / 17)));
+  const rh = rows.length ? rowsH / rows.length : 0;
+  ctx.font = '600 11px -apple-system, Segoe UI, sans-serif'; ctx.textBaseline = 'middle';
+  rows.forEach((r, ri) => {
+    const cy = top + rh * (ri + 0.5), maxT = Math.min(rh - 3, 13), color = spColor(r.k);
+    ctx.fillStyle = color; ctx.globalAlpha = 0.9;
+    const th = p => { const v = share(p, g, r.k); return v ? 1.5 + (maxT - 1.5) * Math.sqrt(v / r.max) : 0; };
+    for (let i = 0; i < vis.length; i++) {
+      const a = th(vis[i]); if (!a) continue;
+      const b = i + 1 < vis.length ? th(vis[i + 1]) : 0, x0 = xOf(i), x1 = x0 + col;
+      if (b) { ctx.beginPath(); ctx.moveTo(x0, cy - a / 2); ctx.lineTo(x1, cy - b / 2); ctx.lineTo(x1, cy + b / 2); ctx.lineTo(x0, cy + a / 2); ctx.fill(); }
+      else { ctx.beginPath(); ctx.arc(x0, cy, Math.max(a / 2, 1.5), 0, 7); ctx.fill(); }
+    }
+    ctx.globalAlpha = 1;
+    // namnet där arten dyker upp, eller till vänster om den funnits hela tiden
+    let at = vis.findIndex(p => p.sp[g]?.[r.k]); const x = Math.max(4, xOf(at) + 4);
+    const label = nameOf(r.k);
+    ctx.fillStyle = 'rgba(11,15,20,.75)'; const w = ctx.measureText(label).width;
+    ctx.fillRect(x - 2, cy - 7, w + 4, 14);
+    ctx.fillStyle = '#e8ecf5'; ctx.fillText(label, x, cy);
+  });
+  // avstånd: en markering per kilometer
+  ctx.fillStyle = 'rgba(232,236,245,.45)'; ctx.font = '10px -apple-system, Segoe UI, sans-serif';
+  let km = 0; const base = pts.length - vis.length;
+  for (let i = 1; i < base + vis.length; i++) {
+    const before = Math.floor(km); km += distKm(pts[i - 1], pts[i]);
+    if (Math.floor(km) > before && i >= base) { const x = xOf(i - base); ctx.fillRect(x, 0, 1, 5); if (Math.floor(km) % 5 === 0) ctx.fillText(`${Math.floor(km)} km`, x + 3, 8); }
+  }
+  return rows;
+}
+function drawStrip(animate) {
+  const cv = $('strip'); if (!cv || !tripView) return;
+  const W = cv.clientWidth, H = cv.clientHeight; if (!W) return;
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  if (cv.width !== W * dpr) { cv.width = W * dpr; cv.height = H * dpr; }
+  const pts = tripPoints();
+  // ny punkt: rulla in den från höger
+  if (animate && pts.length > stripCount && stripCount) {
+    cancelAnimationFrame(stripAnim); const t0 = performance.now();
+    const colW = Math.min(36, Math.max(COL, W / Math.max(1, pts.length)));
+    const step = now => { const t = Math.min(1, (now - t0) / 700); stripShift = colW * (1 - (1 - (1 - t) ** 3));
+      paint(); if (t < 1) stripAnim = requestAnimationFrame(step); };
+    stripAnim = requestAnimationFrame(step);
+  }
+  stripCount = pts.length;
+  function paint() {
+    const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (!pts.length) { ctx.fillStyle = '#0b0f14'; ctx.fillRect(0, 0, W, H); ctx.fillStyle = '#8d97ad'; ctx.font = '13px -apple-system, sans-serif';
+      ctx.fillText('Landskapet ritas upp när resan börjar.', 12, H / 2); return; }
+    const rows = paintStrip(cv, pts, W, H, stripShift);
+    const missing = rows.filter(r => !names[r.k]);
+    if (missing.length && !paint.asked) { paint.asked = true; Promise.all(missing.map(r => speciesName(r.k))).then(() => drawStrip(false)); }
+  }
+  paint();
+  const used = new Set(pts.flatMap(p => Object.keys(p.bio || {})));
+  $('stripLegend').innerHTML = BIO.filter(b => used.has(b.id)).map(b => `<span><i style="background:${b.color}"></i>${b.name}</span>`).join('');
+}
+new ResizeObserver(() => drawStrip(false)).observe($('strip'));
+
+// Händelser: ett litet kort glider in när en ny art eller en hotad art dyker upp
+function eventCard(key, gid, kind) {
+  const red = kind === 'red', th = THREAT[redlist[key]];
+  const el = document.createElement('div'); el.className = 'evcard' + (red ? ' red' : '');
+  el.innerHTML = `${spIcon(key, gid)}<div><small>${red ? `Hotad art · ${th?.code || ''}` : 'Ny på resan'}</small><b>${esc(nameOf(key))}</b></div>`;
+  el.onclick = () => openInfo({ key, ...(names[key] || {}), gid, where: 'vid senaste punkten på resan' });
+  $('events').prepend(el);
+  while ($('events').children.length > 3) $('events').lastChild.remove();
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 500); }, 6000);
+}
+async function tripEvents(p) {
+  if (!lastNew || lastNew.t !== p.t) return;
+  const g = filter.group, fresh = [...(lastNew.byGroup[g] || [])];
+  const reds = Object.entries(lastNew.byGroup).flatMap(([gid, set]) => [...set].filter(k => redlist[k]).map(k => [k, gid]));
+  const show = [...reds.map(([k, gid]) => [k, gid, 'red']),
+                ...fresh.filter(k => !redlist[k]).sort((a, b) => (p.sp[g]?.[b] || 0) - (p.sp[g]?.[a] || 0)).slice(0, 2).map(k => [k, g, 'new'])].slice(0, 3);
+  await Promise.all(show.map(([k]) => speciesName(k)));
+  show.forEach(([k, gid, kind], i) => setTimeout(() => eventCard(k, gid, kind), i * 900));
+}
+
+// Sammanfattningen när resan avslutas: hela landskapssnittet och vad som var typiskt för varje biotop
+async function tripEnd() {
+  const pts = tripPoints(); if (pts.length < 2) return false;
+  const g = filter.group;
+  let km = 0; for (let i = 1; i < pts.length; i++) km += distKm(pts[i - 1], pts[i]);
+  const mins = Math.round((pts.at(-1).t - pts[0].t) / 60_000);
+  const bucket = tripSpecies[yearId()] || {}, nsp = Object.values(bucket).reduce((n, x) => n + Object.keys(x).length, 0);
+  // biotopernas andel av hela resan
+  const tot = {}; pts.forEach(p => Object.entries(p.bio || {}).forEach(([k, v]) => tot[k] = (tot[k] || 0) + v));
+  const sum = Object.values(tot).reduce((a, b) => a + b, 0) || 1;
+  // typiska arter per biotop: vanligare vid punkter där biotopen dominerar än på resan i stort
+  const dom = p => p.bio && Object.entries(p.bio).sort((a, b) => b[1] - a[1])[0][0];
+  const mean = (list, k) => list.reduce((s, p) => s + share(p, g, k), 0) / list.length;   // andel av fynden, som i banden
+  const typ = [];
+  for (const b of BIO) {
+    const at = pts.filter(p => dom(p) === b.id); if (at.length < 2) continue;
+    const keys = new Set(at.flatMap(p => Object.keys(p.sp[g] || {})));
+    const best = [...keys].map(k => { const m = mean(at, k); return { k, s: m / (mean(pts, k) + 0.01) * Math.sqrt(m) }; })
+      .sort((a, c) => c.s - a.s).slice(0, 3);
+    typ.push([b, best.map(x => x.k)]);
+  }
+  await Promise.all(typ.flatMap(([, ks]) => ks).map(k => speciesName(k)));
+  const cv = document.createElement('canvas'), W = Math.max(520, Math.min(1600, pts.length * 6)), H = 200;
+  cv.width = W * 2; cv.height = H * 2; cv.getContext('2d').setTransform(2, 0, 0, 2, 0, 0);
+  paintStrip(cv, pts, W, H, 0, { col: W / pts.length });
+  const html = `<div class="tripend"><h2 class="t">Resan</h2>
+    <div class="muted">${km.toFixed(1).replace('.', ',')} km · ${mins >= 60 ? `${Math.floor(mins / 60)} h ${mins % 60} min` : `${mins} min`} · ${fmtN(nsp)} arter</div>
+    <img class="strip" src="${cv.toDataURL('image/png')}" alt="Landskapet längs resan">
+    <div class="biobar">${BIO.filter(b => tot[b.id]).map(b => `<i title="${b.name}" style="background:${b.color};width:${tot[b.id] / sum * 100}%"></i>`).join('')}</div>
+    <div class="striplegend">${BIO.filter(b => tot[b.id]).map(b => `<span><i style="background:${b.color}"></i>${b.name} ${Math.round(tot[b.id] / sum * 100)} %</span>`).join('')}</div>
+    ${typ.length ? `<div class="typ"><h2>Typiskt för ${GROUPS[g].label.toLowerCase()} i varje biotop</h2>${typ.map(([b, ks]) => `<div><i style="background:${b.color}"></i><b>${b.name}:</b> ${ks.map(k => esc(nameOf(k))).join(', ')}</div>`).join('')}</div>` : ''}
+    <p class="homenote">Biotoper: Naturvårdsverkets Nationella marktäckedata 2023. Arter: Artportalen via GBIF, inom 5 km från varje punkt.</p></div>`;
+  $('infoBody').innerHTML = html;
+  $('infoBackdrop').hidden = false; document.body.style.overflow = 'hidden';
+  return true;
+}
 
 // ---- Sidorna: Hem, Utforska och Visualiseringar (#hem, #utforska, #visualiseringar) ----
 const PAGES = { '#utforska': 'explore', '#visualiseringar': 'vis' };
@@ -1611,29 +1949,33 @@ function showPage() {
 addEventListener('hashchange', showPage);
 
 // ---- Hur ovanlig är arten i Sverige? ----
-// data/raritet.json (tools/raritet.py): antal fynd per art i Artportalen de senaste tio åren.
-// Klassen jämför med gruppens vanligaste art, logaritmiskt (lr = log10 av hur många gånger färre fynd):
-// under en tusendel = mycket sällsynt, en hundradel = sällsynt, 5 % = ovanlig, 30 % = vanlig.
-const RARE = [[3, 'Mycket sällsynt', 'r5'], [2, 'Sällsynt', 'r4'], [1.3, 'Ovanlig', 'r3'], [0.5, 'Vanlig', 'r2'], [-1, 'Mycket vanlig', 'r1']];
-let rarity = null, rarityYears = '';
+// data/raritet.json (tools/raritet.py): i hur många kommuner arten hittats de senaste tio åren.
+// Antalet fynd säger mest hur gärna folk rapporterar (ingen rapporterar varje brunråtta), men
+// utbredningen tål det: en vanlig art finns nästan överallt, en sällsynt på få ställen.
+// Fåglar rapporteras av så många att nästan varje art dyker upp i de flesta kommuner på tio år,
+// så gränserna är högre för dem. Andel kommuner där arten hittats → klass:
+const RARE_LIMITS = { birds: [0.25, 0.6, 0.85, 0.97], other: [0.05, 0.2, 0.45, 0.8] };
+const RARE = [['Mycket sällsynt', 'r5'], ['Sällsynt', 'r4'], ['Ovanlig', 'r3'], ['Vanlig', 'r2'], ['Mycket vanlig', 'r1']];
+let rarity = null, rarityYears = '', rarityAreas = 1;
 const rarityReady = fetch('data/raritet.json').then(r => r.ok ? r.json() : null).then(d => {
   if (!d) return;
-  rarity = {}; rarityYears = d.years.replace(',', '–');
-  for (const [g, m] of Object.entries(d.grupper)) {
-    const max = Math.max(...Object.values(m));
-    for (const [k, n] of Object.entries(m)) rarity[k] = { g, n, lr: Math.log10(max / n) };
-  }
+  rarity = {}; rarityYears = d.years.replace(',', '–'); rarityAreas = d.omraden;
+  for (const [g, m] of Object.entries(d.grupper))
+    for (const [k, [areas, n]] of Object.entries(m)) rarity[k] = { g, n, areas, share: areas / d.omraden };
 }).catch(() => {});
 function rarityOf(key) {
   if (!rarity) return null;
-  const r = rarity[key], lr = r ? r.lr : 9;            // saknas = inga fynd på tio år
-  const [, label, cls] = RARE.find(x => lr >= x[0]);
-  return { label, cls, n: r ? r.n : 0, lr };
+  const r = rarity[key], share = r ? r.share : 0;      // saknas = inga fynd på tio år
+  const lim = RARE_LIMITS[r?.g === 'birds' ? 'birds' : 'other'];
+  let i = lim.findIndex(x => share < x); if (i < 0) i = 4;
+  const [label, cls] = RARE[i];
+  // rang att sortera på: klassen först, sedan andelen inom klassen
+  return { label, cls, n: r ? r.n : 0, areas: r ? r.areas : 0, share, rank: i + share };
 }
 const rarePill = key => { const r = rarityOf(key); return r ? `<span class="rare ${r.cls}">${r.label}</span>` : ''; };
 function rarityFact(key) {
   const r = rarityOf(key); if (!r) return '';
-  return `<span class="rare ${r.cls}">${r.label}</span> i Sverige · ${fmtN(r.n)} fynd ${rarityYears}`;
+  return `<span class="rare ${r.cls}">${r.label}</span> i Sverige · funnen i ${r.areas} av ${rarityAreas} kommuner ${rarityYears}`;
 }
 
 // ---- Startsidan: det som hänt nära dig senaste tiden ----
@@ -1675,7 +2017,7 @@ async function loadHome() {
                    km: distKm(here, { lat: o.decimalLatitude, lon: o.decimalLongitude }) }))
       .sort((a, b) => b.date.localeCompare(a.date));
     const seen = new Set(); latest = latest.filter(o => !seen.has(o.key) && seen.add(o.key)).slice(0, 6);
-    const rare = species.slice().sort((a, b) => (rarityOf(b.key)?.lr ?? 0) - (rarityOf(a.key)?.lr ?? 0)).slice(0, 6);
+    const rare = species.slice().sort((a, b) => (rarityOf(a.key)?.rank ?? 0) - (rarityOf(b.key)?.rank ?? 0)).slice(0, 6);
     const top = species.slice().sort((a, b) => b.n - a.n).slice(0, 5);
     const keys = [...new Set([...rare, ...latest, ...top].map(x => x.key))];
     await mapLimit(keys, 3, k => speciesName(k));
