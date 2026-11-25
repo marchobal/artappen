@@ -83,10 +83,7 @@
   /* Djurgrupper med sin figur. Raden kan skrollas i sidled om fler grupper läggs till. */
   #groupSeg { overflow-x: auto; scrollbar-width: none; }
   #groupSeg button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
-  #groupSeg img { width: 26px; height: 20px; object-fit: contain; flex: none; }
-  @media (max-width: 480px) {
-    #groupSeg button { flex-direction: column; gap: 1px; font-size: .8rem; padding-top: 5px; padding-bottom: 5px; min-width: 76px; }
-  }
+  @media (max-width: 480px) { #groupSeg button { font-size: .85rem; } }
 
   /* Karta */
   .mapcard { padding: 0; overflow: hidden; }
@@ -106,6 +103,8 @@
   .mapseg button + button { border-left: 1px solid var(--line); }
   .mapseg button.on { background: var(--accent); color: #fff; }
   .mapseg button[data-mode=explore].on { background: var(--explore); }
+  .mapseg .tripbtn { color: var(--trip); font-weight: 600; padding: 7px 12px; font-size: .85rem; }
+  .mapseg .tripbtn.stop { background: var(--trip); color: #fff; }
   .maphint { background: var(--card); color: var(--text); border-radius: 8px; padding: 5px 10px; font-size: 12.5px;
              box-shadow: 0 1px 5px rgba(0,0,0,.25); max-width: 260px; }
   .maphint b { color: var(--sel); }
@@ -114,6 +113,17 @@
   .leaflet-container { font: inherit; }
   .basemap { filter: grayscale(1) brightness(1.06) contrast(.82); }
   .leaflet-popup-content { font-size: 13px; }
+  .leaflet-popup-content .remark, .obstip .remark { margin-top: 4px; white-space: normal; }
+  .obstip { width: max-content; max-width: 240px; white-space: normal; font-size: 12px; }
+  /* punkter med en kommentar: en mycket svag puls i kanten */
+  /* den vita ringen ligger kvar, och en svag rosa glöd sväller och sjunker jämnt utan att stanna i ytterlägena */
+  /* inställt med provytan: en mild rosa glöd som sväller och sjunker jämnt, och punkten växer 1 px i toppen */
+  .hasremark { stroke-width: 1.1; transform-box: fill-box; transform-origin: center; animation: remarkpulse 1.5s linear infinite; }
+  @keyframes remarkpulse {
+    0%, 100% { filter: drop-shadow(0 0 1px rgba(214, 51, 108, .26)); transform: scale(1); }
+    50% { filter: drop-shadow(0 0 2px rgba(214, 51, 108, .46)); transform: scale(1.18); }
+  }
+  @media (prefers-reduced-motion: reduce) { .hasremark { animation: none; filter: drop-shadow(0 0 2px rgba(214, 51, 108, .4)); } }
   .leaflet-control-attribution { font-size: 10px; opacity: .7; }
 
   /* Artlistan */
@@ -121,7 +131,11 @@
   .listcard li { position: relative; display: flex; align-items: baseline; gap: 8px; padding: 4px 9px; margin-bottom: 2px;
                  border-radius: 8px; overflow: hidden; font-size: .9rem; cursor: pointer; }
   .listcard li:hover { box-shadow: inset 0 0 0 1px var(--muted); }
-  .listcard li.sel { box-shadow: inset 0 0 0 2px var(--sel); }
+  /* vald art: ram ovanpå stapeln, rosa stapel och namn i samma färg som artens punkter på kartan */
+  .listcard li.sel { box-shadow: none; }
+  .listcard li.sel::after { content: ''; position: absolute; inset: 0; border: 2px solid var(--sel); border-radius: 8px; pointer-events: none; z-index: 2; }
+  .listcard li.sel .barfill { background: color-mix(in srgb, var(--sel) 28%, var(--card)); }
+  .listcard li.sel .nm { font-weight: 700; color: var(--sel); }
   #list, #justHere { position: relative; }
   li .barfill { position: absolute; inset: 0 auto 0 0; background: var(--bar); z-index: 0; border-radius: 8px; }
   li > span { position: relative; z-index: 1; }
@@ -231,15 +245,13 @@
     .yearpick { left: 0; right: 0; }
     .seg button { padding: 8px 10px; }
     .brandrow { width: 100%; }
-    .brandrow .tripbtn { margin-left: auto; }
   }
   @media (max-width: 480px) { .brand small { display: none; } }
 
   /* Dator: allt på en skärm */
   @media (min-width: 900px) and (min-height: 560px) {
     body[data-page=explore] { height: 100vh; overflow: hidden; }
-    body[data-page=explore] main { max-width: none; height: 100vh; display: flex; flex-direction: column; padding: 12px 16px; }
-    body[data-page=explore] .topbar { margin: 0 0 10px; }
+    body[data-page=explore] main { height: 100vh; display: flex; flex-direction: column; }
     .layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(340px, 1fr); gap: 12px; }
     .left { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
     .layout .card { margin: 0; }
@@ -284,8 +296,16 @@
     main { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
     .toast { bottom: calc(76px + env(safe-area-inset-bottom)) !important; }
   }
-  @media (min-width: 900px) { .brandrow { flex: 1; } .pagenav { margin-left: 18px; } .brandrow .tripbtn { margin-left: auto; }
-    body:not([data-page=explore]) main { max-width: 1000px; } }
+  /* Dator: sidhuvudet ligger likadant på alla sidor (inget hopp vid sidbyte), knapparna på en egen rad under loggan */
+  @media (min-width: 900px) {
+    main { max-width: none; padding: 12px 16px 24px; }
+    body[data-page=explore] main { padding-bottom: 12px; }
+    .topbar { margin: 0 0 10px; }
+    .brandrow { flex: 1 1 100%; min-height: 34px; } .pagenav { margin-left: 18px; }
+    .controls { flex-direction: row; flex-wrap: wrap; width: auto; max-width: none; }
+    .controls .seg { width: auto; }
+    .controls .seg button { flex: none; padding-left: 12px; padding-right: 12px; }
+  }
 
   /* Startsidan */
   .page-home, .page-vis, .page-rk { max-width: 980px; margin: 0 auto; }
@@ -296,7 +316,12 @@
   .rklist .nm b { font-size: 1rem; }
   .rklist .showbtn { flex: none; font-size: .78rem; font-weight: 700; letter-spacing: .04em; padding: 7px 12px; }
   .homegrid { display: grid; gap: 12px; }
-  @media (min-width: 900px) { .homegrid { grid-template-columns: 1.2fr 1fr; align-items: start; } .homegrid .featured { grid-row: span 2; } }
+  @media (min-width: 900px) {
+    .homegrid { grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; align-items: stretch; }
+    .homegrid .featured { display: flex; flex-direction: column; }
+    .homegrid .featured .fpic { flex: 1; min-height: 0; }
+    .homegrid .featured .fimg { height: 100%; aspect-ratio: auto; }
+  }
   .homegrid .card { margin: 0; }
   .homecard h2 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
   .homecard h2 small { text-transform: none; letter-spacing: 0; font-weight: 400; }
@@ -340,7 +365,6 @@
             background: #c92a2a; color: #fff; font-size: .82rem; font-weight: 600; white-space: nowrap; text-decoration: none; }
   .rkchip[hidden] { display: none; }
   .rkchip .rkdot { width: 7px; height: 7px; border-radius: 50%; background: #fff; animation: pulse 1.6s infinite; }
-  .rkchip:not([hidden]) ~ .tripbtn { margin-left: 0 !important; }
   body[data-page=rk] .rkchip { display: none; }
   .rkbanner .rkdot { width: 10px; height: 10px; border-radius: 50%; background: #fff; flex: none; animation: pulse 1.6s infinite; }
   .rkbanner .rktext { flex: 1; min-width: 0; font-size: .9rem; line-height: 1.3; }
@@ -471,13 +495,12 @@
         <a href="#visualiseringar" data-page="vis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19c3-1 4-6 8-6s5 5 8 6"/><circle cx="8" cy="7" r="1.4" fill="currentColor"/><circle cx="13" cy="5" r="1.1" fill="currentColor"/><circle cx="17" cy="8" r="1.6" fill="currentColor"/></svg><span>Visualiseringar</span></a>
       </nav>
       <a class="rkchip" id="rkChip" href="#rariteter" hidden><span class="rkdot"></span><span id="rkChipText">Rariteter</span></a>
-      <button class="primary tripbtn explore-only" id="startBtn" title="Följ dig längs vägen och samla arter, med kurva och topplista">Resläge</button>
     </div>
     <div class="controls explore-only">
       <div class="seg" id="groupSeg" role="group" aria-label="Djurgrupp">
-        <button data-group="mammals"><img src="img/mammals.png" alt="">Däggdjur</button>
-        <button data-group="birds"><img src="img/birds.png" alt="">Fåglar</button>
-        <button data-group="herps"><img src="img/herps.png" alt="">Grod- & kräldjur</button>
+        <button data-group="mammals">Däggdjur</button>
+        <button data-group="birds">Fåglar</button>
+        <button data-group="herps">Grod- & kräldjur</button>
       </div>
       <div class="yearwrap">
         <div class="seg" id="yearChips" role="group" aria-label="Vilka år">
@@ -1452,13 +1475,14 @@ const rejectCircle = L.circle([0, 0], { radius: 1, color: '#888', weight: 1, das
 let follow = true, centered = false;
 map.on('dragstart', () => { follow = false; });
 
-// Lägesväljare på kartan: Min position / Utforska
+// Lägesväljare på kartan: Min position / Utforska, och Resläge (startar och avslutar en resa)
 const modeCtl = L.control({ position: 'topright' });
 modeCtl.onAdd = () => {
   const d = L.DomUtil.create('div', 'mapseg');
-  d.innerHTML = '<button data-mode="gps">Min position</button><button data-mode="explore">Utforska</button>';
+  d.innerHTML = '<button data-mode="gps">Min position</button><button data-mode="explore">Utforska</button>'
+    + '<button class="tripbtn" id="startBtn" title="Följ dig längs vägen och samla arter, med kurva och topplista">Resläge</button>';
   L.DomEvent.disableClickPropagation(d);
-  d.onclick = e => { const b = e.target.closest('button'); if (b) setMode(b.dataset.mode); };
+  d.onclick = e => { const b = e.target.closest('button[data-mode]'); if (b) setMode(b.dataset.mode); };
   return d;
 };
 modeCtl.addTo(map);
@@ -1634,10 +1658,17 @@ async function showSelection(fit) {
       (r.individualCount ? ` · ${esc(r.individualCount)} st` : '') +
       (r.locality ? `<br>${esc(r.locality)}` : '') +
       (r.coordinateUncertaintyInMeters ? `<br>±${Math.round(r.coordinateUncertaintyInMeters)} m` : '') +
+      (r.occurrenceRemarks ? `<div class="remark">”${esc(r.occurrenceRemarks)}”</div>` : '') +
       (/^\d+$/.test(id) ? `<br><a href="https://www.artportalen.se/Sighting/${id}" target="_blank" rel="noopener">Visa i Artportalen</a>` : '');
-    L.circleMarker([r.decimalLatitude, r.decimalLongitude], {
-      radius: 5.5, color: '#fff', weight: 1.2, fillColor: color, fillOpacity: 0.85, bubblingMouseEvents: false
-    }).bindPopup(html).addTo(selLayer);
+    // Rapportörens kommentar i Artportalen (finns på ungefär vart tionde fynd): punkten pulserar svagt,
+    // och kommentaren syns när man hovrar över den
+    const rm = r.occurrenceRemarks;
+    const m = L.circleMarker([r.decimalLatitude, r.decimalLongitude], {
+      radius: 5.5, color: '#fff', weight: rm ? 1.1 : 1.2, fillColor: color, fillOpacity: 0.85, bubblingMouseEvents: false,
+      className: rm ? 'hasremark' : ''
+    }).bindPopup(html);
+    if (rm && !touchOnly) m.bindTooltip(`”${esc(rm.length > 160 ? rm.slice(0, 157) + '…' : rm)}”`, { direction: 'top', offset: [0, -6], className: 'obstip' });
+    m.addTo(selLayer);
   }
   const shown = recs.length < total ? `${fmtN(recs.length)} av ${fmtN(total)}` : fmtN(total);
   showHint(`<b>${esc(selected.name)}</b> · ${shown} obs.<button title="Avmarkera">✕</button>`);
@@ -1744,7 +1775,6 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 function setTripButton(running) {
   const b = $('startBtn');
   b.textContent = running ? 'Avsluta resa' : 'Resläge';
-  b.classList.toggle('primary', !running);
   b.classList.toggle('stop', running);
 }
 
