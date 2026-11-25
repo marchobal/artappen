@@ -333,6 +333,8 @@
   .rare.r3 { background: transparent; color: var(--explore); border-color: var(--explore); }
   .rare.r2, .rare.r1 { background: var(--bg); color: var(--muted); border-color: var(--line); }
   .homenote { font-size: .74rem; color: var(--muted); margin: 10px 2px 0; }
+  .homenote a { color: inherit; }
+  .rlist .newtag { font-size: .62rem; font-weight: 700; color: #fff; background: var(--accent); border-radius: 4px; padding: 1px 4px; margin-left: 5px; vertical-align: 1px; }
   /* Röd banner när en riktig raritet (Raritetskommitténs lista) har setts i Sverige */
   .rkbanner { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; padding: 10px 12px 10px 14px; border-radius: 12px;
               background: #c92a2a; color: #fff; cursor: pointer; box-shadow: 0 2px 10px rgba(201,42,42,.35); }
@@ -509,10 +511,11 @@
     <div class="homegrid">
       <section class="card featured" id="featured"><div class="fbody"><div class="kicker">Utvalt nära dig</div><p class="muted">Söker din position…</p></div></section>
       <section class="card homecard"><h2>Ovanligast nära dig <small>senaste 30 dagarna</small></h2><ol class="rlist" id="rareList"><li class="muted">…</li></ol></section>
-      <section class="card homecard"><h2>Senaste fynden <small>inom 10 km</small></h2><ol class="rlist" id="latestList"><li class="muted">…</li></ol></section>
+      <section class="card homecard"><h2>Senaste fynden <small id="latestSub">inom 10 km</small></h2><ol class="rlist" id="latestList"><li class="muted">…</li></ol></section>
       <section class="card homecard"><h2>Vanligast just nu <small>senaste 30 dagarna</small></h2><ol class="rlist" id="topNear"><li class="muted">…</li></ol></section>
     </div>
-    <p class="homenote" id="homeNote">Fynd från Artportalen via GBIF, som uppdateras ungefär en gång i veckan. Hur ovanlig en art är räknas på i hur många kommuner den hittats de senaste tio åren. Arter som är vanliga just runt dig de senaste fem åren räknas inte som ovanliga här.</p>
+    <p class="homenote" id="homeNote"><span id="freshNote" hidden>Senaste fynden kommer direkt från Artportalen via SLU Artdatabanken, som tar emot nya rapporter var 5:e minut. Övriga fynd</span><span id="gbifNote">Fynd</span> från Artportalen via GBIF, som uppdateras ungefär en gång i veckan. Hur ovanlig en art är räknas på i hur många kommuner den hittats de senaste tio åren. Arter som är vanliga just runt dig de senaste fem åren räknas inte som ovanliga här.</p>
+    <p class="homenote">Genom att använda denna applikation åtar jag mig att följa <a href="https://www.slu.se/artdatabanken/rapportering-och-fynd/oppna-data-och-apier/api-villkor/" target="_blank" rel="noopener">regler för användning av SLU Artdatabankens information</a>, inklusive att respektera tredje mans upphovsrätt. Detta åtagande görs även direkt mot SLU. Vid brott mot detta kan jag förlora rätten att använda applikationen.</p>
   </section>
 
   <!-- Rariteter: alla rariteter som setts i Sverige de senaste veckorna -->
@@ -1729,6 +1732,8 @@ function onFix(p) {
   showPosition(p);
   if (first) { first = false; timer ??= setInterval(maybeUpdate, 5_000); update(); }
   else maybeUpdate();
+  // färska fynd: var 5:e minut, och direkt om man flyttat sig mer än 1 km
+  if (!freshTimer) startFresh(); else if (fresh && distKm(fresh, { lat: p.coords.latitude, lon: p.coords.longitude }) > 1) loadFresh();
   if (document.body.dataset.page === 'home') loadHome();   // startsidan väntar på positionen (hämtar bara om man flyttat sig)
   if (datesPaused && mode === 'gps' && !isFast()) renderCurrent(); // saktat in: visa datumen igen
 }
@@ -2656,7 +2661,7 @@ async function renderHome() {
   const h = homeRes; if (!h) return;
   const none = '<li class="muted">Inga fynd inom 10 km den senaste tiden.</li>';
   $('rareList').innerHTML = h.rare.map(x => homeRow(x, rarePill(x.key), `${fmtN(x.n)} obs. nära dig`)).join('') || none;
-  $('latestList').innerHTML = h.latest.map(x => homeRow(x, `<span class="cnt">${dayText(x.date)}</span>`, `${x.km.toFixed(1).replace('.', ',')} km bort`)).join('') || none;
+  if (!renderFresh()) $('latestList').innerHTML = h.latest.map(x => homeRow(x, `<span class="cnt">${dayText(x.date)}</span>`, `${x.km.toFixed(1).replace('.', ',')} km bort`)).join('') || none;
   const max = h.top[0]?.n || 1;
   $('topNear').innerHTML = h.top.map(x => homeRow(x, `<span class="bar"><i style="width:${x.n / max * 100}%"></i></span><span class="cnt">${fmtN(x.n)}</span>`)).join('') || none;
   // utvald: en av de ovanligaste arterna nära dig, med bild
@@ -2679,8 +2684,83 @@ async function renderHome() {
 ['rareList', 'latestList', 'topNear'].forEach(id => $(id).onclick = e => {
   const li = e.target.closest('li[data-key]'); if (!li) return;
   const k = li.dataset.key, x = homeRes?.species.find(s => s.key === k);
-  openInfo({ key: k, swe: names[k]?.swe, sci: names[k]?.sci, n: x?.n, gid: li.dataset.gid || x?.gid || 'birds', km: HOME_KM, when: `senaste ${HOME_DAYS} dagarna`, showAt: { km: HOME_KM, days: HOME_DAYS } });
+  openInfo({ key: k, swe: names[k]?.swe, sci: names[k]?.sci, n: x?.n, gid: li.dataset.gid || x?.gid || 'birds', km: HOME_KM, when: `senaste ${HOME_DAYS} dagarna`,
+             last: freshLast(k), showAt: { km: HOME_KM, days: HOME_DAYS } });
 });
+
+// ---- Färska fynd direkt från SLU Artdatabanken (Artportalen läses in där var 5:e minut) ----
+// Mellanservern (worker/) har nyckeln; appen frågar bara efter fynden runt dig den senaste veckan.
+const SOS_API = 'https://artappen-api.marchobal.workers.dev/fynd', FRESH_DAYS = 7, FRESH_EVERY = 5 * 60_000;
+// SOS använder Dyntaxas id, appen GBIF:s: arterna kopplas ihop via det latinska namnet (sparas, 0 = ingen art)
+const SCI_KEY = 'artappen.sciKeys', sciKeys = load(SCI_KEY, {});
+let fresh = null, freshBusy = false, freshTimer = null;
+async function gbifKeyOf(sci, sv) {
+  if (sciKeys[sci] !== undefined) return sciKeys[sci];
+  const known = Object.entries(names).find(([, v]) => v.sci === sci);
+  let key = known ? known[0] : 0;
+  if (!key) {
+    try {
+      const d = await getJSON(`https://api.gbif.org/v1/species/match?kingdom=Animalia&name=${encodeURIComponent(sci)}`);
+      // underarter räknas till arten; släkten och hybrider ("Larus sp.") får ingen art
+      if (d.matchType !== 'NONE' && d.speciesKey && ['SPECIES', 'SUBSPECIES'].includes(d.rank)) key = String(d.speciesKey);
+    } catch { return 0; }   // försök igen nästa gång
+  }
+  if (key && !names[key] && sv) { names[key] = { swe: sv.charAt(0).toUpperCase() + sv.slice(1), sci }; save(NAME_KEY, names); }
+  sciKeys[sci] = key; save(SCI_KEY, sciKeys);
+  return key;
+}
+// "idag 14:30", "igår 08:14", "23 nov" (fynd utan klockslag har 00:00)
+const whenText = t => { const d = dayText(t.slice(0, 10)), hm = t.slice(11, 16);
+  return hm && hm !== '00:00' && /^(idag|igår)$/.test(d) ? `${d} ${hm}` : d; };
+async function loadFresh() {
+  if (!pos || freshBusy || document.hidden) return;
+  freshBusy = true;
+  const here = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+  try {
+    const all = await Promise.all(Object.keys(GROUPS).map(async gid => {
+      const r = await fetch(SOS_API, { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ lat: here.lat, lon: here.lon, km: HOME_KM, dagar: FRESH_DAYS, grupp: gid }) });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return ((await r.json()).fynd || []).filter(f => f.t && f.sci).map(f => ({ ...f, gid }));
+    }));
+    const finds = all.flat().sort((a, b) => b.t.localeCompare(a.t));
+    // senaste fyndet per art
+    const bySci = new Map(); finds.forEach(f => { if (!bySci.has(f.sci)) bySci.set(f.sci, f); });
+    const latest = [];
+    for (const f of bySci.values()) {
+      const key = await gbifKeyOf(f.sci, f.sv); if (!key) continue;
+      latest.push({ key, gid: f.gid, t: f.t, n: f.n, id: f.id, km: distKm(here, { lat: f.lat, lon: f.lon }) });
+      if (latest.length >= 40) break;
+    }
+    // Nytt fynd medan appen är öppen: en art som inte fanns med i förra hämtningen, nära dig
+    const same = fresh && distKm(fresh, here) < 1, before = same && new Set(fresh.latest.map(x => x.key));
+    const news = before ? latest.filter(x => !before.has(x.key)) : [];
+    fresh = { ...here, t: Date.now(), latest, news: new Set([...(same ? fresh.news : []), ...news.map(x => x.key)]) };
+    if (news.length) {
+      const x = news[0];
+      toast(`Nytt fynd nära dig: ${nameOf(x.key)}, ${x.km.toFixed(1).replace('.', ',')} km bort${news.length > 1 ? ` (och ${news.length - 1} till)` : ''}`);
+    }
+    renderFresh();
+  } catch (e) { console.warn('Färska fynd:', e); }
+  finally { freshBusy = false; }
+}
+const freshLast = k => { const x = fresh?.latest.find(y => y.key === k); return x ? whenText(x.t) : undefined; };
+// Ritar listan med de färska fynden. Utan några fynd den senaste veckan används GBIF:s lista som förut.
+function renderFresh() {
+  const on = !!fresh?.latest.length;
+  $('freshNote').hidden = !on; $('gbifNote').hidden = on;
+  if (!on) { $('latestSub').textContent = 'inom 10 km'; return false; }
+  $('latestSub').textContent = 'inom 10 km · direkt från Artportalen';
+  $('latestList').innerHTML = fresh.latest.slice(0, 6).map(x => homeRow(x, `<span class="cnt">${whenText(x.t)}</span>`,
+    `${x.km.toFixed(1).replace('.', ',')} km bort${x.n > 1 ? ` · ${fmtN(x.n)} ex.` : ''}`)
+    .replace('<small>', fresh.news.has(x.key) ? '<b class="newtag">NY</b><small>' : '<small>')).join('');
+  return true;
+}
+function startFresh() {
+  loadFresh();
+  clearInterval(freshTimer); freshTimer = setInterval(loadFresh, FRESH_EVERY);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && fresh && Date.now() - fresh.t > FRESH_EVERY) loadFresh(); });
 
 // ---- Röd banner: en riktig raritet har setts i Sverige ----
 // Alla fågelarter med fynd i Sverige de senaste 14 dagarna, jämförda mot Raritetskommitténs lista.
