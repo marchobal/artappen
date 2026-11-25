@@ -228,7 +228,7 @@
   @media (max-width: 899px) {
     .layout, .left, .bottomrow, .right { display: contents; }
     .layout { display: flex; flex-direction: column; }
-    .listcard { order: 2; } .mapcard { order: 3; } .chartcard { order: 4; } .tripcard { order: 5; } .topcard { order: 6; }
+    .mapcard { order: 0; } .listcard { order: 2; } .chartcard { order: 4; } .tripcard { order: 5; } .topcard { order: 6; }
     .controls { width: 100%; }
     .yearpick { left: 0; right: 0; }
     .seg button { padding: 8px 10px; }
@@ -263,6 +263,15 @@
     .listcard ol.two li { break-inside: avoid; }
   }
 
+  /* Listorna i Utforska: hopfällda tills man trycker på rubriken */
+  .foldhead { cursor: pointer; user-select: none; }
+  .foldchev { display: inline-block; width: 8px; height: 8px; margin-left: 8px; border: solid var(--muted); border-width: 0 2px 2px 0;
+              transform: translateY(-2px) rotate(45deg); transition: transform .2s; }
+  .folded .foldchev { transform: translateY(-1px) rotate(-45deg); }
+  .listcard.folded #list, .topcard.folded #topSeg, .topcard.folded #topList { display: none; }
+  .listcard.folded .listhead { margin-bottom: 0; }
+  @media (min-width: 900px) and (min-height: 560px) { .right .listcard.folded { flex: none; } }
+
   /* ---- Sidorna: Hem, Utforska och Visualiseringar ---- */
   body:not([data-page=explore]) .explore-only { display: none !important; }
   body:not([data-page=home]) .page-home, body:not([data-page=vis]) .page-vis { display: none; }
@@ -289,13 +298,6 @@
 
   /* Startsidan */
   .page-home, .page-vis { max-width: 980px; margin: 0 auto; }
-  .bigbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
-  .bigbtn { display: flex; flex-direction: column; gap: 2px; padding: 16px; border-radius: 16px; text-decoration: none; color: #fff;
-            min-height: 112px; justify-content: flex-end; position: relative; overflow: hidden; }
-  .bigbtn b { font-size: 1.15rem; } .bigbtn span { font-size: .82rem; opacity: .9; }
-  .bigbtn svg.bg { position: absolute; right: -6px; top: -4px; width: 96px; height: 96px; opacity: .28; }
-  .bigbtn.explore { background: linear-gradient(135deg, #2f6b3a, #1f4f2a); }
-  .bigbtn.vis { background: linear-gradient(135deg, #1b2a4a, #05070d); }
   .homegrid { display: grid; gap: 12px; }
   @media (min-width: 900px) { .homegrid { grid-template-columns: 1.2fr 1fr; align-items: start; } .homegrid .featured { grid-row: span 2; } }
   .homegrid .card { margin: 0; }
@@ -479,10 +481,6 @@
   <!-- Startsidan -->
   <section class="page-home" id="pageHome">
     <a class="tripnow" id="tripNow" href="#utforska" hidden>Resan pågår · visa resan</a>
-    <div class="bigbtns">
-      <a class="bigbtn explore" href="#utforska"><svg class="bg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg><b>Utforska</b><span>Arterna runt dig, på kartan och i listan. Resläge för bilen.</span></a>
-      <a class="bigbtn vis" href="#visualiseringar"><svg class="bg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19c3-1 4-6 8-6s5 5 8 6"/><circle cx="8" cy="7" r="1.4" fill="currentColor"/><circle cx="13" cy="5" r="1.1" fill="currentColor"/><circle cx="17" cy="8" r="1.6" fill="currentColor"/></svg><b>Visualiseringar</b><span>Flytten, fågelstammarna och skogen</span></a>
-    </div>
     <div class="homegrid">
       <section class="card featured" id="featured"><div class="fbody"><div class="kicker">Utvalt nära dig</div><p class="muted">Söker din position…</p></div></section>
       <section class="card homecard"><h2>Ovanligast nära dig <small>senaste 30 dagarna</small></h2><ol class="rlist" id="rareList"><li class="muted">…</li></ol></section>
@@ -574,12 +572,12 @@
     </div>
 
     <div class="right">
-    <section class="card listcard">
-      <div class="listhead"><h2><span id="countLabel">Arter i närheten</span> <span id="count"></span></h2><span id="obsCount"></span><span id="status">Söker din position…</span></div>
+    <section class="card listcard folded">
+      <div class="listhead"><h2 class="foldhead"><span id="countLabel">Arter i närheten</span> <span id="count"></span><span class="foldchev" aria-hidden="true"></span></h2><span id="obsCount"></span><span id="status">Söker din position…</span></div>
       <div id="list"><p class="empty">Inga data ännu.</p></div>
     </section>
-      <section class="card topcard">
-          <h2>Topplista för resan</h2>
+      <section class="card topcard folded">
+          <h2 class="foldhead">Topplista för resan<span class="foldchev" aria-hidden="true"></span></h2>
           <div class="seg topseg" id="topSeg" role="group" aria-label="Topplista">
             <button data-top="red">Hotade</button>
             <button data-top="rare">Ovanligast</button>
@@ -1483,14 +1481,16 @@ function setMode(m) {
   mode = m;
   document.querySelectorAll('.mapseg button[data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
   $('map').classList.toggle('exploring', mode === 'explore');
-  if (selected) clearSelection(false);
+  selLayer.clearLayers();
   if (mode === 'explore') {
     follow = false;
+    radiusCircle.remove();
     if (exploreAt) { exploreDot.addTo(map); exploreCircle.addTo(map); fitRing(exploreAt.lat, exploreAt.lon); }
-    showHint(exploreAt ? null : 'Tryck på kartan där du vill utforska.');
+    showHint(exploreAt ? null : selected ? `Tryck på kartan där du vill se <b>${esc(selected.name)}</b>.` : 'Tryck på kartan där du vill utforska.');
   } else {
     showHint(null);
     exploreDot.remove(); exploreCircle.remove();
+    if (pos) radiusCircle.addTo(map);
     if (pos) { follow = true; fitRing(pos.coords.latitude, pos.coords.longitude); }
   }
   renderCurrent();
@@ -1503,7 +1503,6 @@ map.on('click', e => {
   exploreCircle.setLatLng(e.latlng).addTo(map);
   fitRing(e.latlng.lat, e.latlng.lng);
   showHint(null);
-  if (selected) clearSelection(false);
   exploreFetch();
 });
 
@@ -1513,8 +1512,9 @@ function showPosition(p) {
   const ll = [p.coords.latitude, p.coords.longitude];
   me.setLatLng(ll).addTo(map);
   accCircle.setLatLng(ll).setRadius(p.coords.accuracy).addTo(map);
-  radiusCircle.setLatLng(ll).addTo(map);
+  radiusCircle.setLatLng(ll);
   if (mode !== 'gps') return;
+  radiusCircle.addTo(map);
   if (!centered) { fitRing(...ll); centered = true; }
   else if (follow) map.panTo(ll);
 }
@@ -2467,10 +2467,13 @@ function showPage() {
   document.body.dataset.page = page;
   document.querySelectorAll('#pageNav a').forEach(a => a.classList.toggle('on', a.dataset.page === page));
   if (page !== was) window.scrollTo(0, 0);
+  if (page === 'explore' && page !== was) foldLists();
   if (page === 'explore') requestAnimationFrame(() => { map.invalidateSize(); drawChart(); drawStrip(); if (mode === 'gps' ? follow : true) fitView(); });
   if (page === 'home') loadHome();
 }
 addEventListener('hashchange', showPage);
+document.querySelectorAll('.foldhead').forEach(h => h.addEventListener('click', () => h.closest('.card').classList.toggle('folded')));
+const foldLists = () => document.querySelectorAll('.listcard, .topcard').forEach(c => c.classList.add('folded'));
 
 // ---- Hur ovanlig är arten i Sverige? ----
 // data/raritet.json (tools/raritet.py): i hur många kommuner arten hittats de senaste tio åren.
