@@ -46,12 +46,31 @@ let ctx = CIContext()
 let cut = ctx.createCGImage(CIImage(cvPixelBuffer: masked), from: CIImage(cvPixelBuffer: masked).extent)!
 savePNG(cut, outDir.appendingPathComponent("\(base)-cutout.png"))
 
-// Pixelgrafik vinner på mättade färger och lite extra kontrast
-let boost = CIFilter(name: "CIColorControls")!
-boost.setValue(CIImage(cgImage: cut), forKey: kCIInputImageKey)
-boost.setValue(1.45, forKey: kCIInputSaturationKey)
-boost.setValue(1.12, forKey: kCIInputContrastKey)
-let vivid = ctx.createCGImage(boost.outputImage!, from: CIImage(cgImage: cut).extent)!
+// Pixelgrafik vinner på mättade färger och lite extra kontrast. Men bara färger som redan är tydliga
+// görs mer mättade: grått och nästan grått (rapphöna, gråtrut) lämnas, annars blir en svag varm ton brun.
+func selectiveSaturation(_ img: CGImage) -> CGImage {
+    let w = img.width, h = img.height
+    var b = [UInt8](repeating: 0, count: w * h * 4)
+    let cs = CGColorSpace(name: CGColorSpace.sRGB)!
+    let c = CGContext(data: &b, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: cs,
+                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    c.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h))
+    for i in stride(from: 0, to: b.count, by: 4) where b[i + 3] > 0 {
+        let r = Double(b[i]), g = Double(b[i + 1]), bl = Double(b[i + 2])
+        let mx = max(r, g, bl), mn = min(r, g, bl)
+        let sat = mx > 0 ? (mx - mn) / mx : 0
+        // ingen förstärkning under mättnad 0,20, full (×1,65) från 0,45
+        let gain = 1 + 0.65 * min(1, max(0, (sat - 0.2) / 0.25))
+        let l = 0.299 * r + 0.587 * g + 0.114 * bl
+        // lite extra kontrast i ljusheten, men samma kulör (CIColorControls kontrast tryckte ner blått: grått blev brunt)
+        let a = Double(b[i + 3]), lc = a * 0.5 + (l - a * 0.5) * 1.1
+        b[i] = UInt8(min(a, max(0, lc + (r - l) * gain)))
+        b[i + 1] = UInt8(min(a, max(0, lc + (g - l) * gain)))
+        b[i + 2] = UInt8(min(a, max(0, lc + (bl - l) * gain)))
+    }
+    return c.makeImage()!
+}
+let vivid = selectiveSaturation(cut)
 
 // 2) Nerskalning till N×N (motivet centrerat, proportioner bevarade)
 func downscale(_ img: CGImage, _ n: Int) -> [UInt8] {
@@ -109,7 +128,8 @@ func palette(_ pts: [[Double]], _ k: Int) -> [[Double]] {
     // Varje färg = medel av den mest mättade halvan av sina pixlar (skuggor gör annars
     // accentfärger grumliga – steglitsens röda blev rödbrunt)
     for (j, p) in pts.enumerated() { assign[j] = nearest(p, cent) }
-    for c in cent.indices {
+    // (bara för tydliga färger: för gråa ytor blir "den mest mättade halvan" bara brunare)
+    for c in cent.indices where chroma(cent[c]) > 100 {
         let mem = pts.indices.filter { assign[$0] == c }.sorted { chroma(pts[$0]) > chroma(pts[$1]) }
         let top = mem.prefix(max(1, mem.count / 2))
         if !top.isEmpty { cent[c] = (0..<3).map { ch in top.map { pts[$0][ch] }.reduce(0, +) / Double(top.count) } }
