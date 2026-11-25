@@ -88,7 +88,6 @@
   /* Karta */
   .mapcard { padding: 0; overflow: hidden; }
   #map { height: 46vh; min-height: 260px; z-index: 0; background: var(--line); }
-  #map.exploring { cursor: crosshair; }
   body.triprun .myring { animation: radar 3s ease-in-out infinite; }
   @keyframes radar { 50% { stroke-opacity: .15; } }
   .myring.scanned { animation: scan 1.2s ease-out !important; }
@@ -102,7 +101,10 @@
   .mapseg button { border: 0; border-radius: 0; padding: 7px 12px; font-size: .85rem; background: var(--card); color: var(--text); }
   .mapseg button + button { border-left: 1px solid var(--line); }
   .mapseg button.on { background: var(--accent); color: #fff; }
-  .mapseg button[data-mode=explore].on { background: var(--explore); }
+  .herebtn { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 1000; border: 0; border-radius: 999px;
+             padding: 8px 16px; font: inherit; font-size: .88rem; font-weight: 600; background: var(--accent); color: #fff;
+             box-shadow: 0 2px 8px rgba(0,0,0,.25); cursor: pointer; white-space: nowrap; }
+  .herebtn[hidden] { display: none; }
   .mapseg .tripbtn { color: var(--trip); font-weight: 600; padding: 7px 12px; font-size: .85rem; }
   .mapseg .tripbtn.stop { background: var(--trip); color: #fff; }
   .maphint { background: var(--card); color: var(--text); border-radius: 8px; padding: 5px 10px; font-size: 12.5px;
@@ -946,8 +948,8 @@ async function renderCurrent() {
   if (!r || r.yr !== yearId()) {
     $('count').textContent = ''; $('obsCount').textContent = '';
     const msg = mode === 'explore'
-      ? (exploreAt ? 'Hämtar…' : 'Tryck på kartan för att utforska en plats.')
-      : pos ? 'Hämtar…' : watchId != null ? 'Söker din position…' : 'Ingen position. Tillåt platstjänster, eller välj Utforska på kartan.';
+      ? 'Hämtar…'
+      : pos ? 'Hämtar…' : watchId != null ? 'Söker din position…' : 'Ingen position. Tillåt platstjänster, eller dra kartan dit du vill och tryck Visa arter här.';
     $('list').innerHTML = `<p class="empty">${esc(msg)}</p>`;
     setStatus(msg);
     return;
@@ -1475,14 +1477,12 @@ const rejectCircle = L.circle([0, 0], { radius: 1, color: '#888', weight: 1, das
 let follow = true, centered = false;
 map.on('dragstart', () => { follow = false; });
 
-// Lägesväljare på kartan: Min position / Utforska, och Resläge (startar och avslutar en resa)
+// Resläge uppe till höger på kartan (startar och avslutar en resa)
 const modeCtl = L.control({ position: 'topright' });
 modeCtl.onAdd = () => {
   const d = L.DomUtil.create('div', 'mapseg');
-  d.innerHTML = '<button data-mode="gps">Min position</button><button data-mode="explore">Utforska</button>'
-    + '<button class="tripbtn" id="startBtn" title="Följ dig längs vägen och samla arter, med kurva och topplista">Resläge</button>';
+  d.innerHTML = '<button class="tripbtn" id="startBtn" title="Följ dig längs vägen och samla arter, med kurva och topplista">Resläge</button>';
   L.DomEvent.disableClickPropagation(d);
-  d.onclick = e => { const b = e.target.closest('button[data-mode]'); if (b) setMode(b.dataset.mode); };
   return d;
 };
 modeCtl.addTo(map);
@@ -1503,9 +1503,9 @@ function setRadius(km) {
 const recenter = L.control({ position: 'topleft' });
 recenter.onAdd = () => {
   const d = L.DomUtil.create('div', 'leaflet-bar');
-  d.innerHTML = '<a href="#" title="Centrera" role="button" style="font-size:16px">◎</a>';
+  d.innerHTML = '<a href="#" title="Till min position" role="button" style="font-size:16px">◎</a>';
   L.DomEvent.disableClickPropagation(d);
-  d.firstChild.onclick = e => { e.preventDefault(); fitView(); };
+  d.firstChild.onclick = e => { e.preventDefault(); if (pos && mode !== 'gps') setMode('gps'); else fitView(); updateHereBtn(); };
   return d;
 };
 recenter.addTo(map);
@@ -1530,11 +1530,9 @@ function fitView() {
   if (mode === 'gps' && pos) { follow = true; fitRing(pos.coords.latitude, pos.coords.longitude); }
 }
 
-function setMode(m) {
-  if (m === mode) { fitView(); return; }
+function setMode(m, fit = true) {
+  if (m === mode) { if (fit) fitView(); return; }
   mode = m;
-  document.querySelectorAll('.mapseg button[data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
-  $('map').classList.toggle('exploring', mode === 'explore');
   selLayer.clearLayers();
   if (mode === 'explore') {
     follow = false;
@@ -1544,26 +1542,38 @@ function setMode(m) {
       const c = map.getCenter(); exploreAt = { lat: c.lat, lon: c.lng };
       exploreDot.setLatLng(c); exploreCircle.setLatLng(c); exploreFetch();
     }
-    if (exploreAt) { exploreDot.addTo(map); exploreCircle.addTo(map); fitRing(exploreAt.lat, exploreAt.lon); }
-    showHint(exploreAt ? null : 'Tryck på kartan där du vill utforska.');
+    if (exploreAt) { exploreDot.addTo(map); exploreCircle.addTo(map); if (fit) fitRing(exploreAt.lat, exploreAt.lon); }
   } else {
     showHint(null);
     exploreDot.remove(); exploreCircle.remove();
     if (pos) radiusCircle.addTo(map);
-    if (pos) { follow = true; fitRing(pos.coords.latitude, pos.coords.longitude); }
+    if (pos) { follow = true; if (fit) fitRing(pos.coords.latitude, pos.coords.longitude); }
   }
   renderCurrent();
 }
 
-map.on('click', e => {
-  if (mode !== 'explore') return;
-  exploreAt = { lat: e.latlng.lat, lon: e.latlng.lng };
-  exploreDot.setLatLng(e.latlng).addTo(map);
-  exploreCircle.setLatLng(e.latlng).addTo(map);
-  fitRing(e.latlng.lat, e.latlng.lng);
-  showHint(null);
+// Som i andra kartappar: ett tryck på kartan gör inget (det stänger bara öppna rutor), och kartan zoomar inte av sig själv.
+// Har man dragit iväg kartan dyker knappen "Visa arter här" upp. Den hämtar arterna runt kartans mitt utan att zooma.
+// ◎ tar en tillbaka till sin position.
+const hereBtn = L.DomUtil.create('button', 'herebtn', $('map'));
+hereBtn.type = 'button'; hereBtn.textContent = 'Visa arter här'; hereBtn.hidden = true;
+L.DomEvent.disableClickPropagation(hereBtn);
+const searchCenter = () => mode === 'explore' && exploreAt ? exploreAt : pos ? { lat: pos.coords.latitude, lon: pos.coords.longitude } : null;
+function updateHereBtn() {
+  const c = map.getCenter(), at = searchCenter();
+  // dold under resan, och så länge kartans mitt ligger inom en tredjedel av cirkeln
+  hereBtn.hidden = tripOn || (at && distKm(at, { lat: c.lat, lon: c.lng }) < Math.max(0.3, radiusKm() / 3));
+}
+map.on('moveend', updateHereBtn);
+hereBtn.onclick = () => {
+  const c = map.getCenter();
+  exploreAt = { lat: c.lat, lon: c.lng };
+  exploreDot.setLatLng(c); exploreCircle.setLatLng(c);
+  if (mode !== 'explore') setMode('explore', false); else { exploreDot.addTo(map); exploreCircle.addTo(map); }
+  if (selected) showSelection(false);
   exploreFetch();
-});
+  hereBtn.hidden = true;
+};
 
 function drawTrack() { trackLine.setLatLngs(track.map(p => [p.lat, p.lon])); }
 
@@ -1585,13 +1595,12 @@ const selLayer = L.layerGroup().addTo(map);
 function markRows() {
   document.querySelectorAll('#list li[data-key]').forEach(li => li.classList.toggle('sel', li.dataset.key === String(selected?.key)));
 }
-function clearSelection(refit = true) {
+function clearSelection() {
   selected = null; selSeq++;
   selLayer.clearLayers();
-  showHint(mode === 'explore' && !exploreAt ? 'Tryck på kartan där du vill utforska.' : null);
+  showHint(null);
   obsLayer.setOpacity(OBS_OPACITY);
   markRows();
-  if (refit) fitView();
 }
 // Från startsidans tips: till kartan, med samma grupp, avstånd och tid som tipset, och arten markerad
 function showSpeciesOnMap(it) {
@@ -1651,6 +1660,8 @@ async function showSelection(fit) {
   selLayer.clearLayers();
   obsLayer.setOpacity(0.12);
   const color = css('--sel');
+  // fynd med kommentar sist, så att de ritas överst när många punkter ligger tätt
+  recs.sort((a, b) => !!a.occurrenceRemarks - !!b.occurrenceRemarks);
   for (const r of recs) {
     const id = (r.occurrenceID || '').split(':').pop();
     const date = (r.eventDate || '').slice(0, 10) || r.year || 'okänt datum';
@@ -1660,9 +1671,9 @@ async function showSelection(fit) {
       (r.coordinateUncertaintyInMeters ? `<br>±${Math.round(r.coordinateUncertaintyInMeters)} m` : '') +
       (r.occurrenceRemarks ? `<div class="remark">”${esc(r.occurrenceRemarks)}”</div>` : '') +
       (/^\d+$/.test(id) ? `<br><a href="https://www.artportalen.se/Sighting/${id}" target="_blank" rel="noopener">Visa i Artportalen</a>` : '');
-    // Rapportörens kommentar i Artportalen (finns på ungefär vart tionde fynd): punkten pulserar svagt,
-    // och kommentaren syns när man hovrar över den
-    const rm = r.occurrenceRemarks;
+    // Rapportörens kommentar i Artportalen (finns på ungefär vart tionde fynd): på datorn glöder punkten
+    // svagt och kommentaren syns när man hovrar. I mobilen går det inte att hovra: där står den i rutan när man trycker.
+    const rm = touchOnly ? null : r.occurrenceRemarks;
     const m = L.circleMarker([r.decimalLatitude, r.decimalLongitude], {
       radius: 5.5, color: '#fff', weight: rm ? 1.1 : 1.2, fillColor: color, fillOpacity: 0.85, bubblingMouseEvents: false,
       className: rm ? 'hasremark' : ''
@@ -1870,7 +1881,6 @@ function syncControls() {
   const sb = $('seasonBtn'); sb.disabled = !!filter.days; sb.classList.toggle('on', !!filter.season && !filter.days);
   sb.textContent = filter.season ? seasonText() : 'Hela året';
   sb.title = filter.season ? `Bara fynd från ${seasonText()} (tryck för hela året)` : 'Fynd från hela året (tryck för bara den här årstiden)';
-  document.querySelectorAll('.mapseg button[data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
   syncLabels();
 }
 function applyFilter() {
@@ -1887,7 +1897,7 @@ function applyFilter() {
 
 $('groupSeg').onclick = e => {
   const b = e.target.closest('button');
-  if (b && b.dataset.group !== filter.group) { if (selected) clearSelection(false); filter.group = b.dataset.group; applyFilter(); }
+  if (b && b.dataset.group !== filter.group) { if (selected) clearSelection(); filter.group = b.dataset.group; applyFilter(); }
 };
 function showYearPick(open) {
   $('yearPick').hidden = !open;
@@ -2545,7 +2555,7 @@ function showPage() {
   document.querySelectorAll('#pageNav a').forEach(a => a.classList.toggle('on', a.dataset.page === page));
   if (page !== was) window.scrollTo(0, 0);
   if (page === 'explore' && page !== was) shortenLists();
-  if (page === 'explore') requestAnimationFrame(() => { map.invalidateSize(); drawChart(); drawStrip(); if (mode === 'gps' ? follow : true) fitView(); });
+  if (page === 'explore') requestAnimationFrame(() => { map.invalidateSize(); drawChart(); drawStrip(); if (mode === 'gps' && follow) fitView(); });
   if (page === 'home') loadHome();
 }
 addEventListener('hashchange', showPage);
@@ -2861,7 +2871,7 @@ let refitTimer = null;
 new ResizeObserver(() => {
   map.invalidateSize();
   clearTimeout(refitTimer);
-  refitTimer = setTimeout(() => { if ($('map').offsetWidth && ((mode === 'gps' && follow) || mode === 'explore')) fitView(); }, 150);
+  refitTimer = setTimeout(() => { if ($('map').offsetWidth && mode === 'gps' && follow) fitView(); }, 150);
 }).observe($('map'));
 new ResizeObserver(() => drawChart()).observe($('chart'));
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(e => console.warn('Service worker:', e));
