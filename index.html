@@ -322,10 +322,20 @@
   .rlist .bar i { display: block; height: 100%; background: var(--accent); }
   .rlist .cnt { color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; min-width: 2.5em; text-align: right; }
   .rare { font-size: .7rem; font-weight: 600; padding: 2px 7px; border-radius: 999px; white-space: nowrap; border: 1px solid transparent; }
+  .rare.r6 { background: #d9381e; color: #fff; }
   .rare.r5 { background: #6741d9; color: #fff; } .rare.r4 { background: #9775fa; color: #fff; }
   .rare.r3 { background: transparent; color: var(--explore); border-color: var(--explore); }
   .rare.r2, .rare.r1 { background: var(--bg); color: var(--muted); border-color: var(--line); }
   .homenote { font-size: .74rem; color: var(--muted); margin: 10px 2px 0; }
+  /* Röd banner när en riktig raritet (Raritetskommitténs lista) har setts i Sverige */
+  .rkbanner { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; padding: 10px 12px 10px 14px; border-radius: 12px;
+              background: #c92a2a; color: #fff; cursor: pointer; box-shadow: 0 2px 10px rgba(201,42,42,.35); }
+  .rkbanner[hidden] { display: none; }
+  .rkbanner .rkdot { width: 10px; height: 10px; border-radius: 50%; background: #fff; flex: none; animation: pulse 1.6s infinite; }
+  .rkbanner .rktext { flex: 1; min-width: 0; font-size: .9rem; line-height: 1.3; }
+  .rkbanner .rktext b { font-size: 1rem; }
+  .rkbanner .rktext small { display: block; opacity: .85; font-size: .78rem; }
+  .rkbanner button { flex: none; width: 30px; height: 30px; padding: 0; border-radius: 50%; border: 0; background: rgba(255,255,255,.18); color: #fff; }
   .tripnow { display: flex; align-items: center; gap: 8px; padding: 10px 14px; margin-bottom: 12px; border-radius: 12px;
              background: var(--card); border: 1px solid var(--trip); color: var(--text); text-decoration: none; font-size: .9rem; }
   .tripnow::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--trip); animation: pulse 1.6s infinite; }
@@ -440,6 +450,7 @@
 </head>
 <body>
 <main>
+  <div class="rkbanner" id="rkBanner" role="alert" hidden></div>
   <header class="topbar">
     <div class="brandrow">
       <a class="brand" href="#hem"><img src="icon-192.png" alt="">Artappen <small>Artportalen via GBIF</small></a>
@@ -487,7 +498,7 @@
       <section class="card homecard"><h2>Senaste fynden <small>inom 10 km</small></h2><ol class="rlist" id="latestList"><li class="muted">…</li></ol></section>
       <section class="card homecard"><h2>Vanligast just nu <small>senaste 30 dagarna</small></h2><ol class="rlist" id="topNear"><li class="muted">…</li></ol></section>
     </div>
-    <p class="homenote" id="homeNote">Fynd från Artportalen via GBIF, som uppdateras ungefär en gång i veckan. Hur ovanlig en art är räknas på i hur många kommuner den hittats de senaste tio åren.</p>
+    <p class="homenote" id="homeNote">Fynd från Artportalen via GBIF, som uppdateras ungefär en gång i veckan. Hur ovanlig en art är räknas på i hur många kommuner den hittats de senaste tio åren. Arter som är vanliga just runt dig de senaste fem åren räknas inte som ovanliga här.</p>
   </section>
 
   <!-- Visualiseringar -->
@@ -1537,9 +1548,19 @@ function showSpeciesOnMap(it) {
   filter.km = it.showAt.km; filter.days = it.showAt.days; filter.from = filter.to = null;
   radiusCircle.setRadius(radiusKm() * 1000); exploreCircle.setRadius(radiusKm() * 1000);
   location.hash = '#utforska';
+  selected = { key: String(it.key), name: it.swe || it.sci || 'Arten' };
+  // fyndet ligger någon annanstans i landet: utforska där
+  if (it.showAt.at) {
+    const at = it.showAt.at;
+    exploreAt = { lat: at.lat, lon: at.lon };
+    exploreDot.setLatLng([at.lat, at.lon]); exploreCircle.setLatLng([at.lat, at.lon]);
+    if (mode !== 'explore') setMode('explore'); else { exploreDot.addTo(map); exploreCircle.addTo(map); }
+    applyFilter(); markRows(); exploreFetch();
+    setTimeout(() => { map.invalidateSize(); fitView(); scrollToMap(); }, 350);
+    return;
+  }
   if (mode !== 'gps') setMode('gps');
   applyFilter();
-  selected = { key: String(it.key), name: it.swe || it.sci || 'Arten' };
   markRows(); showSelection(false);
   // sidbytet (hashchange) skrollar upp till toppen, så kartan visas först när det är gjort
   setTimeout(() => { map.invalidateSize(); fitView(); scrollToMap(); }, 350);
@@ -2487,7 +2508,15 @@ const rarityReady = fetch('data/raritet.json').then(r => r.ok ? r.json() : null)
   for (const [g, m] of Object.entries(d.grupper))
     for (const [k, [areas, n]] of Object.entries(m)) rarity[k] = { g, n, areas, share: areas / d.omraden };
 }).catch(() => {});
+// Raritetskommitténs katalog (data/rk.json, tools/rk_katalog.py): fåglar som är så ovanliga i Sverige att varje fynd granskas.
+// Arter som Rk slutat granska ("slutat") har blivit för vanliga, och kategori D/E är troliga rymlingar.
+let rk = {};
+const rkReady = fetch('data/rk.json').then(r => r.ok ? r.json() : null).then(d => { if (d) rk = d.arter; }).catch(() => {});
+// Skydd mot felkopplade namn: en art som hittats i var fjärde kommun på tio år är ingen raritet.
+const isRkRarity = key => { const a = rk[key]; return !!a && !a.slutat && a.kat !== 'D' && a.kat !== 'E' && !(rarity?.[key]?.share > 0.25); };
 function rarityOf(key) {
+  if (isRkRarity(key)) { const r = rarity?.[key];
+    return { label: 'Raritet', cls: 'r6', n: r ? r.n : 0, areas: r ? r.areas : 0, share: r ? r.share : 0, rank: -1 + Math.min(rk[key].fynd, 999) / 1000, rk: rk[key] }; }
   if (!rarity) return null;
   const r = rarity[key], share = r ? r.share : 0;      // saknas = inga fynd på tio år
   const lim = RARE_LIMITS[r?.g === 'birds' ? 'birds' : 'other'];
@@ -2499,11 +2528,14 @@ function rarityOf(key) {
 const rarePill = key => { const r = rarityOf(key); return r ? `<span class="rare ${r.cls}">${r.label}</span>` : ''; };
 function rarityFact(key) {
   const r = rarityOf(key); if (!r) return '';
+  if (r.rk) return `<span class="rare r6">Raritet</span> i Sverige · ${fmtN(r.rk.fynd)} godkända fynd någonsin enligt Raritetskommittén`;
   return `<span class="rare ${r.cls}">${r.label}</span> i Sverige · funnen i ${r.areas} av ${rarityAreas} kommuner ${rarityYears}`;
 }
 
 // ---- Startsidan: det som hänt nära dig senaste tiden ----
 const HOME_KM = 10, HOME_DAYS = 30;
+// lokalt vanlig: bland den översta tredjedelen av gruppens arter inom 10 km på fem år, och minst 20 fynd
+const LOCAL_TOP = 0.33, LOCAL_MIN = 20;
 let homeRes = null, homeSeq = 0, homeBusy = false;
 const GROUP_IMG = { mammals: 'img/mammals.png', birds: 'img/birds.png', herps: 'img/herps.png' };
 const allTaxa = () => Object.values(GROUPS).map(taxonParam).join('');
@@ -2520,12 +2552,21 @@ async function loadHome() {
   const geo = `&geoDistance=${here.lat},${here.lon},${HOME_KM}km`;
   const date = days => `&eventDate=${ymd(addDays(new Date(), -days))},${ymd(new Date())}`;
   try {
-    await rarityReady;
+    await Promise.all([rarityReady, rkReady]);
     // arterna per djurgrupp senaste 30 dagarna
     const fac = await Promise.all(Object.entries(GROUPS).map(async ([gid, g]) => {
       const d = await getJSON(`${OCC}?datasetKey=${DATASET}${taxonParam(g)}${geo}${date(HOME_DAYS)}&occurrenceStatus=PRESENT&limit=0&facet=speciesKey&facetLimit=1000`);
       return (d.facets?.[0]?.counts || []).map(c => ({ key: c.name, n: c.count, gid }));
     }));
+    // Hur vanlig är arten just här? Fynden inom 10 km de senaste fem åren, rangordnade inom djurgruppen.
+    // En art kan vara ovanlig i Sverige men vanlig där den finns (vildkaninen i Nyköping): då är den ingen överraskning här.
+    const y = new Date().getFullYear();
+    const fac5 = await Promise.all(Object.entries(GROUPS).map(async ([gid, g]) => {
+      const d = await getJSON(`${OCC}?datasetKey=${DATASET}${taxonParam(g)}${geo}&year=${y - 5},${y}&occurrenceStatus=PRESENT&limit=0&facet=speciesKey&facetLimit=1000`);
+      const counts = d.facets?.[0]?.counts || [];
+      return counts.map((c, i) => [c.name, { n5: c.count, pct: i / counts.length }]);
+    }));
+    const local = Object.fromEntries(fac5.flat());
     // senaste fynden: kortaste tidsfönster som ger några fynd (GBIF kan inte sortera på datum)
     let latest = [];
     for (const days of [7, 14, HOME_DAYS]) {
@@ -2541,17 +2582,35 @@ async function loadHome() {
                    km: distKm(here, { lat: o.decimalLatitude, lon: o.decimalLongitude }) }))
       .sort((a, b) => b.date.localeCompare(a.date));
     const seen = new Set(); latest = latest.filter(o => !seen.has(o.key) && seen.add(o.key)).slice(0, 6);
-    const rare = species.slice().sort((a, b) => (rarityOf(a.key)?.rank ?? 0) - (rarityOf(b.key)?.rank ?? 0)).slice(0, 6);
+    const localCommon = k => !isRkRarity(k) && local[k]?.n5 >= LOCAL_MIN && local[k].pct < LOCAL_TOP;
+    const byRank = species.filter(x => !localCommon(x.key)).sort((a, b) => (rarityOf(a.key)?.rank ?? 0) - (rarityOf(b.key)?.rank ?? 0));
+    const rare = byRank.slice(0, 6);
     const top = species.slice().sort((a, b) => b.n - a.n).slice(0, 5);
-    const keys = [...new Set([...rare, ...latest, ...top].map(x => x.key))];
+    const featured = pickFeatured(byRank);
+    const keys = [...new Set([...rare, ...latest, ...top, ...(featured ? [featured] : [])].map(x => x.key))];
     await mapLimit(keys, 3, k => speciesName(k));
     loadAllRedlists().catch(() => {});
     if (my !== homeSeq) return;
-    homeRes = { ...here, t: Date.now(), species, latest, rare, top };
+    homeRes = { ...here, t: Date.now(), species, latest, rare, top, featured, local };
     renderHome();
   } catch (e) {
     if (my === homeSeq) $('featured').innerHTML = `<div class="fbody"><div class="kicker">Utvalt nära dig</div><p class="muted">Kunde inte hämta fynden just nu.</p></div>`;
   } finally { homeBusy = false; }
+}
+// Den utvalda arten: en raritet nära dig visas alltid, annars växlar den mellan de ovanligaste arterna,
+// så att samma art inte kommer varje gång appen öppnas.
+const FEAT_KEY = 'artappen.featured';
+function pickFeatured(byRank) {
+  const rkNear = byRank.find(x => isRkRarity(x.key));
+  const unusual = byRank.filter(x => (rarityOf(x.key)?.rank ?? 9) < 3).slice(0, 10);
+  const pool = unusual.length >= 3 ? unusual : byRank.slice(0, 6);
+  if (!pool.length) return null;
+  const hist = load(FEAT_KEY, []);
+  const pick = rkNear && hist[0] !== rkNear.key ? rkNear
+    : pool.find(x => !hist.includes(x.key))
+    || pool.slice().sort((a, b) => hist.indexOf(b.key) - hist.indexOf(a.key))[0];
+  save(FEAT_KEY, [pick.key, ...hist.filter(k => k !== pick.key)].slice(0, 12));
+  return pick;
 }
 const nameOf = k => names[k]?.swe || names[k]?.sci || '…';
 function icon(key, gid) {
@@ -2570,8 +2629,8 @@ async function renderHome() {
   $('latestList').innerHTML = h.latest.map(x => homeRow(x, `<span class="cnt">${dayText(x.date)}</span>`, `${x.km.toFixed(1).replace('.', ',')} km bort`)).join('') || none;
   const max = h.top[0]?.n || 1;
   $('topNear').innerHTML = h.top.map(x => homeRow(x, `<span class="bar"><i style="width:${x.n / max * 100}%"></i></span><span class="cnt">${fmtN(x.n)}</span>`)).join('') || none;
-  // utvald: den ovanligaste arten nära dig, med bild
-  const f = h.rare[0], el = $('featured');
+  // utvald: en av de ovanligaste arterna nära dig, med bild
+  const f = h.featured, el = $('featured');
   if (!f) { el.innerHTML = '<div class="fbody"><div class="kicker">Utvalt nära dig</div><p class="muted">Inga fynd inom 10 km den senaste månaden.</p></div>'; return; }
   const r = rarityOf(f.key), th = THREAT[redlist[f.key]];
   const meta = `${r ? `<span class="rare ${r.cls}">${r.label}</span>` : ''}${th ? `<b class="badge ${th.code.toLowerCase()}">${th.code}</b>` : ''}<span>${fmtN(f.n)} obs. inom 10 km senaste månaden</span>`;
@@ -2591,6 +2650,45 @@ async function renderHome() {
   const k = li.dataset.key, x = homeRes?.species.find(s => s.key === k);
   openInfo({ key: k, swe: names[k]?.swe, sci: names[k]?.sci, n: x?.n, gid: li.dataset.gid || x?.gid || 'birds', where: 'inom 10 km senaste 30 dagarna', showAt: { km: HOME_KM, days: HOME_DAYS } });
 });
+
+// ---- Röd banner: en riktig raritet har setts i Sverige ----
+// Alla fågelarter med fynd i Sverige de senaste 14 dagarna, jämförda mot Raritetskommitténs lista.
+// GBIF får Artportalens fynd ungefär en gång i veckan, så de allra senaste dagarna saknas.
+const RK_DAYS = 14, RK_HIDE = 'artappen.rkHidden';
+let rkFinds = [];
+async function loadRarityAlert() {
+  await rkReady;
+  const span = `&eventDate=${ymd(addDays(new Date(), -RK_DAYS))},${ymd(new Date())}`;
+  const d = await getJSON(`${OCC}?datasetKey=${DATASET}&taxonKey=212&country=SE${span}&occurrenceStatus=PRESENT&limit=0&facet=speciesKey&facetLimit=1500`);
+  const keys = (d.facets?.[0]?.counts || []).map(c => c.name).filter(isRkRarity);
+  const finds = await Promise.all(keys.slice(0, 8).map(async k => {
+    const r = await getJSON(`${OCC}?datasetKey=${DATASET}&speciesKey=${k}&country=SE${span}&occurrenceStatus=PRESENT&hasCoordinate=true&limit=50`);
+    const o = (r.results || []).filter(o => o.eventDate).sort((a, b) => b.eventDate.localeCompare(a.eventDate))[0];
+    return o && { key: k, date: o.eventDate.slice(0, 10), lat: o.decimalLatitude, lon: o.decimalLongitude,
+                  // Artportalens lokalnamn slutar med landskapets förkortning ("…, Tvååker, Hl"): den står redan i landskapet
+                  place: (o.locality || o.municipality || o.county || '').replace(/,\s*[A-ZÅÄÖ][a-zåäö]{0,2}$/, ''),
+                  region: o.stateProvince || o.county || '' };
+  }));
+  rkFinds = finds.filter(Boolean).sort((a, b) => b.date.localeCompare(a.date));
+  renderRkBanner();
+}
+function renderRkBanner() {
+  const hidden = load(RK_HIDE, {}), el = $('rkBanner');
+  const show = rkFinds.filter(f => hidden[f.key] !== f.date);
+  if (!show.length) { el.hidden = true; return; }
+  const f = show[0], a = rk[f.key];
+  const where = [f.place, f.region].filter((x, i, l) => x && l.indexOf(x) === i).join(', ');
+  const more = show.length > 1 ? ` · och ${show.length - 1} till: ${show.slice(1, 3).map(x => esc(rk[x.key].sv)).join(', ')}` : '';
+  el.innerHTML = `<span class="rkdot"></span><span class="rktext">Raritet i Sverige: <b>${esc(a.sv)}</b>${where ? ` vid ${esc(where)}` : ''} ${dayText(f.date)}` +
+    `<small>${fmtN(a.fynd)} godkända fynd någonsin enligt Raritetskommittén${more}</small></span><button aria-label="Dölj">✕</button>`;
+  el.hidden = false;
+  el.onclick = e => {
+    if (e.target.closest('button')) { hidden[f.key] = f.date; save(RK_HIDE, hidden); renderRkBanner(); return; }
+    openInfo({ key: f.key, swe: a.sv, sci: a.sci, gid: 'birds', last: dayText(f.date),
+               showAt: { km: 10, days: RK_DAYS, at: { lat: f.lat, lon: f.lon } } });
+  };
+}
+loadRarityAlert().catch(() => {});
 
 fillYears();
 // En resa pågår bara medan appen är öppen: vid start finns ingen pågående resa, och en gammal visas inte.
