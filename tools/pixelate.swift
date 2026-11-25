@@ -1,8 +1,10 @@
 // Frilägger djuret i ett foto med macOS inbyggda motivigenkänning (samma som "lyft motivet")
 // och gör en 8-bitarsfigur av det: nerskalad till N×N pixlar med ett fåtal färger.
 //
-// Användning: swift tools/pixelate.swift <bild.jpg> <utmapp> [storlekar, t.ex. 16,24] [antal färger]
+// Användning: swift tools/pixelate.swift <bild.jpg> <utmapp> [storlekar, t.ex. 16,24] [antal färger] [fler foton …]
 // Skriver <utmapp>/<namn>-cutout.png, <namn>-<N>.png och <namn>-palette.json
+// Formen kommer alltid från den första bilden. Ges fler foton av samma art räknas färgschemat på dem
+// alla tillsammans (lika stor vikt per foto), så att ljuset i en enskild bild inte färgar figuren.
 import AppKit
 import CoreImage
 import Foundation
@@ -25,25 +27,27 @@ func savePNG(_ img: CGImage, _ url: URL) {
 }
 
 // 1) Frilägg: största motivet (fågeln), beskuret till motivets ram
-let handler = VNImageRequestHandler(url: input)
-let req = VNGenerateForegroundInstanceMaskRequest()
-try handler.perform([req])
-guard let obs = req.results?.first, !obs.allInstances.isEmpty else { print("\(base): hittade inget motiv"); exit(2) }
-// Om flera motiv: välj det största (t.ex. fågeln i stället för en gren)
-var best = obs.allInstances.first!, bestArea = -1
-for inst in obs.allInstances {
-    let m = try obs.generateScaledMaskForImage(forInstances: IndexSet(integer: inst), from: handler)
-    CVPixelBufferLockBaseAddress(m, .readOnly)
-    let w = CVPixelBufferGetWidth(m), h = CVPixelBufferGetHeight(m), row = CVPixelBufferGetBytesPerRow(m)
-    let p = CVPixelBufferGetBaseAddress(m)!.assumingMemoryBound(to: Float32.self)
-    var area = 0
-    for y in stride(from: 0, to: h, by: 4) { for x in stride(from: 0, to: w, by: 4) where p[y * row / 4 + x] > 0.5 { area += 1 } }
-    CVPixelBufferUnlockBaseAddress(m, .readOnly)
-    if area > bestArea { bestArea = area; best = inst }
-}
-let masked = try obs.generateMaskedImage(ofInstances: IndexSet(integer: best), from: handler, croppedToInstancesExtent: true)
 let ctx = CIContext()
-let cut = ctx.createCGImage(CIImage(cvPixelBuffer: masked), from: CIImage(cvPixelBuffer: masked).extent)!
+func cutout(_ url: URL) -> CGImage? {
+    let handler = VNImageRequestHandler(url: url)
+    let req = VNGenerateForegroundInstanceMaskRequest()
+    guard (try? handler.perform([req])) != nil, let obs = req.results?.first, !obs.allInstances.isEmpty else { return nil }
+    // Om flera motiv: välj det största (t.ex. fågeln i stället för en gren)
+    var best = obs.allInstances.first!, bestArea = -1
+    for inst in obs.allInstances {
+        guard let m = try? obs.generateScaledMaskForImage(forInstances: IndexSet(integer: inst), from: handler) else { continue }
+        CVPixelBufferLockBaseAddress(m, .readOnly)
+        let w = CVPixelBufferGetWidth(m), h = CVPixelBufferGetHeight(m), row = CVPixelBufferGetBytesPerRow(m)
+        let p = CVPixelBufferGetBaseAddress(m)!.assumingMemoryBound(to: Float32.self)
+        var area = 0
+        for y in stride(from: 0, to: h, by: 4) { for x in stride(from: 0, to: w, by: 4) where p[y * row / 4 + x] > 0.5 { area += 1 } }
+        CVPixelBufferUnlockBaseAddress(m, .readOnly)
+        if area > bestArea { bestArea = area; best = inst }
+    }
+    guard let masked = try? obs.generateMaskedImage(ofInstances: IndexSet(integer: best), from: handler, croppedToInstancesExtent: true) else { return nil }
+    return ctx.createCGImage(CIImage(cvPixelBuffer: masked), from: CIImage(cvPixelBuffer: masked).extent)
+}
+guard let cut = cutout(input) else { print("\(base): hittade inget motiv"); exit(2) }
 savePNG(cut, outDir.appendingPathComponent("\(base)-cutout.png"))
 
 // Pixelgrafik vinner på mättade färger och lite extra kontrast. Men bara färger som redan är tydliga
@@ -204,7 +208,16 @@ func makeImage(_ px: [UInt8], _ n: Int) -> CGImage {
 }
 
 // Färgschemat räknas en gång från en högupplöst version (144 px) och används för alla storlekar
-let (palPts, _) = opaquePixels(downscale(vivid, 144), 144)
+// Med fler foton: lika många pixlar från varje foto, så att inget foto väger tyngre
+var (palPts, _) = opaquePixels(downscale(vivid, 144), 144)
+let extra = args.count > 5 ? Array(args[5...]) : []
+if !extra.isEmpty {
+    var sets = [palPts]
+    for e in extra { if let c = cutout(URL(fileURLWithPath: e)) { sets.append(opaquePixels(downscale(selectiveSaturation(c), 144), 144).0) } }
+    let per = sets.map { $0.count }.filter { $0 > 200 }.min() ?? palPts.count
+    palPts = sets.filter { $0.count > 200 }.flatMap { set in stride(from: 0, to: set.count, by: max(1, set.count / per)).prefix(per).map { set[$0] } }
+    print("\(base): färger från \(sets.count) foton")
+}
 let cent = palette(palPts, k)
 var share = [Int](repeating: 0, count: cent.count)
 for p in palPts { share[nearest(p, cent)] += 1 }
@@ -217,4 +230,4 @@ for n in sizes {
 let palettes: [String: Any] = ["full": palJSON]
 let json = try JSONSerialization.data(withJSONObject: palettes)
 try json.write(to: outDir.appendingPathComponent("\(base)-palette.json"))
-print("\(base): klar (\(cut.width)×\(cut.height) friläggning, \(obs.allInstances.count) motiv)")
+print("\(base): klar (\(cut.width)×\(cut.height) friläggning)")
