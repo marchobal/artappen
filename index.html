@@ -56,6 +56,9 @@
               flex-wrap: wrap; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px;
               box-shadow: 0 6px 20px rgba(0,0,0,.25); }
   .yearpick[hidden] { display: none; }
+  .yearpick .recentseg { width: 100%; display: flex; }
+  .yearpick .recentseg button { flex: 1; }
+  #seasonBtn:disabled { opacity: .45; }
   .yearpick button { padding: 5px 14px; }
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--card); }
   .seg button { border: 0; border-radius: 0; padding: 6px 12px; background: transparent; font-size: .9rem; }
@@ -106,6 +109,7 @@
   .mapseg button + button { border-left: 1px solid var(--line); }
   .mapseg button.on { background: var(--accent); color: #fff; }
   .mapseg button[data-mode=explore].on { background: var(--explore); }
+  .radiusseg button { padding: 5px 9px; font-size: .78rem; }
   .maphint { background: var(--card); color: var(--text); border-radius: 8px; padding: 5px 10px; font-size: 12.5px;
              box-shadow: 0 1px 5px rgba(0,0,0,.25); max-width: 260px; }
   .maphint b { color: var(--sel); }
@@ -461,6 +465,9 @@
           <button id="seasonBtn" title="Bara fynd från samma tid på året som nu">Årstid</button>
         </div>
         <div class="yearpick" id="yearPick" hidden>
+          <div class="seg recentseg" id="recentSeg" role="group" aria-label="Senaste tiden">
+            <button data-days="7">7 dagar</button><button data-days="30">30 dagar</button><button data-days="90">3 mån</button>
+          </div>
           <label class="yr">Från <select id="yearFrom"></select></label>
           <label class="yr">till <select id="yearTo"></select></label>
           <button class="primary" id="yearPickDone">Klar</button>
@@ -613,7 +620,9 @@ const taxonParam = g => g.keys.map(k => `&taxonKey=${k}`).join('');
 const OCC = 'https://api.gbif.org/v1/occurrence/search';
 const THIS_YEAR = new Date().getFullYear();
 const FIRST_YEAR = 1970;
-const RADIUS_KM = 5;
+// Radien runt dig (eller den utforskade punkten): väljs på kartan, 5 km om inget annat valts
+const RADII = [1, 2, 5, 10, 25];
+const radiusKm = () => RADII.includes(filter.km) ? filter.km : 5;
 const MOVE_M = 300;         // resan hämtar igen när du flyttat dig minst så här långt …
 const MIN_GAP_MS = 10_000;  // … men inte oftare än så här
 const HOME_MOVE_M = 500;    // utan resa räcker det att hämta om när du flyttat dig 500 m
@@ -651,7 +660,7 @@ let track = load(TRACK_KEY, []).map(p => {
   return { t: p.t, lat: p.lat, lon: p.lon, yr, n: { [g]: p.n }, obs: { [g]: p.obs } };
 });
 const names = load(NAME_KEY, {});
-let filter = Object.assign({ group: 'mammals', from: null, to: null, season: true }, load(FILTER_KEY, {}));
+let filter = Object.assign({ group: 'mammals', from: null, to: null, season: true, km: 5, days: null }, load(FILTER_KEY, {}));
 if (!GROUPS[filter.group]) filter.group = 'mammals';
 
 const grp = () => GROUPS[filter.group];
@@ -659,10 +668,17 @@ const grp = () => GROUPS[filter.group];
 // Då syns inte sommarens fåglar på en resa i november.
 const seasonMonths = () => { const m = new Date().getMonth(); return [m - 1, m, m + 1].map(x => (x + 12) % 12 + 1); };
 const seasonText = () => { const ms = seasonMonths(); return `${MON[ms[0] - 1]}–${MON[ms[2] - 1]}`; };
-const yearId = () => `${filter.from ?? ''}-${filter.to ?? ''}${filter.season ? '-s' + seasonMonths().join('.') : ''}`;
-const yearParam = () => ((filter.from || filter.to) ? `&year=${filter.from ?? '*'},${filter.to ?? '*'}` : '')
-  + (filter.season ? seasonMonths().map(m => `&month=${m}`).join('') : '');
+// Ett kort tidsintervall (senaste 7, 30 eller 90 dagarna) gäller i stället för år och årstid.
+const DAYS_TEXT = { 7: 'senaste 7 dagarna', 30: 'senaste 30 dagarna', 90: 'senaste 3 månaderna' };
+const DAYS_SHORT = { 7: '7 dagar', 30: '30 dagar', 90: '3 mån' };
+const yearId = () => (filter.days ? `d${filter.days}` : `${filter.from ?? ''}-${filter.to ?? ''}${filter.season ? '-s' + seasonMonths().join('.') : ''}`)
+  + (radiusKm() !== 5 ? `-k${radiusKm()}` : '');
+const yearParam = () => filter.days
+  ? `&eventDate=${ymd(addDays(new Date(), -filter.days))},${ymd(new Date())}`
+  : ((filter.from || filter.to) ? `&year=${filter.from ?? '*'},${filter.to ?? '*'}` : '')
+    + (filter.season ? seasonMonths().map(m => `&month=${m}`).join('') : '');
 function yearText() {
+  if (filter.days) return DAYS_TEXT[filter.days] || `senaste ${filter.days} dagarna`;
   const { from, to } = filter;
   const yrs = !from && !to ? 'alla år' : from && to ? (from === to ? `${from}` : `${from}–${to}`) : from ? `från ${from}` : `till ${to}`;
   return filter.season ? `${seasonText()}, ${yrs}` : yrs;
@@ -689,7 +705,7 @@ function distKm(a, b) {
 
 // ---- Hämtning från GBIF ----
 async function facet(g, lat, lon, extra) {
-  const url = `${OCC}?datasetKey=${DATASET}${taxonParam(g)}&geoDistance=${lat},${lon},${RADIUS_KM}km${extra}` +
+  const url = `${OCC}?datasetKey=${DATASET}${taxonParam(g)}&geoDistance=${lat},${lon},${radiusKm()}km${extra}` +
     `&limit=0&facet=speciesKey&facetLimit=1000`;
   const res = await fetch(url);
   if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -867,7 +883,7 @@ async function findLatest(e, r, gid, keys) {
 function syncLabels() {
   const g = grp();
   $('countLabel').textContent = mode === 'explore' ? 'Arter vid vald punkt' : 'Arter i närheten';
-  $('countLabel').parentNode.title = 'Inom 5 km';
+  $('countLabel').parentNode.title = `Inom ${radiusKm()} km`;
   document.title = `Artappen · ${g.label}`;
 }
 
@@ -1060,7 +1076,7 @@ function speciesRow(it, max) {
   cnt.title = 'Antal observationer';
   const ib = document.createElement('button');
   ib.className = 'infobtn'; ib.textContent = 'i'; ib.title = 'Om arten'; ib.setAttribute('aria-label', 'Om arten');
-  ib.onclick = e => { e.stopPropagation(); openInfo({ ...it, where: mode === 'explore' ? 'vid vald punkt' : 'inom 5 km' }); };
+  ib.onclick = e => { e.stopPropagation(); openInfo({ ...it, where: mode === 'explore' ? 'vid vald punkt' : `inom ${radiusKm()} km` }); };
   li.append(fill, name, cnt, ib);
   li.dataset.key = it.key;
   li.title = `${it.sci ? it.sci + ' · ' : ''}tryck för att visa observationerna på kartan`;
@@ -1095,7 +1111,7 @@ function renderList(items) {
   const seen = {};
   items.forEach(i => { const n = (i.swe || '').toLowerCase(); if (n) seen[n] = (seen[n] || 0) + 1; });
   items = items.map(i => seen[(i.swe || '').toLowerCase()] > 1 && i.sci ? { ...i, swe: `${i.swe} (${i.sci})` } : i);
-  if (!items.length) { list.innerHTML = `<p class="empty">Inga ${grp().none} inom 5 km (${yearText()}).</p>`; return; }
+  if (!items.length) { list.innerHTML = `<p class="empty">Inga ${grp().none} inom ${radiusKm()} km (${yearText()}).</p>`; return; }
   const max = items[0].n;
   // Rödlistade arter står kvar på sin plats i listan (med etikett) och samlas dessutom under listan.
   const threatened = threatenedOf(items);
@@ -1282,7 +1298,8 @@ async function openInfo(it) {
   ].filter(Boolean);
   const head = `<h2 id="infoTitle">${esc(name)}</h2>${it.sci ? `<div class="info-sci">${esc(it.sci)}</div>` : ''}` +
     (facts.length ? `<div class="info-facts">${facts.map(f => `<span>${f}</span>`).join('')}</div>` : '');
-  const mapBtn = it.where && !it.gid ? `<button class="primary" id="infoMap">Visa på kartan</button>` : '';
+  const mapBtn = it.showAt ? `<button class="primary" id="infoShow">Visa var den sågs</button>`
+               : it.where && !it.gid ? `<button class="primary" id="infoMap">Visa på kartan</button>` : '';
   $('infoBody').innerHTML = head + '<p class="info-text muted">Hämtar bild och text…</p>';
   $('infoBackdrop').hidden = false; document.body.style.overflow = 'hidden';
   $('infoClose').focus();
@@ -1309,6 +1326,7 @@ async function openInfo(it) {
     ` · ${esc(pal.credit.license)}</div>` : '';
   $('infoBody').innerHTML = img + head + palBlock + text + (links ? `<div class="info-links">${links}</div>` : '');
   $('infoMap')?.addEventListener('click', () => { closeInfo(); if (String(selected?.key) !== String(it.key)) selectSpecies(it); else scrollToMap(); });
+  $('infoShow')?.addEventListener('click', () => { closeInfo(); showSpeciesOnMap(it); });
 }
 
 // ---- Kurva över resan ----
@@ -1389,10 +1407,10 @@ const SafeTiles = L.TileLayer.extend({
 });
 const obsLayer = new SafeTiles(obsUrl(), { maxZoom: 19, opacity: OBS_OPACITY }).addTo(map);
 const trackLine = L.polyline([], { color: css('--trip'), weight: 3, opacity: 0.8 }).addTo(map);
-const radiusCircle = L.circle([0, 0], { radius: RADIUS_KM * 1000, color: css('--me'), weight: 1.5, opacity: 0.5, fill: false, interactive: false, className: 'myring' });
+const radiusCircle = L.circle([0, 0], { radius: radiusKm() * 1000, color: css('--me'), weight: 1.5, opacity: 0.5, fill: false, interactive: false, className: 'myring' });
 const accCircle = L.circle([0, 0], { radius: 1, stroke: false, fillColor: css('--me'), fillOpacity: 0.12, interactive: false });
 const me = L.circleMarker([0, 0], { radius: 7, color: '#fff', weight: 2.5, fillColor: css('--me'), fillOpacity: 1, interactive: false });
-const exploreCircle = L.circle([0, 0], { radius: RADIUS_KM * 1000, color: css('--explore'), weight: 1.5, dashArray: '6 6', fill: false, interactive: false });
+const exploreCircle = L.circle([0, 0], { radius: radiusKm() * 1000, color: css('--explore'), weight: 1.5, dashArray: '6 6', fill: false, interactive: false });
 const exploreDot = L.circleMarker([0, 0], { radius: 7, color: '#fff', weight: 2.5, fillColor: css('--explore'), fillOpacity: 1, interactive: false });
 const rejectCircle = L.circle([0, 0], { radius: 1, color: '#888', weight: 1, dashArray: '4 4', fillOpacity: 0.04, interactive: false });
 let follow = true, centered = false;
@@ -1408,6 +1426,26 @@ modeCtl.onAdd = () => {
   return d;
 };
 modeCtl.addTo(map);
+
+// Radien: en liten knapprad nere till höger på kartan
+const radiusCtl = L.control({ position: 'bottomright' });
+radiusCtl.onAdd = () => {
+  const d = L.DomUtil.create('div', 'mapseg radiusseg');
+  d.title = 'Hur långt runt dig arterna räknas';
+  d.innerHTML = RADII.map(k => `<button data-km="${k}">${k}${k === RADII.at(-1) ? ' km' : ''}</button>`).join('');
+  L.DomEvent.disableClickPropagation(d);
+  d.onclick = e => { const b = e.target.closest('button'); if (b) setRadius(+b.dataset.km); };
+  return d;
+};
+radiusCtl.addTo(map);
+function setRadius(km) {
+  if (km === radiusKm()) return;
+  filter.km = km;
+  radiusCircle.setRadius(km * 1000); exploreCircle.setRadius(km * 1000);
+  applyFilter();
+  fitView();
+  if (selected) showSelection(false);
+}
 
 // Knapp under zoom: centrera på det som visas
 const recenter = L.control({ position: 'topleft' });
@@ -1433,7 +1471,7 @@ function showHint(html) {
 // Kartan zoomas så att hela 5 km-ringen precis syns: när en position visas första gången,
 // när man byter läge, väljer en punkt att utforska eller trycker på ◎. Annars flyttas den bara.
 function fitRing(lat, lon) {
-  map.fitBounds(L.latLng(lat, lon).toBounds(RADIUS_KM * 2000), { padding: [10, 10] });
+  map.fitBounds(L.latLng(lat, lon).toBounds(radiusKm() * 2000), { padding: [10, 10] });
 }
 function fitView() {
   if (mode === 'explore' && exploreAt) { fitRing(exploreAt.lat, exploreAt.lon); return; }
@@ -1443,7 +1481,7 @@ function fitView() {
 function setMode(m) {
   if (m === mode) { fitView(); return; }
   mode = m;
-  document.querySelectorAll('.mapseg button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
+  document.querySelectorAll('.mapseg button[data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
   $('map').classList.toggle('exploring', mode === 'explore');
   if (selected) clearSelection(false);
   if (mode === 'explore') {
@@ -1496,6 +1534,19 @@ function clearSelection(refit = true) {
   markRows();
   if (refit) fitView();
 }
+// Från startsidans tips: till kartan, med samma grupp, avstånd och tid som tipset, och arten markerad
+function showSpeciesOnMap(it) {
+  if (it.gid && GROUPS[it.gid]) filter.group = it.gid;
+  filter.km = it.showAt.km; filter.days = it.showAt.days; filter.from = filter.to = null;
+  radiusCircle.setRadius(radiusKm() * 1000); exploreCircle.setRadius(radiusKm() * 1000);
+  location.hash = '#utforska';
+  if (mode !== 'gps') setMode('gps');
+  applyFilter();
+  selected = { key: String(it.key), name: it.swe || it.sci || 'Arten' };
+  markRows(); showSelection(false);
+  // sidbytet (hashchange) skrollar upp till toppen, så kartan visas först när det är gjort
+  setTimeout(() => { map.invalidateSize(); fitView(); scrollToMap(); }, 350);
+}
 function selectSpecies(it) {
   if (String(selected?.key) === String(it.key)) { clearSelection(); return; }
   selected = { key: it.key, name: it.swe || it.sci || 'Arten' };
@@ -1518,7 +1569,7 @@ async function showSelection(fit) {
   const my = ++selSeq;
   showHint(`<b>${esc(selected.name)}</b> · hämtar…`);
   const base = `${OCC}?datasetKey=${DATASET}&speciesKey=${selected.key}` +
-    `&geoDistance=${at.lat},${at.lon},${RADIUS_KM}km${yearParam()}&hasCoordinate=true&limit=300`;
+    `&geoDistance=${at.lat},${at.lon},${radiusKm()}km${yearParam()}&hasCoordinate=true&limit=300`;
   let recs = [], total = 0;
   try {
     for (let off = 0; off < 1500; off += 300) {
@@ -1730,17 +1781,19 @@ function syncControls() {
   let chipOn = false;
   document.querySelectorAll('#yearChips button[data-span]').forEach(b => {
     const span = +b.dataset.span;
-    const on = span === 0 ? (!filter.from && !filter.to) : (filter.from === THIS_YEAR - span + 1 && !filter.to);
+    const on = !filter.days && (span === 0 ? (!filter.from && !filter.to) : (filter.from === THIS_YEAR - span + 1 && !filter.to));
     b.classList.toggle('on', on); chipOn ||= on;
   });
   // "Välj" visar det egna intervallet när inget snabbval passar, t.ex. "2015–2020"
   const pick = $('yearPickBtn');
   pick.classList.toggle('on', !chipOn);
-  pick.textContent = chipOn ? 'Välj' : (filter.from && filter.to && filter.from === filter.to ? `${filter.from}` : `${filter.from ?? ''}–${filter.to ?? ''}`);
-  const sb = $('seasonBtn'); sb.classList.toggle('on', !!filter.season);
+  pick.textContent = chipOn ? 'Välj' : filter.days ? DAYS_SHORT[filter.days] : (filter.from && filter.to && filter.from === filter.to ? `${filter.from}` : `${filter.from ?? ''}–${filter.to ?? ''}`);
+  document.querySelectorAll('#recentSeg button').forEach(b => b.classList.toggle('on', +b.dataset.days === filter.days));
+  document.querySelectorAll('.radiusseg button').forEach(b => b.classList.toggle('on', +b.dataset.km === radiusKm()));
+  const sb = $('seasonBtn'); sb.disabled = !!filter.days; sb.classList.toggle('on', !!filter.season && !filter.days);
   sb.textContent = filter.season ? seasonText() : 'Hela året';
   sb.title = filter.season ? `Bara fynd från ${seasonText()} (tryck för hela året)` : 'Fynd från hela året (tryck för bara den här årstiden)';
-  document.querySelectorAll('.mapseg button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
+  document.querySelectorAll('.mapseg button[data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
   syncLabels();
 }
 function applyFilter() {
@@ -1771,11 +1824,15 @@ $('yearChips').onclick = e => {
   if (b.id === 'seasonBtn') { filter.season = !filter.season; applyFilter(); return; }
   showYearPick(false);
   const span = +b.dataset.span;
-  filter.from = span ? THIS_YEAR - span + 1 : null; filter.to = null;
+  filter.from = span ? THIS_YEAR - span + 1 : null; filter.to = null; filter.days = null;
   applyFilter();
 };
-$('yearFrom').onchange = e => { filter.from = e.target.value ? +e.target.value : null; applyFilter(); };
-$('yearTo').onchange = e => { filter.to = e.target.value ? +e.target.value : null; applyFilter(); };
+$('yearFrom').onchange = e => { filter.from = e.target.value ? +e.target.value : null; filter.days = null; applyFilter(); };
+$('yearTo').onchange = e => { filter.to = e.target.value ? +e.target.value : null; filter.days = null; applyFilter(); };
+$('recentSeg').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  filter.days = +b.dataset.days; filter.from = filter.to = null; showYearPick(false); applyFilter();
+};
 $('startBtn').onclick = () => tripOn ? stop() : start();
 $('topSeg').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
@@ -2145,7 +2202,7 @@ async function placeSigns(m, pts) {
   await mapLimit(pick, 4, async (c, i) => {
     if (my !== signSeq || !bioMap) return;
     let d;
-    try { d = await getJSON(`${OCC}?datasetKey=${DATASET}&taxonKey=${c.k}&geoDistance=${c.p.lat},${c.p.lon},${RADIUS_KM}km${yearParam()}&hasCoordinate=true&occurrenceStatus=PRESENT&limit=40`); }
+    try { d = await getJSON(`${OCC}?datasetKey=${DATASET}&taxonKey=${c.k}&geoDistance=${c.p.lat},${c.p.lon},${radiusKm()}km${yearParam()}&hasCoordinate=true&occurrenceStatus=PRESENT&limit=40`); }
     catch { return; }
     if (my !== signSeq || !bioMap) return;
     const recs = (d.results || []).filter(o => o.decimalLatitude != null);
@@ -2229,7 +2286,7 @@ async function tripEnd() {
     <div class="biobar">${BIO.filter(b => tot[b.id]).map(b => `<i title="${b.name}" style="background:${b.color};width:${tot[b.id] / sum * 100}%"></i>`).join('')}</div>
     <div class="striplegend">${BIO.filter(b => tot[b.id]).map(b => `<span><i style="background:${b.color}"></i>${b.name} ${Math.round(tot[b.id] / sum * 100)} %</span>`).join('')}</div>
     ${typ.length ? `<div class="typ"><h2>Typiskt för ${GROUPS[g].label.toLowerCase()} i varje biotop</h2>${typ.map(([b, ks]) => `<div><i style="background:${b.color}"></i><b>${b.name}:</b> ${ks.map(k => esc(nameOf(k))).join(', ')}</div>`).join('')}</div>` : ''}
-    <p class="homenote">Biotoper: Naturvårdsverkets Nationella marktäckedata 2023. Arter: Artportalen via GBIF, inom 5 km från varje punkt.</p></div>`;
+    <p class="homenote">Biotoper: Naturvårdsverkets Nationella marktäckedata 2023. Arter: Artportalen via GBIF, inom ${radiusKm()} km från varje punkt.</p></div>`;
   $('infoBody').innerHTML = html;
   $('infoBackdrop').hidden = false; document.body.style.overflow = 'hidden';
   $('endBioMap').onclick = openBioMap;
@@ -2520,7 +2577,7 @@ async function renderHome() {
   const meta = `${r ? `<span class="rare ${r.cls}">${r.label}</span>` : ''}${th ? `<b class="badge ${th.code.toLowerCase()}">${th.code}</b>` : ''}<span>${fmtN(f.n)} obs. inom 10 km senaste månaden</span>`;
   const body = `<div class="fbody"><div class="kicker">Utvalt nära dig</div><div class="fname">${esc(nameOf(f.key))}</div><div class="fmeta">${meta}</div></div>`;
   el.innerHTML = body;
-  el.onclick = () => openInfo({ key: f.key, swe: names[f.key]?.swe, sci: names[f.key]?.sci, n: f.n, gid: f.gid, where: 'inom 10 km senaste 30 dagarna' });
+  el.onclick = () => openInfo({ key: f.key, swe: names[f.key]?.swe, sci: names[f.key]?.sci, n: f.n, gid: f.gid, where: 'inom 10 km senaste 30 dagarna', showAt: { km: HOME_KM, days: HOME_DAYS } });
   try {
     const info = await speciesInfo(f.key, names[f.key]?.sci);
     if (homeRes !== h || !info.img) return;
@@ -2532,7 +2589,7 @@ async function renderHome() {
 ['rareList', 'latestList', 'topNear'].forEach(id => $(id).onclick = e => {
   const li = e.target.closest('li[data-key]'); if (!li) return;
   const k = li.dataset.key, x = homeRes?.species.find(s => s.key === k);
-  openInfo({ key: k, swe: names[k]?.swe, sci: names[k]?.sci, n: x?.n, gid: li.dataset.gid || x?.gid || 'birds', where: 'inom 10 km senaste 30 dagarna' });
+  openInfo({ key: k, swe: names[k]?.swe, sci: names[k]?.sci, n: x?.n, gid: li.dataset.gid || x?.gid || 'birds', where: 'inom 10 km senaste 30 dagarna', showAt: { km: HOME_KM, days: HOME_DAYS } });
 });
 
 fillYears();
