@@ -190,6 +190,9 @@
   .info-sci { color: var(--muted); font-style: italic; margin: 2px 0 8px; }
   .info-facts { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
   .info-facts span { font-size: .8rem; background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+  .info-status { display: grid; gap: 6px; margin: -4px 0 12px; font-size: .85rem; color: var(--muted); }
+  .info-status > div { line-height: 1.6; }
+  .info-status .rare, .info-status .badge { margin-right: 6px; vertical-align: 1px; }
   /* Färgschema och pixelfigur (byggs i förväg på Macen från frilagda foton) */
   .palette { display: flex; height: 22px; border-radius: 6px; overflow: hidden; margin: 2px 0 4px; }
   .palette i { display: block; min-width: 0; }
@@ -262,18 +265,11 @@
     .listcard ol.two li { break-inside: avoid; }
   }
 
-  /* Listorna i Utforska: hopfällda tills man trycker på rubriken */
-  .foldhead { cursor: pointer; user-select: none; }
-  .foldchev { display: inline-block; width: 8px; height: 8px; margin-left: 8px; border: solid var(--muted); border-width: 0 2px 2px 0;
-              transform: translateY(-2px) rotate(45deg); transition: transform .2s; }
-  .folded .foldchev { transform: translateY(-1px) rotate(-45deg); }
-  .listcard.folded #list, .topcard.folded #topSeg, .topcard.folded #topList { display: none; }
-  .listcard.folded .listhead { margin-bottom: 0; }
-  @media (min-width: 900px) and (min-height: 560px) { .right .listcard.folded { flex: none; } }
 
   /* ---- Sidorna: Hem, Utforska och Visualiseringar ---- */
   body:not([data-page=explore]) .explore-only { display: none !important; }
-  body:not([data-page=home]) .page-home, body:not([data-page=vis]) .page-vis { display: none; }
+  body:not([data-page=home]) .page-home, body:not([data-page=vis]) .page-vis, body:not([data-page=rk]) .page-rk { display: none; }
+  body[data-page=rk] .rkbanner { display: none; }
   a.brand { color: inherit; text-decoration: none; }
   .pagenav { display: flex; gap: 4px; }
   .pagenav a { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 10px; color: var(--muted);
@@ -296,7 +292,13 @@
     body:not([data-page=explore]) main { max-width: 1000px; } }
 
   /* Startsidan */
-  .page-home, .page-vis { max-width: 980px; margin: 0 auto; }
+  .page-home, .page-vis, .page-rk { max-width: 980px; margin: 0 auto; }
+  .page-rk { max-width: 720px; }
+  .page-rk h1 { font-size: 1.3rem; margin: 4px 2px 2px; }
+  .page-rk p.lead { color: var(--muted); margin: 0 2px 14px; font-size: .92rem; }
+  .rklist .nm, .rklist .nm small { white-space: normal; }
+  .rklist .nm b { font-size: 1rem; }
+  .rklist .showbtn { flex: none; font-size: .78rem; font-weight: 700; letter-spacing: .04em; padding: 7px 12px; }
   .homegrid { display: grid; gap: 12px; }
   @media (min-width: 900px) { .homegrid { grid-template-columns: 1.2fr 1fr; align-items: start; } .homegrid .featured { grid-row: span 2; } }
   .homegrid .card { margin: 0; }
@@ -505,6 +507,13 @@
     <p class="homenote" id="homeNote">Fynd från Artportalen via GBIF, som uppdateras ungefär en gång i veckan. Hur ovanlig en art är räknas på i hur många kommuner den hittats de senaste tio åren. Arter som är vanliga just runt dig de senaste fem åren räknas inte som ovanliga här.</p>
   </section>
 
+  <!-- Rariteter: alla rariteter som setts i Sverige de senaste veckorna -->
+  <section class="page-rk" id="pageRk">
+    <h1>Rariteter i Sverige</h1>
+    <p class="lead">Arter på Raritetskommitténs lista som rapporterats till Artportalen de senaste två veckorna. Fynden är inte granskade än, och GBIF får dem ungefär en gång i veckan, så de allra senaste dagarna saknas.</p>
+    <section class="card homecard"><ol class="rlist rklist" id="rkList"><li class="muted">Hämtar rariteterna…</li></ol></section>
+  </section>
+
   <!-- Visualiseringar -->
   <section class="page-vis" id="pageVis">
     <h1>Visualiseringar</h1>
@@ -587,12 +596,12 @@
     </div>
 
     <div class="right">
-    <section class="card listcard folded">
-      <div class="listhead"><h2 class="foldhead"><span id="countLabel">Arter i närheten</span> <span id="count"></span><span class="foldchev" aria-hidden="true"></span></h2><span id="obsCount"></span><span id="status">Söker din position…</span></div>
+    <section class="card listcard">
+      <div class="listhead"><h2><span id="countLabel">Arter i närheten</span> <span id="count"></span></h2><span id="obsCount"></span><span id="status">Söker din position…</span></div>
       <div id="list"><p class="empty">Inga data ännu.</p></div>
     </section>
-      <section class="card topcard folded">
-          <h2 class="foldhead">Topplista för resan<span class="foldchev" aria-hidden="true"></span></h2>
+      <section class="card topcard">
+          <h2>Topplista för resan</h2>
           <div class="seg topseg" id="topSeg" role="group" aria-label="Topplista">
             <button data-top="red">Hotade</button>
             <button data-top="rare">Ovanligast</button>
@@ -682,8 +691,8 @@ const grp = () => GROUPS[filter.group];
 const seasonMonths = () => { const m = new Date().getMonth(); return [m - 1, m, m + 1].map(x => (x + 12) % 12 + 1); };
 const seasonText = () => { const ms = seasonMonths(); return `${MON[ms[0] - 1]}–${MON[ms[2] - 1]}`; };
 // Ett kort tidsintervall (senaste 7, 30 eller 90 dagarna) gäller i stället för år och årstid.
-const DAYS_TEXT = { 7: 'senaste 7 dagarna', 30: 'senaste 30 dagarna', 90: 'senaste 3 månaderna' };
-const DAYS_SHORT = { 7: '7 dagar', 30: '30 dagar', 90: '3 mån' };
+const DAYS_TEXT = { 7: 'senaste 7 dagarna', 14: 'senaste 14 dagarna', 30: 'senaste 30 dagarna', 90: 'senaste 3 månaderna' };
+const DAYS_SHORT = { 7: '7 dagar', 14: '14 dagar', 30: '30 dagar', 90: '3 mån' };
 const yearId = () => (filter.days ? `d${filter.days}` : `${filter.from ?? ''}-${filter.to ?? ''}${filter.season ? '-s' + seasonMonths().join('.') : ''}`)
   + (radiusKm() !== 5 ? `-k${radiusKm()}` : '');
 const yearParam = () => filter.days
@@ -1089,7 +1098,7 @@ function speciesRow(it, max) {
   cnt.title = 'Antal observationer';
   const ib = document.createElement('button');
   ib.className = 'infobtn'; ib.textContent = 'i'; ib.title = 'Om arten'; ib.setAttribute('aria-label', 'Om arten');
-  ib.onclick = e => { e.stopPropagation(); openInfo({ ...it, where: mode === 'explore' ? 'vid vald punkt' : `inom ${radiusKm()} km` }); };
+  ib.onclick = e => { e.stopPropagation(); openInfo({ ...it, km: radiusKm(), when: yearText() }); };
   li.append(fill, name, cnt, ib);
   li.dataset.key = it.key;
   li.title = `${it.sci ? it.sci + ' · ' : ''}tryck för att visa observationerna på kartan`;
@@ -1098,12 +1107,12 @@ function speciesRow(it, max) {
   return li;
 }
 
-const TOP_N = 20, TOP_RED = 10, EXPAND_KEY = 'artappen.expanded', EXPAND_RED_KEY = 'artappen.expandedRed';
+const TOP_N = 10, TOP_RED = 10, EXPAND_KEY = 'artappen.expanded', EXPAND_RED_KEY = 'artappen.expandedRed';
 let expanded = load(EXPAND_KEY, false), expandedRed = load(EXPAND_RED_KEY, false);
 // Hotade arter: mest hotade först, sedan flest observationer.
 const threatenedOf = items => items.filter(i => redlist[i.key])
   .sort((a, b) => THREAT[redlist[b.key]].rank - THREAT[redlist[a.key]].rank || b.n - a.n);
-// Arterna som syns: de 20 vanligaste (eller alla) plus de 10 första hotade (eller alla).
+// Arterna som syns: de tio vanligaste (eller alla) plus de 10 första hotade (eller alla).
 function shownKeys(counts) {
   const keys = new Set(expanded ? counts.map(c => c.key) : counts.slice(0, TOP_N).map(c => c.key));
   const red = threatenedOf(counts);
@@ -1302,17 +1311,24 @@ async function openInfo(it) {
   infoOpener = document.activeElement;
   const th = THREAT[redlist[it.key]], sub = !th && redlistSsp[it.key];
   const name = it.swe || it.sci || 'Arten';
+  // första raden: hur många, inom vilket avstånd och under vilken tid; resans kort har en plats i stället för avstånd
   const facts = [
-    it.n != null ? `${fmtN(it.n)} obs. ${it.where || ''}` : '',
+    it.n != null ? `${fmtN(it.n)} obs.` : '',
+    it.km ? `${it.km} km` : it.where || '',
+    it.when ? shortWhen(it.when) : '',
     it.last ? `senast ${it.last}` : '',
-    th ? `<b class="badge ${th.code.toLowerCase()}">${th.code}</b>${th.sv} · Rödlistan 2025` : '',
-    sub ? `${THREAT[sub.st].code}: gäller underarten ${esc(sub.ssp)}` : '',
+  ].filter(Boolean);
+  // andra raden: hur vanlig arten är i Sverige, och rödlistan
+  const status = [
     rarityFact(it.key),
+    th ? `<b class="badge ${th.code.toLowerCase()}">${th.code}</b> ${th.sv} enligt Rödlistan 2025` : '',
+    sub ? `<b class="badge ${THREAT[sub.st].code.toLowerCase()}">${THREAT[sub.st].code}</b> gäller underarten ${esc(sub.ssp)}` : '',
   ].filter(Boolean);
   const head = `<h2 id="infoTitle">${esc(name)}</h2>${it.sci ? `<div class="info-sci">${esc(it.sci)}</div>` : ''}` +
-    (facts.length ? `<div class="info-facts">${facts.map(f => `<span>${f}</span>`).join('')}</div>` : '');
+    (facts.length ? `<div class="info-facts">${facts.map(f => `<span>${f}</span>`).join('')}</div>` : '') +
+    (status.length ? `<div class="info-status">${status.map(f => `<div>${f}</div>`).join('')}</div>` : '');
   const mapBtn = it.showAt ? `<button class="primary" id="infoShow">Visa var den sågs</button>`
-               : it.where && !it.gid ? `<button class="primary" id="infoMap">Visa på kartan</button>` : '';
+               : (it.km || it.where) && !it.gid ? `<button class="primary" id="infoMap">Visa på kartan</button>` : '';
   $('infoBody').innerHTML = head + '<p class="info-text muted">Hämtar bild och text…</p>';
   $('infoBackdrop').hidden = false; document.body.style.overflow = 'hidden';
   $('infoClose').focus();
@@ -2482,20 +2498,20 @@ function cloudFrame(now) {
 }
 
 // ---- Sidorna: Hem, Utforska och Visualiseringar (#hem, #utforska, #visualiseringar) ----
-const PAGES = { '#utforska': 'explore', '#visualiseringar': 'vis' };
+const PAGES = { '#utforska': 'explore', '#visualiseringar': 'vis', '#rariteter': 'rk' };
 function showPage() {
   const page = PAGES[location.hash] || 'home';
   const was = document.body.dataset.page;
   document.body.dataset.page = page;
   document.querySelectorAll('#pageNav a').forEach(a => a.classList.toggle('on', a.dataset.page === page));
   if (page !== was) window.scrollTo(0, 0);
-  if (page === 'explore' && page !== was) foldLists();
+  if (page === 'explore' && page !== was) shortenLists();
   if (page === 'explore') requestAnimationFrame(() => { map.invalidateSize(); drawChart(); drawStrip(); if (mode === 'gps' ? follow : true) fitView(); });
   if (page === 'home') loadHome();
 }
 addEventListener('hashchange', showPage);
-document.querySelectorAll('.foldhead').forEach(h => h.addEventListener('click', () => h.closest('.card').classList.toggle('folded')));
-const foldLists = () => document.querySelectorAll('.listcard, .topcard').forEach(c => c.classList.add('folded'));
+// listorna visar de tio första arterna varje gång man kommer till Utforska; "Visa alla" fäller ut dem
+function shortenLists() { if (!expanded && !expandedRed) return; expanded = expandedRed = false; save(EXPAND_KEY, false); save(EXPAND_RED_KEY, false); renderCurrent(); }
 
 // ---- Hur ovanlig är arten i Sverige? ----
 // data/raritet.json (tools/raritet.py): i hur många kommuner arten hittats de senaste tio åren.
@@ -2532,9 +2548,11 @@ function rarityOf(key) {
 const rarePill = key => { const r = rarityOf(key); return r ? `<span class="rare ${r.cls}">${r.label}</span>` : ''; };
 function rarityFact(key) {
   const r = rarityOf(key); if (!r) return '';
-  if (r.rk) return `<span class="rare r6">Raritet</span> i Sverige · ${fmtN(r.rk.fynd)} godkända fynd någonsin enligt Raritetskommittén`;
-  return `<span class="rare ${r.cls}">${r.label}</span> i Sverige · funnen i ${r.areas} av ${rarityAreas} kommuner ${rarityYears}`;
+  if (r.rk) return `<span class="rare r6">Raritet</span> ${fmtN(r.rk.fynd)} godkända fynd i Sverige enligt Raritetskommittén`;
+  return `<span class="rare ${r.cls}">${r.label}</span> Rapporterad i ${r.areas} av ${rarityAreas} kommuner sedan ${rarityYears.slice(0, 4)}`;
 }
+// "senaste 30 dagarna" → "30 dagar" i artkortets rutor
+const shortWhen = t => t.replace(/^senaste (\d+) dagarna$/, '$1 dagar').replace(/^senaste 3 månaderna$/, '3 månader');
 
 // ---- Startsidan: det som hänt nära dig senaste tiden ----
 const HOME_KM = 10, HOME_DAYS = 30;
@@ -2636,7 +2654,7 @@ async function renderHome() {
   // utvald: en av de ovanligaste arterna nära dig, med bild
   const f = h.featured, el = $('featured');
   if (!f) { el.innerHTML = '<div class="fbody"><div class="kicker">Utvalt nära dig</div><p class="muted">Inga fynd inom 10 km den senaste månaden.</p></div>'; return; }
-  const it = { key: f.key, swe: names[f.key]?.swe, sci: names[f.key]?.sci, n: f.n, gid: f.gid, where: 'inom 10 km senaste 30 dagarna', showAt: { km: HOME_KM, days: HOME_DAYS } };
+  const it = { key: f.key, swe: names[f.key]?.swe, sci: names[f.key]?.sci, n: f.n, gid: f.gid, km: HOME_KM, when: `senaste ${HOME_DAYS} dagarna`, showAt: { km: HOME_KM, days: HOME_DAYS } };
   const body = `<div class="fbody"><div class="kicker">Utvalt nära dig</div><div class="fhead"><div class="fname">${esc(nameOf(f.key))}</div>`
     + `<button class="primary fshow" type="button">VISA FYND</button></div></div>`;
   // knappen går direkt till kartan, resten av kortet öppnar artinfon
@@ -2653,7 +2671,7 @@ async function renderHome() {
 ['rareList', 'latestList', 'topNear'].forEach(id => $(id).onclick = e => {
   const li = e.target.closest('li[data-key]'); if (!li) return;
   const k = li.dataset.key, x = homeRes?.species.find(s => s.key === k);
-  openInfo({ key: k, swe: names[k]?.swe, sci: names[k]?.sci, n: x?.n, gid: li.dataset.gid || x?.gid || 'birds', where: 'inom 10 km senaste 30 dagarna', showAt: { km: HOME_KM, days: HOME_DAYS } });
+  openInfo({ key: k, swe: names[k]?.swe, sci: names[k]?.sci, n: x?.n, gid: li.dataset.gid || x?.gid || 'birds', km: HOME_KM, when: `senaste ${HOME_DAYS} dagarna`, showAt: { km: HOME_KM, days: HOME_DAYS } });
 });
 
 // ---- Röd banner: en riktig raritet har setts i Sverige ----
@@ -2666,7 +2684,7 @@ async function loadRarityAlert() {
   const span = `&eventDate=${ymd(addDays(new Date(), -RK_DAYS))},${ymd(new Date())}`;
   const d = await getJSON(`${OCC}?datasetKey=${DATASET}&taxonKey=212&country=SE${span}&occurrenceStatus=PRESENT&limit=0&facet=speciesKey&facetLimit=1500`);
   const keys = (d.facets?.[0]?.counts || []).map(c => c.name).filter(isRkRarity);
-  const finds = await Promise.all(keys.slice(0, 8).map(async k => {
+  const finds = await Promise.all(keys.slice(0, 25).map(async k => {
     const r = await getJSON(`${OCC}?datasetKey=${DATASET}&speciesKey=${k}&country=SE${span}&occurrenceStatus=PRESENT&hasCoordinate=true&limit=50`);
     const o = (r.results || []).filter(o => o.eventDate).sort((a, b) => b.eventDate.localeCompare(a.eventDate))[0];
     return o && { key: k, date: o.eventDate.slice(0, 10), lat: o.decimalLatitude, lon: o.decimalLongitude,
@@ -2675,25 +2693,41 @@ async function loadRarityAlert() {
                   region: o.stateProvince || o.county || '' };
   }));
   rkFinds = finds.filter(Boolean).sort((a, b) => b.date.localeCompare(a.date));
-  renderRkBanner();
+  renderRkBanner(); renderRkPage();
 }
+const rkWhere = f => [f.place, f.region].filter((x, i, l) => x && l.indexOf(x) === i).join(', ');
+const rkItem = f => ({ key: f.key, swe: rk[f.key].sv, sci: rk[f.key].sci, gid: 'birds', last: dayText(f.date),
+                       showAt: { km: 10, days: RK_DAYS, at: { lat: f.lat, lon: f.lon } } });
+// raritetssidan: alla, även de som dolts i bannern
+function renderRkPage() {
+  const el = $('rkList');
+  if (!rkFinds.length) { el.innerHTML = '<li class="muted">Inga rariteter rapporterade de senaste två veckorna.</li>'; return; }
+  el.innerHTML = rkFinds.map(f => { const a = rk[f.key], w = rkWhere(f);
+    return `<li data-key="${f.key}">${icon(f.key, 'birds')}<span class="nm"><b>${esc(a.sv)}</b>`
+      + `<small>${w ? `${esc(w)} · ` : ''}${dayText(f.date)} · ${fmtN(a.fynd)} godkända fynd någonsin</small></span>`
+      + `<button class="primary showbtn" type="button">VISA FYND</button></li>`; }).join('');
+}
+$('rkList').onclick = e => {
+  const li = e.target.closest('li[data-key]'); if (!li) return;
+  const f = rkFinds.find(x => x.key === li.dataset.key); if (!f) return;
+  if (e.target.closest('.showbtn')) showSpeciesOnMap(rkItem(f)); else openInfo(rkItem(f));
+};
 function renderRkBanner() {
   const hidden = load(RK_HIDE, {}), el = $('rkBanner');
   const show = rkFinds.filter(f => hidden[f.key] !== f.date);
   if (!show.length) { el.hidden = true; return; }
   const f = show[0], a = rk[f.key];
-  const where = [f.place, f.region].filter((x, i, l) => x && l.indexOf(x) === i).join(', ');
+  const where = rkWhere(f);
   const more = show.length > 1 ? ` · och ${show.length - 1} till: ${show.slice(1, 3).map(x => esc(rk[x.key].sv)).join(', ')}` : '';
   el.innerHTML = `<span class="rkdot"></span><span class="rktext">Raritet i Sverige: <b>${esc(a.sv)}</b>${where ? ` vid ${esc(where)}` : ''} ${dayText(f.date)}` +
     `<small>${fmtN(a.fynd)} godkända fynd någonsin enligt Raritetskommittén${more}</small></span><button aria-label="Dölj">✕</button>`;
   el.hidden = false;
   el.onclick = e => {
     if (e.target.closest('button')) { hidden[f.key] = f.date; save(RK_HIDE, hidden); renderRkBanner(); return; }
-    openInfo({ key: f.key, swe: a.sv, sci: a.sci, gid: 'birds', last: dayText(f.date),
-               showAt: { km: 10, days: RK_DAYS, at: { lat: f.lat, lon: f.lon } } });
+    location.hash = '#rariteter';
   };
 }
-loadRarityAlert().catch(() => {});
+loadRarityAlert().catch(() => { $('rkList').innerHTML = '<li class="muted">Kunde inte hämta rariteterna just nu.</li>'; });
 
 fillYears();
 // En resa pågår bara medan appen är öppen: vid start finns ingen pågående resa, och en gammal visas inte.
