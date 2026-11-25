@@ -1422,6 +1422,8 @@ const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).
 // På pekskärm: ett finger skrollar sidan, två fingrar flyttar och zoomar kartan
 // (Leaflets nypzoom flyttar också kartan när fingrarna rör sig). Mus och styrplatta som vanligt.
 const touchOnly = matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches;
+// Alla kartor: en punkts ruta flyttas fram så att den inte hamnar under knapparna i hörnen och upptill
+L.Popup.mergeOptions({ autoPanPaddingTopLeft: L.point(56, 64), autoPanPaddingBottomRight: L.point(20, 48) });
 const map = L.map('map', { zoomControl: true, attributionControl: true, dragging: !touchOnly, zoomSnap: 0.25, zoomDelta: 0.5 }).setView([62.5, 16], 4);
 if (touchOnly) {
   const box = $('map');
@@ -1562,9 +1564,13 @@ const searchCenter = () => mode === 'explore' && exploreAt ? exploreAt : pos ? {
 function updateHereBtn() {
   const c = map.getCenter(), at = searchCenter();
   // dold under resan, och så länge kartans mitt ligger inom en tredjedel av cirkeln
-  hereBtn.hidden = tripOn || (at && distKm(at, { lat: c.lat, lon: c.lng }) < Math.max(0.3, radiusKm() / 3));
+  hereBtn.hidden = tripOn || popOpen || (at && distKm(at, { lat: c.lat, lon: c.lng }) < Math.max(0.3, radiusKm() / 3));
 }
 map.on('moveend', updateHereBtn);
+// medan en punkts ruta är öppen göms knappen, så att den inte skymmer rutan
+let popOpen = false;
+map.on('popupopen', () => { popOpen = true; hereBtn.hidden = true; });
+map.on('popupclose', () => { popOpen = false; updateHereBtn(); });
 hereBtn.onclick = () => {
   const c = map.getCenter();
   exploreAt = { lat: c.lat, lon: c.lng };
@@ -1615,15 +1621,17 @@ function showSpeciesOnMap(it) {
     exploreAt = { lat: at.lat, lon: at.lon };
     exploreDot.setLatLng([at.lat, at.lon]); exploreCircle.setLatLng([at.lat, at.lon]);
     if (mode !== 'explore') setMode('explore'); else { exploreDot.addTo(map); exploreCircle.addTo(map); }
+    pendingFit = true;
     applyFilter(); markRows(); exploreFetch();
-    setTimeout(() => { map.invalidateSize(); fitView(); scrollToMap(); }, 350);
+    setTimeout(() => { map.invalidateSize(); fitView(); fitSelection(); scrollToMap(); }, 350);
     return;
   }
   if (mode !== 'gps') setMode('gps');
+  pendingFit = true;
   applyFilter();
-  markRows(); showSelection(false);
+  markRows(); showSelection(true);
   // sidbytet (hashchange) skrollar upp till toppen, så kartan visas först när det är gjort
-  setTimeout(() => { map.invalidateSize(); fitView(); scrollToMap(); }, 350);
+  setTimeout(() => { map.invalidateSize(); fitView(); fitSelection(); scrollToMap(); }, 350);
 }
 function selectSpecies(it) {
   if (String(selected?.key) === String(it.key)) { clearSelection(); return; }
@@ -1684,10 +1692,19 @@ async function showSelection(fit) {
   const shown = recs.length < total ? `${fmtN(recs.length)} av ${fmtN(total)}` : fmtN(total);
   showHint(`<b>${esc(selected.name)}</b> · ${shown} obs.<button title="Avmarkera">✕</button>`);
   hint.getContainer().querySelector('button').onclick = () => clearSelection();
-  if (fit && recs.length) {
-    follow = false;
-    map.panTo([at.lat, at.lon]);
-  }
+  selBounds = recs.length ? L.latLngBounds(recs.map(r => [r.decimalLatitude, r.decimalLongitude])) : null;
+  selBoundsKey = selected.key;
+  if (fit || pendingFit) { pendingFit = false; fitSelection(); }
+}
+// När man väljer en art ska alla dess punkter synas: kartan zoomar ut eller flyttas om det behövs, men zoomar aldrig in.
+let selBounds = null, selBoundsKey = null, pendingFit = false;
+function fitSelection() {
+  if (!selBounds || selBoundsKey !== selected?.key) return;
+  const pad = { paddingTopLeft: [50, 56], paddingBottomRight: [20, 44] };
+  const inner = map.getBounds().pad(-0.06);
+  if (inner.contains(selBounds)) return;
+  follow = false;
+  map.fitBounds(selBounds, { ...pad, maxZoom: map.getZoom() });
 }
 
 // ---- Resan: GPS, när den ska hämta, och skydd mot felaktiga positioner ----
