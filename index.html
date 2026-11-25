@@ -303,12 +303,16 @@
   .homecard h2 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
   .homecard h2 small { text-transform: none; letter-spacing: 0; font-weight: 400; }
   .featured { padding: 0; overflow: hidden; cursor: pointer; }
+  .featured .fpic { position: relative; }
   .featured .fimg { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; display: block; background: var(--line); }
+  .featured .fhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .featured .fshow { flex: none; font-weight: 700; letter-spacing: .04em; }
   .featured .fbody { padding: 12px 14px 14px; }
   .featured .kicker { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
-  .featured .fname { font-size: 1.5rem; font-weight: 700; line-height: 1.15; margin: 2px 0 6px; }
+  .featured .fname { font-size: 1.5rem; font-weight: 700; line-height: 1.15; margin: 2px 0 0; min-width: 0; }
   .featured .fmeta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: .85rem; color: var(--muted); }
-  .featured .credit { font-size: .7rem; color: var(--muted); padding: 4px 14px 0; }
+  .featured .credit { position: absolute; left: 0; right: 0; bottom: 0; font-size: .62rem; color: rgba(255,255,255,.8); padding: 14px 10px 4px; text-align: right;
+    background: linear-gradient(transparent, rgba(0,0,0,.45)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .featured .credit a { color: inherit; }
   .rlist { list-style: none; margin: 0; padding: 0; }
   .rlist li { display: flex; align-items: center; gap: 10px; padding: 7px 2px; border-top: 1px solid var(--line); cursor: pointer; }
@@ -2632,16 +2636,17 @@ async function renderHome() {
   // utvald: en av de ovanligaste arterna nära dig, med bild
   const f = h.featured, el = $('featured');
   if (!f) { el.innerHTML = '<div class="fbody"><div class="kicker">Utvalt nära dig</div><p class="muted">Inga fynd inom 10 km den senaste månaden.</p></div>'; return; }
-  const r = rarityOf(f.key), th = THREAT[redlist[f.key]];
-  const meta = `${r ? `<span class="rare ${r.cls}">${r.label}</span>` : ''}${th ? `<b class="badge ${th.code.toLowerCase()}">${th.code}</b>` : ''}<span>${fmtN(f.n)} obs. inom 10 km senaste månaden</span>`;
-  const body = `<div class="fbody"><div class="kicker">Utvalt nära dig</div><div class="fname">${esc(nameOf(f.key))}</div><div class="fmeta">${meta}</div></div>`;
+  const it = { key: f.key, swe: names[f.key]?.swe, sci: names[f.key]?.sci, n: f.n, gid: f.gid, where: 'inom 10 km senaste 30 dagarna', showAt: { km: HOME_KM, days: HOME_DAYS } };
+  const body = `<div class="fbody"><div class="kicker">Utvalt nära dig</div><div class="fhead"><div class="fname">${esc(nameOf(f.key))}</div>`
+    + `<button class="primary fshow" type="button">VISA FYND</button></div></div>`;
+  // knappen går direkt till kartan, resten av kortet öppnar artinfon
+  el.onclick = e => e.target.closest('.fshow') ? showSpeciesOnMap(it) : openInfo(it);
   el.innerHTML = body;
-  el.onclick = () => openInfo({ key: f.key, swe: names[f.key]?.swe, sci: names[f.key]?.sci, n: f.n, gid: f.gid, where: 'inom 10 km senaste 30 dagarna', showAt: { km: HOME_KM, days: HOME_DAYS } });
   try {
     const info = await speciesInfo(f.key, names[f.key]?.sci);
     if (homeRes !== h || !info.img) return;
-    el.innerHTML = `<img class="fimg" src="${esc(info.img.src)}" alt="${esc(nameOf(f.key))}">`
-      + `<div class="credit">Foto: <a href="${esc(info.img.page)}" target="_blank" rel="noopener">${esc(info.img.artist)}</a>${info.img.license ? ` · ${esc(info.img.license)}` : ''} · Wikimedia Commons</div>` + body;
+    el.innerHTML = `<div class="fpic"><img class="fimg" src="${esc(info.img.src)}" alt="${esc(nameOf(f.key))}">`
+      + `<div class="credit">Foto: <a href="${esc(info.img.page)}" target="_blank" rel="noopener">${esc(info.img.artist)}</a>${info.img.license ? ` · ${esc(info.img.license)}` : ''} · Wikimedia Commons</div></div>` + body;
     el.querySelector('.credit a').onclick = e => e.stopPropagation();
   } catch {}
 }
