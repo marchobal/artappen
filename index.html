@@ -109,7 +109,6 @@
   .mapseg button + button { border-left: 1px solid var(--line); }
   .mapseg button.on { background: var(--accent); color: #fff; }
   .mapseg button[data-mode=explore].on { background: var(--explore); }
-  .radiusseg button { padding: 5px 9px; font-size: .78rem; }
   .maphint { background: var(--card); color: var(--text); border-radius: 8px; padding: 5px 10px; font-size: 12.5px;
              box-shadow: 0 1px 5px rgba(0,0,0,.25); max-width: 260px; }
   .maphint b { color: var(--sel); }
@@ -475,6 +474,7 @@
           <button class="primary" id="yearPickDone">Klar</button>
         </div>
       </div>
+      <div class="seg radiusseg" id="radiusSeg" role="group" aria-label="Avstånd" title="Hur långt runt dig arterna räknas"></div>
     </div>
   </header>
 
@@ -1425,17 +1425,9 @@ modeCtl.onAdd = () => {
 };
 modeCtl.addTo(map);
 
-// Radien: en liten knapprad nere till höger på kartan
-const radiusCtl = L.control({ position: 'bottomright' });
-radiusCtl.onAdd = () => {
-  const d = L.DomUtil.create('div', 'mapseg radiusseg');
-  d.title = 'Hur långt runt dig arterna räknas';
-  d.innerHTML = RADII.map(k => `<button data-km="${k}">${k}${k === RADII.at(-1) ? ' km' : ''}</button>`).join('');
-  L.DomEvent.disableClickPropagation(d);
-  d.onclick = e => { const b = e.target.closest('button'); if (b) setRadius(+b.dataset.km); };
-  return d;
-};
-radiusCtl.addTo(map);
+// Radien: en knapprad under tidsknapparna
+$('radiusSeg').innerHTML = RADII.map(k => `<button data-km="${k}">${k} km</button>`).join('');
+$('radiusSeg').onclick = e => { const b = e.target.closest('button'); if (b) setRadius(+b.dataset.km); };
 function setRadius(km) {
   if (km === radiusKm()) return;
   filter.km = km;
@@ -1485,8 +1477,13 @@ function setMode(m) {
   if (mode === 'explore') {
     follow = false;
     radiusCircle.remove();
+    // med en vald art börjar utforskandet där kartan står, så att arten syns kvar
+    if (!exploreAt && selected) {
+      const c = map.getCenter(); exploreAt = { lat: c.lat, lon: c.lng };
+      exploreDot.setLatLng(c); exploreCircle.setLatLng(c); exploreFetch();
+    }
     if (exploreAt) { exploreDot.addTo(map); exploreCircle.addTo(map); fitRing(exploreAt.lat, exploreAt.lon); }
-    showHint(exploreAt ? null : selected ? `Tryck på kartan där du vill se <b>${esc(selected.name)}</b>.` : 'Tryck på kartan där du vill utforska.');
+    showHint(exploreAt ? null : 'Tryck på kartan där du vill utforska.');
   } else {
     showHint(null);
     exploreDot.remove(); exploreCircle.remove();
