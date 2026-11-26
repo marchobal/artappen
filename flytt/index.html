@@ -415,8 +415,8 @@ function poke(e) {
     setCalm(true);
   }, 5000);
 }
-// Helskärm döljer telefonens systemrader (klocka, bakåtknappar). Den måste startas av ett tryck,
-// så den slås på när man trycker bort reglagen på en pekskärm, eller med knappen i panelen.
+// Helskärm döljer telefonens systemrader (klocka, bakåtknappar). Den slås bara på med knappen i panelen,
+// eftersom Android annars visar en ruta om hur man avslutar helskärm varje gång man trycker på kartan.
 // iPhone tillåter inte helskärm för webbsidor – där fungerar Artappen från hemskärmen i stället.
 const root = document.documentElement;
 const canFS = !!(root.requestFullscreen || root.webkitRequestFullscreen);
@@ -441,11 +441,10 @@ function monthLabels() {
 monthLabels();
 window.addEventListener('resize', monthLabels);
 fsBtn.onclick = toggleFS;
-const touch = matchMedia('(pointer: coarse)').matches;
 
 map.on('click', () => {
   if (calm) { manual = false; poke(); }
-  else { manual = true; clearTimeout(calmTimer); setCalm(true); if (touch) enterFS(); }
+  else { manual = true; clearTimeout(calmTimer); setCalm(true); }
 });
 ['pointermove', 'pointerdown', 'keydown', 'wheel'].forEach(t => addEventListener(t, poke, { passive: true }));
 poke();
