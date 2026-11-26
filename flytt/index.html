@@ -124,7 +124,7 @@
     <div class="group">År
       <button data-years="all" class="on">alla</button><button data-years="2000">från 2000</button><button data-years="10">senaste 10</button>
     </div>
-    <span class="links"><a class="moln" id="moln" href="moln.html">3D-moln →</a><a class="moln" id="glob" href="glob.html">Jordgloben →</a></span>
+    <span class="links"><a class="moln" id="moln" href="moln.html">3D-moln →</a><a class="moln" id="glob" href="glob.html">Jordgloben →</a><a class="moln" id="sork" href="sork.html" hidden>Sorkvågen →</a></span>
   </div>
   <div class="note">Varje prick är ett fynd i Artportalen. Alla år läggs i samma år, och fynden tänds på sin dag och bleknar sedan.
     Prickarna visar var folk har <em>rapporterat</em> arten, så det blir många nära orter och fågelstationer och få i glest befolkade fjäll.
@@ -281,6 +281,7 @@ async function load(key) {
   document.getElementById('art').value = sp.key;
   document.getElementById('moln').href = `moln.html?art=${sp.key}`;
   document.getElementById('glob').href = `glob.html?art=${sp.key}`;
+  document.getElementById('sork').hidden = String(sp.key) !== '2497522';   // lappugglan följer sorkcyklerna
   const src = document.getElementById('source');
   src.textContent = 'Data: GBIF.org, Artportalen (SLU Artdatabanken), CC0';
   if (data.doi) {

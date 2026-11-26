@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#05070d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Sorkvågen · Lappugglan</title>
+<style>
+  :root {
+    --bg: #05070d;
+    --panel: rgba(8, 12, 22, 0.78);
+    --text: #e8ecf5;
+    --muted: #8d97ad;
+    --border: #8fa6c8;
+    --sork: #e9b75c;
+    --uggla: #ff7aa8;
+    --lammel: #9fc6ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+  #map { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+  .head { position: absolute; top: max(14px, env(safe-area-inset-top)); left: 16px; z-index: 5; max-width: 340px;
+    text-shadow: 0 1px 8px #000; }
+  .back { display: inline-block; color: var(--muted); font-size: 13px; text-decoration: none; margin-bottom: 4px; }
+  .back:hover { color: var(--text); }
+  .head h1 { margin: 0; font-size: 15px; font-weight: 500; letter-spacing: 0.3px; color: var(--border); }
+  .head .sub { color: var(--muted); font-size: 12px; margin-top: 3px; line-height: 1.4; }
+  .legend { margin-top: 10px; display: grid; gap: 4px; font-size: 12px; color: var(--text); opacity: .85; }
+  .legend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 7px; }
+
+  .now { position: absolute; top: max(14px, env(safe-area-inset-top)); right: 18px; z-index: 5; text-align: right;
+    pointer-events: none; text-shadow: 0 1px 8px #000; }
+  .now .season { font-size: 22px; color: var(--border); font-variant-numeric: tabular-nums; letter-spacing: .5px; }
+  .now .phase { font-size: 14px; margin-top: 6px; transition: color .8s ease, opacity .5s ease; }
+  .now .nums { font-size: 11px; color: var(--muted); margin-top: 4px; font-variant-numeric: tabular-nums; }
+
+  .panel { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(14px, env(safe-area-inset-bottom));
+    width: min(900px, calc(100% - 24px)); z-index: 5; background: var(--panel); backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 10px 12px 8px; }
+  .row { display: flex; align-items: center; gap: 10px; }
+  button { font: inherit; color: var(--text); background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px; padding: 4px 10px; cursor: pointer; font-size: 12px; }
+  button.on { background: var(--border); border-color: var(--border); color: #061021; font-weight: 600; }
+  #play { width: 44px; height: 44px; padding: 0; font-size: 18px; flex: none; }
+  .wave { position: relative; flex: 1; height: 38px; cursor: pointer; touch-action: none; }
+  #wave { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .opts { margin-top: 8px; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
+  .group { display: flex; align-items: center; gap: 6px; }
+  .note { margin-top: 6px; font-size: 11px; color: var(--muted); line-height: 1.4; }
+  .loading { position: absolute; inset: 0; display: grid; place-items: center; z-index: 9; color: var(--muted); font-size: 14px; }
+
+  .tuner { position: absolute; z-index: 8; right: 12px; top: 110px; width: 260px; max-height: calc(100% - 330px); overflow: auto;
+    background: rgba(8,12,22,0.9); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 10px 12px; font-size: 12px; }
+  .tuner .th { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .tuner label { display: block; margin: 7px 0; color: var(--muted); }
+  .tuner label span { display: flex; justify-content: space-between; }
+  .tuner em { font-style: normal; color: var(--text); font-variant-numeric: tabular-nums; }
+  .tuner input[type=range] { width: 100%; accent-color: var(--uggla); }
+  .tuner .tb { display: flex; gap: 6px; margin-top: 8px; }
+  .tuner textarea { width: 100%; margin-top: 6px; font: 11px ui-monospace, monospace; color: var(--text); background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 5px; resize: none; }
+  .tuner.min { width: auto; }
+  .tuner.min label, .tuner.min .tb, .tuner.min textarea { display: none; }
+  .tuner.min .th { margin: 0; } .tuner.min .th b { display: none; }
+
+  /* lugnt läge: all text och alla reglage tonas bort */
+  .head, .now, .panel, .tuner { transition: opacity .6s ease; }
+  body.calm .head, body.calm .now, body.calm .panel, body.calm .tuner { opacity: 0; pointer-events: none; }
+  #map { cursor: pointer; }
+
+  @media (max-width: 600px) {
+    .tuner { left: 10px; right: 10px; width: auto; top: auto; bottom: 196px; max-height: 30vh; background: rgba(8,12,22,0.82); }
+    .tuner.min { left: auto; }
+    .head { max-width: 58vw; }
+    .head .sub { display: none; }
+    .legend { font-size: 11px; }
+    .now .season { font-size: 18px; }
+    .now .phase { font-size: 13px; max-width: 42vw; margin-left: auto; }
+    #play { width: 38px; height: 38px; font-size: 15px; }
+    .note { display: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="map"></canvas>
+<div class="loading" id="loading">Hämtar data …</div>
+
+<div class="head">
+  <a class="back" href="./?art=2497522">← Flyttfåglar</a>
+  <h1>Sorkvågen</h1>
+  <div class="sub">Lappugglan lever av sork. När sorken kraschar i norr drar ugglorna söderut för att hitta mat.</div>
+  <div class="legend">
+    <span><i style="background:var(--sork)"></i>Sork i Vindeln</span>
+    <span><i style="background:var(--lammel); height:2px; opacity:.8"></i>Lämlar i fjällen</span>
+    <span><i style="background:var(--uggla)"></i>Lappugglor, fynd i Artportalen</span>
+  </div>
+</div>
+<div class="now">
+  <div class="season" id="season"></div>
+  <div class="phase" id="phase"></div>
+  <div class="nums" id="nums"></div>
+</div>
+
+<div class="panel">
+  <div class="row">
+    <button id="play" aria-label="Pausa">❚❚</button>
+    <div class="wave" id="waveBox"><canvas id="wave"></canvas></div>
+  </div>
+  <div class="row opts">
+    <div class="group">Fart
+      <button data-speed="0.65">lugn</button><button data-speed="1" class="on">normal</button><button data-speed="1.7">snabb</button>
+    </div>
+  </div>
+  <div class="note">Prickarna på kartan är fynd av lappuggla i Artportalen som tänds och bleknar. Linjen och den vita punkten visar var fynden har sin mitt, i nord–syd och öst–väst.
+    Mätaren till höger visar sorkindex från SLU:s fångster i Vindeln (och lämlar i Ammarnäs) vår och höst, med en markering för senaste toppen.
+    Texten om invasion bygger på antalet 10 km-rutor med lappuggla söder om 60° N, i förhållande till hur mycket fåglar som rapporterats där.
+    <span id="source"></span></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const DAY = 86400000;
+const MONTHS = ['jan','feb','mar','apr','maj','jun','jul','aug','sep','okt','nov','dec'];
+// Inställningar. Med ?justera i adressen visas reglage för dem.
+const P = {
+  fart: 150,        // dagar per sekund vid normal fart (ungefär 2,5 s per år)
+  vinter: 0.8,      // fartfaktor okt–mar
+  sommar: 1.35,     // fartfaktor apr–sep
+  efterglod: 60,    // dagar som en prick lyser
+  styrka: 0.55,     // prickarnas ljusstyrka
+  prick: 2.6,       // prickens minsta radie (px)
+  glod: 5.5,        // extra glödradie när pricken är ny (px)
+  utjamning: 1,     // utjämning av invasionsmåttet (månader åt varje håll)
+  linje: 0.06,      // hur snabbt mittlinjen följer fynden
+  invasion: 0.11,   // andel av ugglevågens topp som räknas som invasion
+  trog: 0.08,       // hur trögt mätarstapeln följer sorkindex (lägre = mjukare)
+  toppfall: 1.2,    // hur fort toppmarkeringen sjunker (index per sekund)
+  stapelglod: 14,   // mätarstapelns mjuka glöd (px)
+  punkt: 0.06,      // hur snabbt punkten följer fyndens mitt i öst–väst
+};
+
+let D, T0, TMAX, sweden, swedenImg;
+let t = 0, playing = true, speed = 1, last = 0, dragging = false;
+let lineLat = 62, lineLon = 16, phaseText = '';
+let textA = 1;   // text på kartan tonas bort i lugnt läge
+
+const map = $('map'), mctx = map.getContext('2d');
+const wave = $('wave'), wctx = wave.getContext('2d');
+
+// ---------- projektion ----------
+const LON0 = 17, K = Math.cos(62 * Math.PI / 180);
+let proj = { s: 1, x0: 0, y0: 0 }, bars = { x: 0, w: 0 };
+function fitMap() {
+  const dpr = devicePixelRatio || 1;
+  map.width = innerWidth * dpr; map.height = innerHeight * dpr;
+  const panelTop = document.querySelector('.panel').getBoundingClientRect().top;
+  const top = innerWidth < 600 ? 92 : 84, bottom = panelTop - 16;
+  const w = innerWidth, h = Math.max(120, bottom - top);
+  const bx = [(10.6 - LON0) * K, (24.3 - LON0) * K], by = [-69.2, -55.2];
+  // kartan och sorkstaplarna bredvid varandra, centrerade som en grupp
+  const colW = w < 600 ? 78 : 120, gap = w < 600 ? 10 : 40;
+  const s = Math.min((w * 0.94 - colW - gap) / (bx[1] - bx[0]), h / (by[1] - by[0]));
+  const groupW = s * (bx[1] - bx[0]) + gap + colW, left = (w - groupW) / 2;
+  proj = { s: s * dpr, x0: (left - s * bx[0]) * dpr, y0: (top + h / 2 - s * (by[0] + by[1]) / 2) * dpr };
+  bars = { x: (left + s * (bx[1] - bx[0]) + gap) * dpr, w: colW * dpr };
+  renderSweden();
+}
+const px = lon => proj.x0 + (lon - LON0) * K * proj.s;
+const py = lat => proj.y0 - lat * proj.s;
+
+function renderSweden() {
+  swedenImg = document.createElement('canvas');
+  swedenImg.width = map.width; swedenImg.height = map.height;
+  const c = swedenImg.getContext('2d');
+  c.beginPath();
+  for (const poly of sweden) for (const ring of poly) {
+    ring.forEach(([lo, la], i) => i ? c.lineTo(px(lo), py(la)) : c.moveTo(px(lo), py(la)));
+    c.closePath();
+  }
+  c.fillStyle = 'rgba(143,166,200,0.06)'; c.fill();
+  c.strokeStyle = 'rgba(143,166,200,0.55)'; c.lineWidth = 1 * (devicePixelRatio || 1); c.stroke();
+}
+
+// ---------- vågdiagrammet ----------
+let wv = {};
+function fitWave() {
+  const dpr = devicePixelRatio || 1, r = $('waveBox').getBoundingClientRect();
+  wave.width = r.width * dpr; wave.height = r.height * dpr;
+  wv = { dpr, w: r.width * dpr, h: r.height * dpr, pad: 12 * dpr, mid: r.height * dpr * 0.52, lab: 14 * dpr };
+}
+const wx = tt => wv.pad + (tt / TMAX) * (wv.w - 2 * wv.pad);
+
+// mjuk kurva genom punkter (Catmull-Rom)
+function smooth(ctx, P) {
+  ctx.moveTo(P[0][0], P[0][1]);
+  for (let i = 0; i < P.length - 1; i++) {
+    const p0 = P[Math.max(0, i - 1)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(P.length - 1, i + 2)];
+    ctx.bezierCurveTo(p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6,
+                      p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6, p2[0], p2[1]);
+  }
+}
+
+let sorkMax, owlMax, owlS, lamMax;
+function drawWave() {
+  // smal tidslinje: år, spelat avsnitt och en vit punkt där vi är
+  const c = wctx, { w, h, dpr } = wv;
+  c.clearRect(0, 0, w, h);
+  const y = h * 0.38, head = wx(t);
+  c.fillStyle = 'rgba(143,166,200,0.25)'; c.beginPath(); c.roundRect(wx(0), y - 1.5 * dpr, wx(TMAX) - wx(0), 3 * dpr, 1.5 * dpr); c.fill();
+  c.fillStyle = 'rgba(232,236,245,0.75)'; c.beginPath(); c.roundRect(wx(0), y - 1.5 * dpr, head - wx(0), 3 * dpr, 1.5 * dpr); c.fill();
+  const y0 = new Date(T0).getFullYear(), step = w / dpr < 520 ? 4 : 2;
+  c.font = `${10 * dpr}px -apple-system, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'bottom';
+  for (let yr = y0 + 1; ; yr++) {
+    const tt = (Date.UTC(yr, 0, 1) - T0) / DAY; if (tt > TMAX) break;
+    const x = wx(tt);
+    c.fillStyle = 'rgba(143,166,200,0.35)'; c.fillRect(x - 0.5 * dpr, y + 4 * dpr, 1 * dpr, 3 * dpr);
+    if (yr % step === 0) { c.fillStyle = '#8d97ad'; c.fillText(yr, x, h); }
+  }
+  c.fillStyle = '#fff'; c.beginPath(); c.arc(head, y, 6 * dpr, 0, 7); c.fill();
+}
+
+// ugglekurvan jämnas ut med en triangelvikt över P.utjamning månader åt varje håll
+function smoothOwls() {
+  const n = Math.round(P.utjamning), a = D.south;
+  owlS = a.map((_, i) => { let s = 0, w = 0; for (let k = -n; k <= n; k++) { const v = a[i + k]; if (v == null) continue; const q = n + 1 - Math.abs(k); s += v * q; w += q; } return s / w; });
+  owlMax = Math.max(...owlS);
+}
+
+// ---------- reglage (?justera) ----------
+const TUNE = [
+  ['fart', 'Tempo (dagar/s)', 50, 400, 5], ['vinter', 'Fart på vintern', 0.3, 1.5, 0.05], ['sommar', 'Fart på sommaren', 0.5, 3, 0.05],
+  ['efterglod', 'Efterglöd (dagar)', 10, 180, 5], ['styrka', 'Glödens styrka', 0.1, 1, 0.05], ['prick', 'Prickens storlek', 0.5, 6, 0.1],
+  ['glod', 'Glödens radie', 0, 14, 0.5], ['utjamning', 'Utjämning för invasionstexten (mån)', 0, 4, 1],
+  ['linje', 'Mittlinjens följsamhet', 0.01, 0.3, 0.01], ['invasion', 'Gräns för invasion', 0.03, 0.4, 0.01],
+  ['trog', 'Mätarens tröghet', 0.01, 0.5, 0.01], ['toppfall', 'Toppmarkeringens fall', 0.1, 6, 0.1], ['stapelglod', 'Mätarens glöd', 0, 40, 1], ['punkt', 'Punktens följsamhet', 0.01, 0.3, 0.01],
+];
+function tuner() {
+  const box = document.createElement('div'); box.className = 'tuner';
+  const start = { ...P };
+  box.innerHTML = '<div class="th"><b>Justera</b><button id="tclose">Dölj</button></div>' + TUNE.map(([k, label, lo, hi, st]) =>
+    `<label><span>${label}<em id="tv-${k}"></em></span><input type="range" min="${lo}" max="${hi}" step="${st}" value="${P[k]}" data-k="${k}"></label>`).join('') +
+    '<div class="tb"><button id="tcopy">Kopiera värden</button><button id="treset">Återställ</button></div><textarea id="tout" readonly rows="3"></textarea>';
+  document.body.appendChild(box);
+  const show = () => {
+    for (const [k] of TUNE) $('tv-' + k).textContent = String(P[k]).replace('.', ',');
+    $('tout').value = 'Sorkvågen: ' + TUNE.map(([k]) => `${k} ${P[k]}`).join(', ');
+  };
+  box.querySelectorAll('input').forEach(inp => inp.oninput = () => { P[inp.dataset.k] = +inp.value; if (inp.dataset.k === 'utjamning') smoothOwls(); show(); });
+  $('tcopy').onclick = async () => {
+    try { await navigator.clipboard.writeText($('tout').value); $('tcopy').textContent = 'Kopierat!'; }
+    catch { $('tout').select(); $('tcopy').textContent = 'Markerat – kopiera själv'; }
+    setTimeout(() => $('tcopy').textContent = 'Kopiera värden', 2000);
+  };
+  $('treset').onclick = () => { Object.assign(P, start); box.querySelectorAll('input').forEach(i => i.value = P[i.dataset.k]); smoothOwls(); show(); };
+  $('tclose').onclick = () => { box.classList.toggle('min'); $('tclose').textContent = box.classList.contains('min') ? 'Justera' : 'Dölj'; };
+  show();
+}
+
+const monthT = i => { const d = new Date(T0); return (Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + i, 15) - T0) / DAY; };
+
+// mjukt värde på en kurva vid tiden tt (Catmull-Rom mellan mätningarna, aldrig under noll)
+function soft(series, tt) {
+  const n = series.length;
+  if (tt <= series[0][0]) return series[0][1];
+  if (tt >= series[n - 1][0]) return series[n - 1][1];
+  let i = 1; while (series[i][0] < tt) i++;
+  const p0 = series[Math.max(0, i - 2)][1], p1 = series[i - 1][1], p2 = series[i][1], p3 = series[Math.min(n - 1, i + 1)][1];
+  const u = (tt - series[i - 1][0]) / (series[i][0] - series[i - 1][0]);
+  const v = 0.5 * (2 * p1 + (-p0 + p2) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u * u + (-p0 + 3 * p1 - 3 * p2 + p3) * u * u * u);
+  return Math.max(0, v);
+}
+
+// ---------- sorkmätaren ----------
+// En stapel för sorken och en smalare för lämlarna som åker upp och ner som en nivåmätare (rak skala),
+// med en toppmarkering som sjunker sakta.
+const meter = { sork: 0, lam: 0, sorkTop: 0, lamTop: 0 };
+function updateMeter(dt) {
+  const k = 1 - Math.pow(1 - P.trog, dt * 60);   // samma tröghet oavsett bildfrekvens
+  meter.sork += (soft(D.sork, t) - meter.sork) * k;
+  meter.lam += (soft(D.lammel, t) - meter.lam) * k;
+  meter.sorkTop = Math.max(meter.sork, meter.sorkTop - P.toppfall * dt);
+  meter.lamTop = Math.max(meter.lam, meter.lamTop - P.toppfall * dt);
+}
+function drawBars() {
+  const c = mctx, dpr = devicePixelRatio || 1;
+  const yTop = py(69), yBase = py(55.3), H = yBase - yTop;
+  const bw = Math.min(bars.w * 0.42, 28 * dpr), lw = Math.min(bars.w * 0.16, 10 * dpr), gap = Math.min(bars.w * 0.1, 8 * dpr);
+  const xs = bars.x + bars.w - bw - lw - gap, xl = xs + bw + gap;
+  const h = v => Math.min(H, (v / sorkMax) * H);
+
+  // skala: svaga streck vid var femte indexenhet
+  c.font = `${9 * dpr}px -apple-system, sans-serif`; c.textAlign = 'right'; c.textBaseline = 'middle';
+  for (let v = 0; v <= sorkMax; v += 5) {
+    const y = yBase - h(v);
+    c.fillStyle = 'rgba(143,166,200,0.18)'; c.fillRect(xs - 4 * dpr, y, bw + lw + gap + 4 * dpr, 1 * dpr);
+    c.fillStyle = 'rgba(141,151,173,0.7)'; c.globalAlpha = textA; c.fillText(v, xs - 7 * dpr, y); c.globalAlpha = 1;
+  }
+  // rännor
+  c.fillStyle = 'rgba(255,255,255,0.035)';
+  c.beginPath(); c.roundRect(xs, yTop, bw, H, [bw / 2, bw / 2, 0, 0]); c.fill();
+  c.beginPath(); c.roundRect(xl, yTop, lw, H, [lw / 2, lw / 2, 0, 0]); c.fill();
+
+  const bar = (x, w, v, top, rgb, light) => {
+    const hh = Math.max(2 * dpr, h(v));
+    const g = c.createLinearGradient(0, yBase - hh, 0, yBase);
+    g.addColorStop(0, `rgba(${light},0.95)`); g.addColorStop(0.35, `rgba(${rgb},0.75)`); g.addColorStop(1, `rgba(${rgb},0.15)`);
+    c.save(); c.shadowColor = `rgba(${rgb},0.55)`; c.shadowBlur = P.stapelglod * dpr;
+    c.fillStyle = g; c.beginPath(); c.roundRect(x, yBase - hh, w, hh, [Math.min(w / 2, hh), Math.min(w / 2, hh), 0, 0]); c.fill(); c.restore();
+    // toppmarkering
+    const yt = yBase - h(top);
+    c.fillStyle = `rgba(${light},0.75)`; c.beginPath(); c.roundRect(x, yt - 1.5 * dpr, w, 3 * dpr, 1.5 * dpr); c.fill();
+  };
+  bar(xs, bw, meter.sork, meter.sorkTop, '233,183,92', '250,214,140');
+  bar(xl, lw, meter.lam, meter.lamTop, '159,198,255', '205,225,255');
+
+  c.font = `${10 * dpr}px -apple-system, sans-serif`; c.textBaseline = 'top'; c.textAlign = 'center';
+  c.globalAlpha = textA; c.fillStyle = 'rgba(246,205,120,0.9)'; c.fillText('sork', xs + bw / 2, yBase + 6 * dpr);
+  c.fillStyle = 'rgba(159,198,255,0.9)'; c.textAlign = 'right'; c.fillText('lämmel', xl + lw, yBase + 19 * dpr); c.globalAlpha = 1;
+}
+
+// värde på en kurva vid tiden tt (linjärt mellan mätningarna)
+function at(series, tt) {
+  for (let i = 1; i < series.length; i++) if (series[i][0] >= tt) {
+    const [a, va] = series[i - 1], [b, vb] = series[i];
+    return va + (vb - va) * Math.max(0, Math.min(1, (tt - a) / (b - a)));
+  }
+  return series[series.length - 1][1];
+}
+function owlAt(tt) {
+  let i = 0; while (i < owlS.length - 1 && monthT(i + 1) < tt) i++;
+  const a = monthT(i), b = monthT(i + 1), f = Math.max(0, Math.min(1, (tt - a) / (b - a)));
+  return owlS[i] + ((owlS[i + 1] ?? owlS[i]) - owlS[i]) * f;
+}
+
+// ---------- kartan ----------
+function drawMap() {
+  const c = mctx, dpr = devicePixelRatio || 1;
+  if (map.width !== innerWidth * dpr || !swedenImg.width) fitMap();   // fönstret kan ha varit dolt när sidan laddades
+  if (!swedenImg.width) return;
+  c.clearRect(0, 0, map.width, map.height);
+  c.drawImage(swedenImg, 0, 0);
+
+  // 60° N som referens
+  const y60 = py(60), xl = px(10.8), xr = px(19.6);
+  c.setLineDash([3 * dpr, 4 * dpr]); c.strokeStyle = 'rgba(143,166,200,0.28)'; c.lineWidth = 1 * dpr;
+  c.beginPath(); c.moveTo(xl, y60); c.lineTo(xr, y60); c.stroke(); c.setLineDash([]);
+  c.fillStyle = 'rgba(143,166,200,0.5)'; c.font = `${10 * dpr}px -apple-system, sans-serif`; c.textAlign = 'left'; c.textBaseline = 'bottom';
+  c.globalAlpha = textA; c.fillText('60° N', Math.max(xl, 4 * dpr), y60 - 3 * dpr); c.globalAlpha = 1;
+
+  // prickar: fynd de senaste FADE dagarna
+  const lo = lowerBound(D.t, t - P.efterglod), hi = lowerBound(D.t, t + 0.001);
+  c.globalCompositeOperation = 'lighter';
+  const lats = [], lons = [];
+  for (let i = lo; i < hi; i++) {
+    const age = (t - D.t[i]) / P.efterglod, a = Math.pow(1 - age, 1.6);
+    const x = px(D.lon[i]), y = py(D.lat[i]);
+    const r = (P.prick + P.glod * a) * dpr;
+    const g = c.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(255,190,214,${P.styrka * a})`); g.addColorStop(0.35, `rgba(255,122,168,${P.styrka * 0.58 * a})`); g.addColorStop(1, 'rgba(255,122,168,0)');
+    c.fillStyle = g; c.fillRect(x - r, y - r, 2 * r, 2 * r);
+    lats.push(D.lat[i]); lons.push(D.lon[i]);
+  }
+  c.globalCompositeOperation = 'source-over';
+  drawBars();
+
+  // fyndens mitt som en våg som glider upp och ner
+  if (lats.length >= 3) {
+    lats.sort((a, b) => a - b);
+    const med = lats[lats.length >> 1];
+    lineLat += (med - lineLat) * P.linje;
+    lons.sort((a, b) => a - b);
+    lineLon += (lons[lons.length >> 1] - lineLon) * P.punkt;
+  }
+  const yl = py(lineLat), x1 = px(11.2), x2 = Math.min(px(23.8), bars.x - 8 * (devicePixelRatio || 1));
+  const g = c.createLinearGradient(x1, 0, x2, 0);
+  g.addColorStop(0, 'rgba(255,122,168,0)'); g.addColorStop(0.2, 'rgba(255,122,168,0.55)');
+  g.addColorStop(0.8, 'rgba(255,122,168,0.55)'); g.addColorStop(1, 'rgba(255,122,168,0)');
+  c.strokeStyle = g; c.lineWidth = 1.5 * dpr; c.beginPath(); c.moveTo(x1, yl); c.lineTo(x2, yl); c.stroke();
+  // punkten: fyndens mitt i öst–väst, på mittlinjen
+  const xp = px(lineLon), gp = c.createRadialGradient(xp, yl, 0, xp, yl, 9 * dpr);
+  gp.addColorStop(0, 'rgba(255,255,255,1)'); gp.addColorStop(0.35, 'rgba(255,255,255,0.75)'); gp.addColorStop(1, 'rgba(255,255,255,0)');
+  c.fillStyle = gp; c.beginPath(); c.arc(xp, yl, 9 * dpr, 0, 7); c.fill();
+  c.globalAlpha = textA; c.fillStyle = 'rgba(255,170,200,0.9)'; c.textAlign = 'right'; c.textBaseline = 'bottom'; c.font = `${11 * dpr}px -apple-system, sans-serif`;
+  c.fillText(`fyndens mitt ${lineLat.toFixed(1).replace('.', ',')}° N ${lineLon.toFixed(1).replace('.', ',')}° Ö`, Math.min(x2, map.width - 8 * dpr), yl - 4 * dpr);
+  c.globalAlpha = 1;
+}
+function lowerBound(a, v) { let l = 0, h = a.length; while (l < h) { const m = (l + h) >> 1; if (a[m] < v) l = m + 1; else h = m; } return l; }
+
+// ---------- text ----------
+function updateText() {
+  const d = new Date(T0 + t * DAY), y = d.getUTCFullYear(), m = d.getUTCMonth();
+  const winter = m >= 9 || m <= 2;
+  const ws = m >= 9 ? y : y - 1;
+  $('season').textContent = winter ? `Vinter ${ws}/${String((ws + 1) % 100).padStart(2, '0')}` : `Sommar ${y}`;
+  const v = soft(D.sork, t), slope = at(D.sork, t + 60) - at(D.sork, t - 60), o = owlAt(t);
+  let p, col;
+  if (o > owlMax * P.invasion) { p = 'Sorken har kraschat – ugglorna drar söderut'; col = 'var(--uggla)'; }
+  else if (v > 5) { p = 'Gott om sork i norr'; col = 'var(--sork)'; }
+  else if (slope > 0.6) { p = 'Sorken ökar'; col = 'var(--sork)'; }
+  else if (slope < -0.6) { p = 'Sorken minskar'; col = 'var(--text)'; }
+  else { p = 'Ont om sork'; col = 'var(--muted)'; }
+  if (p !== phaseText) { phaseText = p; $('phase').textContent = p; $('phase').style.color = col; }
+  $('nums').textContent = `${MONTHS[m]} ${y} · sorkindex ${v.toFixed(1).replace('.', ',')}`;
+}
+
+// ---------- uppspelning ----------
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (playing && !dragging) {
+    // lite långsammare på vintern när ugglorna rör sig, snabbare över sommaren
+    const m = new Date(T0 + t * DAY).getUTCMonth();
+    const season = (m >= 9 || m <= 2) ? P.vinter : P.sommar;
+    t += dt * P.fart * speed * season;
+    if (t > TMAX) { t = 0; lineLat = 62; lineLon = 16; }
+  }
+  if (D) updateMeter(dt);
+  textA += ((document.body.classList.contains('calm') ? 0 : 1) - textA) * Math.min(1, dt * 4);
+  if (!wv.w || wave.width !== Math.round($('waveBox').getBoundingClientRect().width * (devicePixelRatio || 1))) fitWave();
+  drawMap(); if (wv.w) drawWave(); updateText();
+  requestAnimationFrame(frame);
+}
+
+function seek(e) {
+  const r = $('waveBox').getBoundingClientRect();
+  const f = Math.max(0, Math.min(1, (e.clientX - r.left - wv.pad / wv.dpr) / (r.width - 2 * wv.pad / wv.dpr)));
+  t = f * TMAX;
+}
+$('waveBox').addEventListener('pointerdown', e => { dragging = true; $('waveBox').setPointerCapture(e.pointerId); seek(e); });
+$('waveBox').addEventListener('pointermove', e => { if (dragging) seek(e); });
+addEventListener('pointerup', () => dragging = false);
+// tryck på kartan: bara kartan och mätaren syns, tills man trycker igen
+let tapStart = null;
+map.addEventListener('pointerdown', e => tapStart = [e.clientX, e.clientY]);
+map.addEventListener('pointerup', e => {
+  if (tapStart && Math.hypot(e.clientX - tapStart[0], e.clientY - tapStart[1]) < 10) document.body.classList.toggle('calm');
+  tapStart = null;
+});
+$('play').onclick = () => { playing = !playing; $('play').textContent = playing ? '❚❚' : '▶'; $('play').ariaLabel = playing ? 'Pausa' : 'Spela'; };
+document.querySelectorAll('[data-speed]').forEach(b => b.onclick = () => {
+  speed = +b.dataset.speed;
+  document.querySelectorAll('[data-speed]').forEach(x => x.classList.toggle('on', x === b));
+});
+addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); $('play').click(); } });
+addEventListener('resize', () => { fitMap(); fitWave(); });
+
+Promise.all([fetch('../data/sork/lappuggla.json').then(r => r.json()), fetch('../data/sverige.json').then(r => r.json())]).then(([d, g]) => {
+  D = d; T0 = Date.parse(d.start);
+  TMAX = Math.max(d.t[d.t.length - 1], monthT(d.south.length - 1));
+  sweden = g.geometry.type === 'Polygon' ? [g.geometry.coordinates] : g.geometry.coordinates;
+  sorkMax = Math.max(...d.sork.map(x => x[1]));
+  smoothOwls();
+  if (location.search.includes('justera')) tuner();
+  $('source').textContent = d.source;
+  $('loading').remove();
+  fitMap(); fitWave();
+  requestAnimationFrame(n => { last = n; frame(n); });
+});
+</script>
+</body>
+</html>
