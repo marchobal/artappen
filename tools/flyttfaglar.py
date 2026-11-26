@@ -25,13 +25,16 @@ status = {}
 for f in sorted(src.glob("*.json")):
     d = json.loads(f.read_text())
     for a in d.get("arter", []) if isinstance(d, dict) else []:
-        if a.get("flytt") and a.get("gbifNycklar"):
+        if isinstance(a, dict) and a.get("flytt") and a.get("gbifNycklar"):
             status[a["namn"]] = a
+
+# Stannfåglar (vinterfåglar) som ändå rör sig synligt över landet, t.ex. lappugglan vissa vintrar
+STANNFAGLAR = {"Lappuggla"}
 
 arter = []
 for a in alla:
     s = status.get(a["namn"])
-    if s and s["flytt"] in ("kortflytt", "långflytt"):
+    if s and (s["flytt"] in ("kortflytt", "långflytt") or (s["flytt"] == "vinterfågel" and a["namn"] in STANNFAGLAR)):
         arter.append({"key": str(s["gbifNycklar"][0]), "namn": a["namn"], "latin": a["latin"],
                       "nummer": a["nummer"], "flytt": s["flytt"],
                       "data": (out.parent / f"{s['gbifNycklar'][0]}.json").exists()})

@@ -106,6 +106,14 @@
    "data": true
   },
   {
+   "key": "2497522",
+   "namn": "Lappuggla",
+   "latin": "Strix nebulosa",
+   "nummer": 125,
+   "flytt": "vinterfågel",
+   "data": true
+  },
+  {
    "key": "2497306",
    "namn": "Hornuggla",
    "latin": "Asio otus",
@@ -152,6 +160,14 @@
    "nummer": 144,
    "flytt": "långflytt",
    "data": true
+  },
+  {
+   "key": "2481047",
+   "namn": "Pilgrimsfalk",
+   "latin": "Falco peregrinus",
+   "nummer": 146,
+   "flytt": "kortflytt",
+   "data": false
   },
   {
    "key": "2490781",
